@@ -1,0 +1,192 @@
+import type {
+  MarketRecommendation,
+  Match,
+  ProfileResult,
+  MarketOdds
+} from '../types'
+import { profileMatch } from './profiling'
+import {
+  calculateEV,
+  estimateProbability,
+  getConfidenceTier,
+  meetsMinimumProbability,
+} from './probability'
+
+interface MarketConfig {
+  primary: string[]
+  secondary: string[]
+  avoid: string[]
+}
+
+const FOOTBALL_MARKETS: Record<string, MarketConfig> = {
+  high_goal: {
+    primary: ['Over 1.5'],
+    secondary: ['BTTS Yes'],
+    avoid: ['Pure Away', 'Over 2.5'],
+  },
+  low_goal: {
+    primary: ['Both Halves Under 1.5 Yes'],
+    secondary: ['Under 2.5'],
+    avoid: ['Over 2.5', 'Over 1.5'],
+  },
+  controlled: {
+    primary: ['Home or Draw'],
+    secondary: ['Asian Handicap -0.5', 'Draw No Bet'],
+    avoid: ['Pure Home', 'Pure Away'],
+  },
+  chaos: {
+    primary: ['Over 1.5', 'Both Halves Under 1.5 Yes'],
+    secondary: ['Over 1.5'],
+    avoid: ['Pure Away', 'Under 2.5'],
+  },
+  balanced: {
+    primary: ['Over 1.5'],
+    secondary: ['Asian Handicap +0.5', 'Home or Draw'],
+    avoid: ['Over 2.5'],
+  },
+}
+
+const BASKETBALL_MARKETS: Record<string, MarketConfig> = {
+  high_scoring: {
+    primary: ['Over Total Points'],
+    secondary: ['Team Over'],
+    avoid: ['Tight Spread', 'Under Total Points'],
+  },
+  low_scoring: {
+    primary: ['Under Total Points'],
+    secondary: ['Team Under'],
+    avoid: ['Over Total Points', 'Team Over'],
+  },
+  controlled_favorite: {
+    primary: ['Spread on Favorite', 'Moneyline (Favorite)'],
+    secondary: ['Asian Handicap'],
+    avoid: ['Big Underdog Moneyline'],
+  },
+  volatile: {
+    primary: ['Over Total Points'],
+    secondary: ['Spread on Underdog'],
+    avoid: ['Tight Spread'],
+  },
+  even_matchup: {
+    primary: ['Over Total Points'],
+    secondary: ['Spread on Underdog', 'Asian Handicap'],
+    avoid: ['Moneyline (Favorite)'],
+  },
+}
+
+const GENERIC_MARKETS: Record<string, MarketConfig> = {
+  generic_favorite: {
+    primary: ['Moneyline (Favorite)', 'Match Winner'],
+    secondary: ['Spread on Favorite', 'Handicap'],
+    avoid: ['Moneyline (Underdog)'],
+  },
+  generic_underdog: {
+    primary: ['Spread on Underdog', 'Handicap (+)', 'Over Total Points'],
+    secondary: ['Moneyline (Underdog)'],
+    avoid: ['Moneyline (Favorite)'],
+  },
+  generic_balanced: {
+    primary: ['Over Total Points', 'Over Total Games', 'Over 1.5'],
+    secondary: ['Moneyline', 'Match Winner'],
+    avoid: ['Under Total Points'],
+  },
+  generic_volatile: {
+    primary: ['Over Total', 'BTTS Yes', 'Any Team to Win'],
+    secondary: ['Spread on Underdog'],
+    avoid: ['Under Total', 'Exact Score'],
+  },
+}
+
+function findOdds(match: Match, market: string): MarketOdds | null {
+  const found = match.availableMarkets.find(
+    (m) => m.market.toLowerCase().includes(market.toLowerCase()) || market.toLowerCase().includes(m.market.toLowerCase())
+  )
+  return found ?? null
+}
+
+function upgradeMarket(market: string, sport: string): string {
+  if ((sport === 'football' || sport === 'soccer') && market === 'Over 2.5') return 'Over 1.5'
+  return market
+}
+
+function buildRationale(
+  profileLabel: string,
+  isPrimary: boolean,
+  probability: number
+): string {
+  const role = isPrimary ? 'Primary' : 'Secondary'
+  return `${role} pick for ${profileLabel}. Est. ${probability.toFixed(1)}% hit rate. Market aligns with profile behavior.`
+}
+
+export function analyzeMatch(match: Match): ProfileResult {
+  const { profile, profileLabel, features } = profileMatch(match)
+  let config: MarketConfig
+
+  const sportLower = match.sport.toLowerCase()
+  if (sportLower === 'football' || sportLower === 'soccer') {
+    config = FOOTBALL_MARKETS[profile]
+  } else if (sportLower === 'basketball') {
+    config = BASKETBALL_MARKETS[profile]
+  } else {
+    config = GENERIC_MARKETS[profile] ?? GENERIC_MARKETS.generic_balanced
+  }
+
+  const candidates = [
+    ...config.primary.map((m) => ({ market: upgradeMarket(m, match.sport), isPrimary: true })),
+    ...config.secondary.map((m) => ({ market: upgradeMarket(m, match.sport), isPrimary: false })),
+  ]
+
+  const recommendations: MarketRecommendation[] = []
+
+  for (const { market, isPrimary } of candidates) {
+    const foundMarket = findOdds(match, market)
+    if (!foundMarket) continue
+
+    const { odds, marketId, outcomeId, specifier } = foundMarket;
+    const probability = estimateProbability(match.sport, profile, market, match, features)
+    if (!meetsMinimumProbability(probability)) continue
+
+    const ev = calculateEV(probability, odds)
+    recommendations.push({
+      market,
+      odds,
+      probability,
+      ev,
+      tier: getConfidenceTier(probability),
+      isPrimary,
+      rationale: buildRationale(profileLabel, isPrimary, probability),
+      marketId,
+      outcomeId,
+      specifier
+    })
+  }
+
+  // Sort purely by the dynamically calculated AI Probability, then EV. No hardcoded biases.
+  recommendations.sort((a, b) => {
+    if (Math.abs(b.probability - a.probability) > 0.5) {
+      return b.probability - a.probability
+    }
+    return b.ev - a.ev
+  })
+
+  return {
+    profile,
+    profileLabel,
+    features,
+    recommendations,
+    avoidMarkets: config.avoid,
+  }
+}
+
+export function getSafestEquivalent(
+  match: Match,
+  _currentMarket: string
+): MarketRecommendation | null {
+  const result = analyzeMatch(match)
+  if (result.recommendations.length === 0) return null
+
+  // Removed hardcoded 'riskyUpgrades'. The AI has already sorted the best, 
+  // most mathematically sound picks to the top based on Form, H2H, and logic.
+  // We simply return the absolute best pick the engine found for this match.
+  return result.recommendations[0]
+}
