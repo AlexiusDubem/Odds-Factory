@@ -116,7 +116,7 @@ function App() {
         </div>
       </header>
 
-      <nav className="border-b border-border bg-surface sticky top-[73px] z-40">
+      <nav className="hidden sm:block border-b border-border bg-surface sticky top-[73px] z-40">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto py-2">
             {TABS.map((tab) => (
@@ -137,7 +137,7 @@ function App() {
         </div>
       </nav>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 pb-24 sm:pb-6">
         {activeTab === 'edit' && (
           <SlipEditorPanel
             matches={sampleMatches}
@@ -156,7 +156,25 @@ function App() {
         )}
       </main>
 
-      <footer className="border-t border-border py-4 text-center text-xs text-slate-500 bg-surface">
+      {/* Mobile Bottom Navigation */}
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 px-2 py-2 z-50 flex justify-around items-center" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex flex-col items-center justify-center w-full py-1.5 rounded-xl transition-colors ${
+              activeTab === tab.id
+                ? 'text-accent'
+                : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <i className={`${tab.icon} text-xl mb-1`}></i>
+            <span className="text-[10px] font-bold tracking-wide">{tab.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <footer className="hidden sm:block border-t border-border py-4 text-center text-xs text-slate-500 bg-surface">
         Odds Factory Logic — June 2026 · Auto-optimization for SportyBet codes
       </footer>
     </div>
