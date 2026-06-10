@@ -240,7 +240,7 @@ const server = http.createServer(async (req, res) => {
   // ── POST /ai-optimize — Gemini real-world form AI Optimizer ───────────────
   if (req.method === 'POST' && req.url === '/ai-optimize') {
     try {
-      const { legs, goal, availableMarkets } = await readBody(req)
+      const { legs, goal } = await readBody(req)
       if (!legs) throw new Error('No legs provided')
 
       console.log(`🧠 Querying Gemini AI for slip optimization (${legs.length} legs) [Goal: ${goal.mode}]…`)
@@ -252,21 +252,22 @@ Goal: ${goal.mode} (Target Odds: ${goal.targetOdds}, Target Survival: ${goal.tar
 Current Slip:
 ${JSON.stringify(legs, null, 2)}
 
-Available Markets per Match:
-${JSON.stringify(availableMarkets, null, 2)}
-
 Mode Definitions:
 - balanced: Maximize EV * Survival probability. Avoid purely suicidal legs, keep positive EV bets with reasonable survival. Drop legs with horrible survival unless EV is astronomically high.
 - target_survival: Keep adding the safest/highest-confidence legs to the slip until the combined probability of the slip hits the targetSurvival (e.g. 10%). Drop all other legs.
 - best_ev: For every leg, swap to the market with the highest mathematical Expected Value. Drop any legs that have negative EV. Do not worry about slip survival.
 - target_odds: Swap legs to lower-risk markets to bring the combined total odds down near targetOdds. If the slip still exceeds targetOdds, drop the riskiest legs entirely until it hits the target. No concern for safety.
 - safe_mode: Score each leg by WinProbability * Confidence. Keep only highly probable markets (e.g., Double Chance, Over 0.5 Goals). Drop legs if probability is < 75%.
-- dreamer: For large accumulators. Preserve high odds, just reduce absolute stupidity. Change "Over 3.5 Goals" to "Over 1.5 Goals", or "Away Win" to "X2". DO NOT drop legs unless absolutely necessary.
+- dreamer: For large accumulators. Preserve high odds, just reduce absolute stupidity. Change "Over 3.5 Goals" to "Over 1.5 Goals", or "Away Win" to "Home or Draw". DO NOT drop legs unless absolutely necessary.
+
+Valid Safe Market Strings you can recommend (Use EXACTLY these names):
+Football: "Over 0.5", "Over 1.5", "Under 3.5", "Under 4.5", "Home or Draw", "Away or Draw", "Draw No Bet", "Both Halves Under 1.5 Yes"
+Basketball: "Over Total Points", "Under Total Points", "Spread on Favorite", "Moneyline"
 
 Instructions:
 1. Analyze the real-world form and risk of these matches.
 2. Strictly follow the Mode Definition for the user's selected goal (${goal.mode}).
-3. Determine the best market and outcome replacement for EACH leg.
+3. Determine the best market string replacement for EACH leg.
 4. If the active Mode Definition dictates a leg should be dropped, mark it as dropped (dropped: true).
 5. Output EXACTLY a JSON array of EditResult objects. No markdown formatting, just raw JSON.
 Format of each EditResult object:
@@ -274,9 +275,7 @@ Format of each EditResult object:
   "legId": "string",
   "changed": true/false,
   "dropped": true/false,
-  "marketId": "string",
-  "outcomeId": "string",
-  "specifier": "string",
+  "market": "string",
   "message": "string"
 }`
 

@@ -1,5 +1,5 @@
 import type { Match, OptimizationGoal, Slip, SlipLeg } from '../types'
-import { analyzeMatch, getSafestEquivalent } from './markets'
+import { analyzeMatch, getSafestEquivalent, findOdds } from './markets'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -253,20 +253,13 @@ export async function optimizeSlipWithGoal(
     previousMarket: undefined,
   }))
 
-  const marketsPayload: Record<string, any[]> = {}
-  freshLegs.forEach(leg => {
-    if (availableMarkets.has(leg.matchId)) {
-      marketsPayload[leg.matchId] = availableMarkets.get(leg.matchId)!
-    }
-  })
-
   const edits: EditResult[] = []
 
   try {
     const response = await fetch('/api/local/ai-optimize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ legs: freshLegs, goal, availableMarkets: marketsPayload })
+      body: JSON.stringify({ legs: freshLegs, goal }),
     })
 
     if (!response.ok) {
@@ -285,50 +278,37 @@ export async function optimizeSlipWithGoal(
         return
       }
 
-      if (!aiEdit.changed || !aiEdit.marketId || !aiEdit.outcomeId) {
+      if (!aiEdit.changed || !aiEdit.market) {
         edits.push({ leg: originalLeg, changed: false, message: aiEdit.message || 'Kept original.' })
         return
       }
 
-      const matchMarkets = marketsPayload[originalLeg.matchId] || []
-      let newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId) && (m.specifier || '') === (aiEdit.specifier || ''))
-      
-      // Fallback: loose matching for specifier
-      if (!newMarketData) {
-         newMarketData = matchMarkets.find((m: any) => 
-           m.id === String(aiEdit.marketId) && 
-           ((m.specifier || '').includes(aiEdit.specifier || '') || (aiEdit.specifier || '').includes(m.specifier || ''))
-         )
-      }
-      
-      // Ultimate fallback: just match the ID and hope the outcome ID is unique enough
-      if (!newMarketData) {
-         newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId))
+      const match = _matches.get(originalLeg.matchId)
+      if (!match) {
+        edits.push({ leg: originalLeg, changed: false, message: 'Match not found in memory.' })
+        return
       }
 
-      if (newMarketData) {
-        const outcome = newMarketData.outcomes?.find((o: any) => o.id === String(aiEdit.outcomeId)) || newMarketData.outcomes?.[0] || { odds: 1.5, id: aiEdit.outcomeId, desc: 'Unknown' }
-        const newOdds = Number(outcome.odds) || 1.5
-        
-        const marketLabel = newMarketData.specifier ? `${newMarketData.desc} (${newMarketData.specifier}) — ${outcome.desc}` : `${newMarketData.desc} — ${outcome.desc}`
-
+      const foundMarket = findOdds(match, aiEdit.market, availableMarkets)
+      
+      if (foundMarket) {
         const newLeg: SlipLeg = {
           ...originalLeg,
-          market: marketLabel,
-          odds: newOdds,
-          probability: Math.min(100, (100 / newOdds) * 0.9),
+          market: foundMarket.market,
+          odds: foundMarket.odds,
+          probability: Math.min(100, (100 / foundMarket.odds) * 0.9),
           wasSwapped: true,
           previousMarket: originalLeg.market,
           rawSelection: {
             ...originalLeg.rawSelection,
-            marketId: newMarketData.id,
-            outcomeId: outcome.id,
-            specifier: newMarketData.specifier || ''
+            marketId: foundMarket.marketId,
+            outcomeId: foundMarket.outcomeId,
+            specifier: foundMarket.specifier || ''
           }
         }
         edits.push({ leg: newLeg, changed: true, previousMarket: originalLeg.market, message: aiEdit.message })
       } else {
-        edits.push({ leg: originalLeg, changed: false, message: `[AI Hallucinated] Could not find exact market ID ${aiEdit.marketId} with specifier ${aiEdit.specifier}. Kept original.` })
+        edits.push({ leg: originalLeg, changed: false, message: `[AI Error] Market "${aiEdit.market}" unavailable in live odds.` })
       }
     })
   } catch (err: any) {

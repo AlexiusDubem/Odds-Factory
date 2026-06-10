@@ -97,7 +97,7 @@ const GENERIC_MARKETS: Record<string, MarketConfig> = {
   },
 }
 
-function findOdds(match: Match, marketName: string, availableMarketsMap?: Map<string, any[]>): MarketOdds | null {
+export function findOdds(match: Match, marketName: string, availableMarketsMap?: Map<string, any[]>): MarketOdds | null {
   if (availableMarketsMap && availableMarketsMap.has(match.id)) {
     const rawMarkets = availableMarketsMap.get(match.id)!
     for (const m of rawMarkets) {
