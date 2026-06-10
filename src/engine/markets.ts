@@ -100,21 +100,26 @@ const GENERIC_MARKETS: Record<string, MarketConfig> = {
 export function findOdds(match: Match, marketName: string, availableMarketsMap?: Map<string, any[]>): MarketOdds | null {
   if (availableMarketsMap && availableMarketsMap.has(match.id)) {
     const rawMarkets = availableMarketsMap.get(match.id)!
+    
+    // Check every market and every outcome to find the closest match
     for (const m of rawMarkets) {
-      if (!m.desc) continue;
+      if (!m.desc || !m.outcomes) continue;
       
-      const isMatch = m.desc.toLowerCase().includes(marketName.toLowerCase()) || marketName.toLowerCase().includes(m.desc.toLowerCase())
-      
-      if (isMatch && m.outcomes && m.outcomes.length > 0) {
-        // Pick the most likely outcome by default for the deterministic engine to avoid dropping
-        const bestOutcome = [...m.outcomes].sort((a: any, b: any) => Number(a.odds) - Number(b.odds))[0]
+      for (const o of m.outcomes) {
+        if (!o.desc) continue;
         
-        return {
-          market: m.specifier ? `${m.desc} (${m.specifier}) — ${bestOutcome.desc}` : `${m.desc} — ${bestOutcome.desc}`,
-          odds: Number(bestOutcome.odds) || 1.5,
-          marketId: m.id,
-          outcomeId: bestOutcome.id,
-          specifier: m.specifier || ''
+        const combinedDesc = `${m.desc} ${o.desc}`.toLowerCase();
+        const searchName = marketName.toLowerCase();
+        
+        // Match if the target market name is found anywhere in the market or outcome
+        if (combinedDesc.includes(searchName) || searchName.includes(o.desc.toLowerCase())) {
+          return {
+            market: m.specifier ? `${m.desc} (${m.specifier}) — ${o.desc}` : `${m.desc} — ${o.desc}`,
+            odds: Number(o.odds || o.odd || o.oddsDecimal || '1.5'),
+            marketId: m.id,
+            outcomeId: o.id,
+            specifier: m.specifier || ''
+          }
         }
       }
     }
