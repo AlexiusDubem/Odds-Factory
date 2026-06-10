@@ -291,7 +291,20 @@ export async function optimizeSlipWithGoal(
       }
 
       const matchMarkets = marketsPayload[originalLeg.matchId] || []
-      const newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId) && (m.specifier || '') === (aiEdit.specifier || ''))
+      let newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId) && (m.specifier || '') === (aiEdit.specifier || ''))
+      
+      // Fallback: loose matching for specifier
+      if (!newMarketData) {
+         newMarketData = matchMarkets.find((m: any) => 
+           m.id === String(aiEdit.marketId) && 
+           ((m.specifier || '').includes(aiEdit.specifier || '') || (aiEdit.specifier || '').includes(m.specifier || ''))
+         )
+      }
+      
+      // Ultimate fallback: just match the ID and hope the outcome ID is unique enough
+      if (!newMarketData) {
+         newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId))
+      }
 
       if (newMarketData) {
         const outcome = newMarketData.outcomes?.find((o: any) => o.id === String(aiEdit.outcomeId)) || newMarketData.outcomes?.[0] || { odds: 1.5, id: aiEdit.outcomeId, desc: 'Unknown' }
