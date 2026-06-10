@@ -10,5 +10,13 @@
       "path": "/api/cron/monitor",
       "schedule": "*/5 * * * *"
     }
-  ]
+  ],
+  "env": {
+    "NODE_OPTIONS": "--no-warnings"
+  },
+  "build": {
+    "env": {
+      "NODE_OPTIONS": "--no-warnings"
+    }
+  }
 }
