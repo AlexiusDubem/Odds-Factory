@@ -97,9 +97,32 @@ const GENERIC_MARKETS: Record<string, MarketConfig> = {
   },
 }
 
-function findOdds(match: Match, market: string): MarketOdds | null {
+function findOdds(match: Match, marketName: string, availableMarketsMap?: Map<string, any[]>): MarketOdds | null {
+  if (availableMarketsMap && availableMarketsMap.has(match.id)) {
+    const rawMarkets = availableMarketsMap.get(match.id)!
+    for (const m of rawMarkets) {
+      if (!m.desc) continue;
+      
+      const isMatch = m.desc.toLowerCase().includes(marketName.toLowerCase()) || marketName.toLowerCase().includes(m.desc.toLowerCase())
+      
+      if (isMatch && m.outcomes && m.outcomes.length > 0) {
+        // Pick the most likely outcome by default for the deterministic engine to avoid dropping
+        const bestOutcome = [...m.outcomes].sort((a: any, b: any) => Number(a.odds) - Number(b.odds))[0]
+        
+        return {
+          market: m.specifier ? `${m.desc} (${m.specifier}) — ${bestOutcome.desc}` : `${m.desc} — ${bestOutcome.desc}`,
+          odds: Number(bestOutcome.odds) || 1.5,
+          marketId: m.id,
+          outcomeId: bestOutcome.id,
+          specifier: m.specifier || ''
+        }
+      }
+    }
+  }
+
+  // Fallback to dummy data
   const found = match.availableMarkets.find(
-    (m) => m.market.toLowerCase().includes(market.toLowerCase()) || market.toLowerCase().includes(m.market.toLowerCase())
+    (m) => m.market.toLowerCase().includes(marketName.toLowerCase()) || marketName.toLowerCase().includes(m.market.toLowerCase())
   )
   return found ?? null
 }
@@ -118,7 +141,7 @@ function buildRationale(
   return `${role} pick for ${profileLabel}. Est. ${probability.toFixed(1)}% hit rate. Market aligns with profile behavior.`
 }
 
-export function analyzeMatch(match: Match): ProfileResult {
+export function analyzeMatch(match: Match, availableMarketsMap?: Map<string, any[]>): ProfileResult {
   const { profile, profileLabel, features } = profileMatch(match)
   let config: MarketConfig
 
@@ -139,7 +162,7 @@ export function analyzeMatch(match: Match): ProfileResult {
   const recommendations: MarketRecommendation[] = []
 
   for (const { market, isPrimary } of candidates) {
-    const foundMarket = findOdds(match, market)
+    const foundMarket = findOdds(match, market, availableMarketsMap)
     if (!foundMarket) continue
 
     const { odds, marketId, outcomeId, specifier } = foundMarket;
@@ -148,7 +171,7 @@ export function analyzeMatch(match: Match): ProfileResult {
 
     const ev = calculateEV(probability, odds)
     recommendations.push({
-      market,
+      market: foundMarket.market,
       odds,
       probability,
       ev,
@@ -180,9 +203,10 @@ export function analyzeMatch(match: Match): ProfileResult {
 
 export function getSafestEquivalent(
   match: Match,
-  _currentMarket: string
+  _currentMarket: string,
+  availableMarketsMap?: Map<string, any[]>
 ): MarketRecommendation | null {
-  const result = analyzeMatch(match)
+  const result = analyzeMatch(match, availableMarketsMap)
   if (result.recommendations.length === 0) return null
 
   // Removed hardcoded 'riskyUpgrades'. The AI has already sorted the best, 

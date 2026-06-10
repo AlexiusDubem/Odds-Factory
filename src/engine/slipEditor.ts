@@ -17,8 +17,8 @@ export interface EditResult {
  * Re-profile a leg from scratch using the engine's top recommendation for
  * the supplied match. Keeps rawSelection IDs so generation still works.
  */
-export function reProfileLeg(match: Match, existingLeg: SlipLeg): EditResult {
-  const analysis = analyzeMatch(match)
+export function reProfileLeg(match: Match, existingLeg: SlipLeg, availableMarketsMap?: Map<string, any[]>): EditResult {
+  const analysis = analyzeMatch(match, availableMarketsMap)
   const best = analysis.recommendations[0]
 
   if (!best) {
@@ -69,7 +69,7 @@ export function reProfileLeg(match: Match, existingLeg: SlipLeg): EditResult {
  * Upgrade a leg to its safest equivalent. If the leg is already strong
  * (Tier 1, ≥68% probability) it is left untouched.
  */
-export function optimizeLegSafely(match: Match, existingLeg: SlipLeg): EditResult {
+export function optimizeLegSafely(match: Match, existingLeg: SlipLeg, availableMarketsMap?: Map<string, any[]>): EditResult {
   if (existingLeg.tier === 1 && existingLeg.probability >= 68) {
     return {
       leg: { ...existingLeg, wasSwapped: false },
@@ -78,9 +78,9 @@ export function optimizeLegSafely(match: Match, existingLeg: SlipLeg): EditResul
     }
   }
 
-  const safer = getSafestEquivalent(match, existingLeg.market)
+  const safer = getSafestEquivalent(match, existingLeg.market, availableMarketsMap)
   if (!safer) {
-    return reProfileLeg(match, existingLeg)
+    return reProfileLeg(match, existingLeg, availableMarketsMap)
   }
 
   if (safer.probability <= existingLeg.probability && existingLeg.tier <= safer.tier) {
@@ -228,10 +228,10 @@ export async function optimizeSlipWithGoal(
       }
 
       if (goal.mode === 'safe_mode') {
-        const result = optimizeLegSafely(match, leg)
+        const result = optimizeLegSafely(match, leg, availableMarkets)
         edits.push({ ...result, message: `[Fallback] ${result.message}` })
       } else {
-        const result = reProfileLeg(match, leg)
+        const result = reProfileLeg(match, leg, availableMarkets)
         edits.push({ ...result, message: `[Fallback] ${result.message}` })
       }
     })
