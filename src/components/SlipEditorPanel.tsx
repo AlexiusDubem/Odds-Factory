@@ -85,12 +85,10 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null)
   const [showGoalPanel, setShowGoalPanel] = useState(false)
   const [showTicketPreview, setShowTicketPreview] = useState(false)
   const [editLog, setEditLog]             = useState<EditResult[]>([])
   const [hasOptimized, setHasOptimized]   = useState(false)
-  const [isAnalyzing, setIsAnalyzing]     = useState(false)
   const [aiAnalysis, setAiAnalysis]       = useState<string | null>(null)
   const [localMatchMap, setLocalMatchMap] = useState<Map<string, Match>>(
     new Map(matches.map((m) => [m.id, m]))
@@ -98,81 +96,6 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const eventMarketsCache = useRef<Map<string, RawSportyMarket[]>>(new Map())
 
   const selectedSlip = slips[0]
-
-  // ── AI Analysis (Direct via Gemini API) ────────────────────────────────────
-
-  const handleGetAIAnalysis = async () => {
-    if (!selectedSlip || selectedSlip.legs.length === 0) return
-    setIsAnalyzing(true)
-    setAiAnalysis(null)
-    try {
-      const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
-      const prompt = `You are Odds Factory's Advanced Sports Analyst. Analyze the following betting slip selections. Provide a premium, highly professional match overview, security evaluation, and recommendations for each match. Format the output in Markdown with elegant headers and structured lists. Use emojis to make it look visually stunning.
-
-Slip details:
-${selectedSlip.legs.map((l, i) => `
-${i + 1}. Match: ${l.matchLabel}
-   - Chosen Market: ${l.market} (Odds: ${l.odds.toFixed(2)})
-   - Confidence Tier: Tier ${l.tier || '3'}
-   - Rationale: ${l.rationale}
-`).join('\n')}
-
-Please return:
-1. 🛡️ **Overall Ticket Risk Assessment**: Brief summary of the ticket's safety and expected value.
-2. 📊 **Leg-by-Leg Detailed Analysis**: Detailed tactical/statistical context for each matchup.
-3. 💡 **Suggested Optimization/Tweaks**: Specific recommendations to further reduce risk or improve odds.`
-
-      let res: Response | null = null;
-      let attempt = 0;
-      const maxRetries = 3;
-
-      while (attempt < maxRetries) {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        })
-
-        if (res.ok) break;
-        if (res.status === 503) {
-          attempt++;
-          if (attempt >= maxRetries) break;
-          await new Promise(r => setTimeout(r, 2000 * attempt)); // wait 2s, 4s...
-        } else {
-          break;
-        }
-      }
-
-      if (!res || !res.ok) {
-        let errMsg = `API Error ${res?.status}`;
-        try {
-          const errJson = await res?.json()
-          if (errJson?.error?.message) {
-            errMsg = errJson.error.message;
-          }
-        } catch {
-           try { errMsg = await res?.text() || errMsg } catch {}
-        }
-        if (res?.status === 503) {
-          throw new Error('AI is currently experiencing high demand. Please wait a moment and try again.')
-        }
-        throw new Error(errMsg)
-      }
-
-      const resJson = await res.json()
-      const markdown = resJson.candidates?.[0]?.content?.parts?.[0]?.text || 'No response from Gemini.'
-
-      setAiAnalysis(markdown)
-      toast('success', 'AI Analysis Ready', 'Gemini AI has completed deep research on your slip.')
-    } catch (err: any) {
-      console.error('AI Analysis error:', err)
-      toast('error', 'Analysis Failed', err.message || 'Could not fetch AI analysis.')
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
 
 
 
@@ -345,7 +268,6 @@ Please return:
   const handleGenerateCode = async () => {
     if (!selectedSlip) return
     setIsGenerating(true)
-    setGeneratedCode(null)
 
     const selections = selectedSlip.legs.map(l => l.rawSelection).filter(Boolean)
     
@@ -365,7 +287,6 @@ Please return:
       if (!res.ok) throw new Error('Failed to connect to local booking server.')
       const data = await res.json()
       if (data.success && data.shareCode) {
-        setGeneratedCode(data.shareCode)
         Swal.fire({
           title: 'Code Generated!',
           html: `<p>Your fresh SportyBet code is:</p><h1 class="text-4xl font-black text-slate-900 tracking-[0.2em] my-4">${data.shareCode}</h1>`,
