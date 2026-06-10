@@ -159,64 +159,83 @@ export async function optimizeSlipWithGoal(
     }
   })
 
-  const response = await fetch('/api/local/ai-optimize', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ legs: freshLegs, goal, availableMarkets: marketsPayload })
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to reach AI Optimizer backend')
-  }
-
-  const data = await response.json()
-  if (!data.success) throw new Error(data.error || 'AI Optimization failed')
-
   const edits: EditResult[] = []
-  
-  data.edits.forEach((aiEdit: any) => {
-    const originalLeg = freshLegs.find(l => l.id === aiEdit.legId)
-    if (!originalLeg) return
 
-    if (aiEdit.dropped) {
-      edits.push({ leg: originalLeg, changed: true, dropped: true, message: aiEdit.message || 'Dropped by AI.' })
-      return
+  try {
+    const response = await fetch('/api/local/ai-optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ legs: freshLegs, goal, availableMarkets: marketsPayload })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to reach AI Optimizer backend: ${response.status}`)
     }
 
-    if (!aiEdit.changed || !aiEdit.marketId || !aiEdit.outcomeId) {
-      edits.push({ leg: originalLeg, changed: false, message: aiEdit.message || 'Kept original.' })
-      return
-    }
+    const data = await response.json()
+    if (!data.success) throw new Error(data.error || 'AI Optimization failed')
+    
+    data.edits.forEach((aiEdit: any) => {
+      const originalLeg = freshLegs.find(l => l.id === aiEdit.legId)
+      if (!originalLeg) return
 
-    const matchMarkets = marketsPayload[originalLeg.matchId] || []
-    const newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId) && (m.specifier || '') === (aiEdit.specifier || ''))
-
-    if (newMarketData) {
-      const outcome = newMarketData.outcomes?.find((o: any) => o.id === String(aiEdit.outcomeId)) || newMarketData.outcomes?.[0] || { odds: 1.5, id: aiEdit.outcomeId, desc: 'Unknown' }
-      const newOdds = Number(outcome.odds) || 1.5
-      
-      // We also need a descriptive name for the market
-      const marketLabel = newMarketData.specifier ? `${newMarketData.desc} (${newMarketData.specifier}) — ${outcome.desc}` : `${newMarketData.desc} — ${outcome.desc}`
-
-      const newLeg: SlipLeg = {
-        ...originalLeg,
-        market: marketLabel,
-        odds: newOdds,
-        probability: Math.min(100, (100 / newOdds) * 0.9),
-        wasSwapped: true,
-        previousMarket: originalLeg.market,
-        rawSelection: {
-          ...originalLeg.rawSelection,
-          marketId: newMarketData.id,
-          outcomeId: outcome.id,
-          specifier: newMarketData.specifier || ''
-        }
+      if (aiEdit.dropped) {
+        edits.push({ leg: originalLeg, changed: true, dropped: true, message: aiEdit.message || 'Dropped by AI.' })
+        return
       }
-      edits.push({ leg: newLeg, changed: true, previousMarket: originalLeg.market, message: aiEdit.message })
-    } else {
-      edits.push({ leg: originalLeg, changed: false, message: `[AI Hallucinated] Could not find exact market ID ${aiEdit.marketId} with specifier ${aiEdit.specifier}. Kept original.` })
-    }
-  })
+
+      if (!aiEdit.changed || !aiEdit.marketId || !aiEdit.outcomeId) {
+        edits.push({ leg: originalLeg, changed: false, message: aiEdit.message || 'Kept original.' })
+        return
+      }
+
+      const matchMarkets = marketsPayload[originalLeg.matchId] || []
+      const newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId) && (m.specifier || '') === (aiEdit.specifier || ''))
+
+      if (newMarketData) {
+        const outcome = newMarketData.outcomes?.find((o: any) => o.id === String(aiEdit.outcomeId)) || newMarketData.outcomes?.[0] || { odds: 1.5, id: aiEdit.outcomeId, desc: 'Unknown' }
+        const newOdds = Number(outcome.odds) || 1.5
+        
+        const marketLabel = newMarketData.specifier ? `${newMarketData.desc} (${newMarketData.specifier}) — ${outcome.desc}` : `${newMarketData.desc} — ${outcome.desc}`
+
+        const newLeg: SlipLeg = {
+          ...originalLeg,
+          market: marketLabel,
+          odds: newOdds,
+          probability: Math.min(100, (100 / newOdds) * 0.9),
+          wasSwapped: true,
+          previousMarket: originalLeg.market,
+          rawSelection: {
+            ...originalLeg.rawSelection,
+            marketId: newMarketData.id,
+            outcomeId: outcome.id,
+            specifier: newMarketData.specifier || ''
+          }
+        }
+        edits.push({ leg: newLeg, changed: true, previousMarket: originalLeg.market, message: aiEdit.message })
+      } else {
+        edits.push({ leg: originalLeg, changed: false, message: `[AI Hallucinated] Could not find exact market ID ${aiEdit.marketId} with specifier ${aiEdit.specifier}. Kept original.` })
+      }
+    })
+  } catch (err: any) {
+    console.warn('AI Optimization failed, falling back to deterministic logic:', err)
+    
+    freshLegs.forEach((leg) => {
+      const match = _matches.get(leg.matchId)
+      if (!match) {
+        edits.push({ leg, changed: false, message: `Match data not found.` })
+        return
+      }
+
+      if (goal.mode === 'safe_mode') {
+        const result = optimizeLegSafely(match, leg)
+        edits.push({ ...result, message: `[Fallback] ${result.message}` })
+      } else {
+        const result = reProfileLeg(match, leg)
+        edits.push({ ...result, message: `[Fallback] ${result.message}` })
+      }
+    })
+  }
 
   const optimizedLegs = edits.filter((e) => !e.dropped).map((e) => e.leg)
   const combinedOdds = calcCombinedOdds(optimizedLegs)
