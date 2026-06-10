@@ -28,10 +28,12 @@ const GOAL_OPTIONS: {
   icon: string
   description: string
 }[] = [
-  { mode: 'target_odds',     label: 'Target Odds',     icon: 'fa-solid fa-bullseye',      description: 'Swap risky markets to bring combined odds within your target' },
-  { mode: 'target_survival', label: 'Target Survival',  icon: 'fa-solid fa-shield-halved', description: 'Upgrade markets until your slip hits a minimum survival rate' },
-  { mode: 'best_ev',         label: 'Best EV',          icon: 'fa-solid fa-chart-line',    description: 'Swap each leg to the highest expected-value market available' },
-  { mode: 'safe_mode',       label: 'Safe Mode',        icon: 'fa-solid fa-lock',          description: 'Replace every leg with its safest Tier-1 qualifying market' },
+  { mode: 'balanced',        label: 'Balanced',         icon: 'fa-solid fa-gem',           description: 'Maximize EV × Survival. Best overall mode.' },
+  { mode: 'target_survival', label: 'Survival',         icon: 'fa-solid fa-shield-halved', description: 'Upgrade markets until your slip hits a minimum survival rate.' },
+  { mode: 'best_ev',         label: 'Best EV',          icon: 'fa-solid fa-chart-line',    description: 'Keep positive EV bets, drop negative ones. Long-term profit.' },
+  { mode: 'target_odds',     label: 'Target Odds',      icon: 'fa-solid fa-bullseye',      description: 'Swap risky markets to hit a combined odds payout goal.' },
+  { mode: 'safe_mode',       label: 'Safe',             icon: 'fa-solid fa-lock',          description: 'Keep only highly probable picks. Maximize survival probability.' },
+  { mode: 'dreamer',         label: 'Dreamer',          icon: 'fa-solid fa-rocket',        description: 'Preserve high odds while reducing stupidity. Casual bettors.' },
 ]
 
 // ─── SportyBet market resolution helpers ─────────────────────────────────────
@@ -77,7 +79,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
   const [bookingCode, setBookingCode]     = useState('')
   const [isLoading, setIsLoading]         = useState(false)
-  const [goalMode, setGoalMode] = useState<OptimizationMode>('safe_mode')
+  const [goalMode, setGoalMode] = useState<OptimizationMode>('balanced')
   const [targetOdds, setTargetOdds] = useState<number | ''>(20)
   const [targetSurvival, setTargetSurvival] = useState<number | ''>(60)
 
@@ -524,7 +526,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <i className="fa-solid fa-sliders text-accent" />Optimization Goal
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {GOAL_OPTIONS.map((opt) => (
                 <button key={opt.mode} onClick={() => setGoalMode(opt.mode)}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-xs font-medium text-center transition-all ${goalMode === opt.mode ? 'bg-accent text-white border-accent shadow-sm' : 'bg-white text-slate-600 border-border hover:border-accent/40'}`}>

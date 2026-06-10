@@ -6,6 +6,8 @@ export type OptimizationMode =
   | 'target_survival'  // Raise cumulative survival probability to a user-specified floor
   | 'best_ev'          // Maximise expected value per leg, no hard target
   | 'safe_mode'        // Replace every leg with the single safest qualifying market
+  | 'balanced'         // Maximize EV * Survival probability per leg
+  | 'dreamer'          // Preserve high odds, just reduce absolute stupidity
 
 export interface OptimizationGoal {
   mode: OptimizationMode

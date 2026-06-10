@@ -134,6 +134,107 @@ function calcSurvival(legs: SlipLeg[]): number {
 
 
 
+function formatSwap(leg: SlipLeg, candidate: any, match: Match, message: string): EditResult {
+  if (!candidate || leg.market === candidate.market) {
+    return { leg: { ...leg, wasSwapped: false }, changed: false, message: 'Kept original.' }
+  }
+
+  const updated: SlipLeg = {
+    ...leg,
+    market: candidate.market,
+    odds: candidate.odds,
+    probability: candidate.probability,
+    ev: candidate.ev,
+    tier: candidate.tier,
+    rationale: candidate.rationale,
+    previousMarket: leg.market,
+    wasSwapped: true,
+  }
+  if (candidate.marketId && candidate.outcomeId) {
+    updated.rawSelection = {
+      ...updated.rawSelection,
+      eventId: match.id,
+      marketId: candidate.marketId,
+      outcomeId: candidate.outcomeId,
+      specifier: candidate.specifier || ''
+    }
+  }
+  return { leg: updated, changed: true, previousMarket: leg.market, message }
+}
+
+function applyTargetOddsFallback(legs: SlipLeg[], matches: Map<string, Match>, edits: EditResult[], targetOdds: number, availableMarketsMap?: Map<string, any[]>) {
+  let current = calcCombinedOdds(legs)
+  const draftEdits: EditResult[] = legs.map((leg) => ({ leg, changed: false, message: '' }))
+
+  const order = [...legs.keys()].sort((a, b) => legs[b].odds - legs[a].odds)
+
+  for (const i of order) {
+    if (current <= targetOdds) break
+    const leg = draftEdits[i].leg
+    const match = matches.get(leg.matchId)
+    if (!match) continue
+
+    const analysis = analyzeMatch(match, availableMarketsMap)
+    const candidate = [...analysis.recommendations].filter((r) => r.market !== leg.market && r.odds < leg.odds).sort((a, b) => a.odds - b.odds)[0]
+
+    if (!candidate) continue
+
+    current = (current / leg.odds) * candidate.odds
+    draftEdits[i] = formatSwap(leg, candidate, match, `[Fallback] Reduced odds.`)
+  }
+
+  if (current > targetOdds) {
+    const dropOrder = [...legs.keys()].sort((a, b) => draftEdits[b].leg.odds - draftEdits[a].leg.odds)
+    for (const i of dropOrder) {
+      if (current <= targetOdds) break
+      current = current / draftEdits[i].leg.odds
+      draftEdits[i].dropped = true
+      draftEdits[i].changed = true
+      draftEdits[i].message = `[Fallback] Trimmed to hit target odds.`
+    }
+  }
+  
+  draftEdits.forEach(e => edits.push(e))
+}
+
+function applyTargetSurvivalFallback(legs: SlipLeg[], matches: Map<string, Match>, edits: EditResult[], targetSurvival: number, availableMarketsMap?: Map<string, any[]>) {
+  let currentSurvival = calcSurvival(legs)
+  const draftEdits: EditResult[] = legs.map((leg) => ({ leg, changed: false, message: '' }))
+
+  const order = [...legs.keys()].sort((a, b) => legs[a].probability - legs[b].probability)
+
+  for (const i of order) {
+    if (currentSurvival >= targetSurvival) break
+    const leg = draftEdits[i].leg
+    const match = matches.get(leg.matchId)
+    if (!match) continue
+
+    const analysis = analyzeMatch(match, availableMarketsMap)
+    const candidate = [...analysis.recommendations].filter((r) => r.market !== leg.market && r.probability > leg.probability).sort((a, b) => b.probability - a.probability)[0]
+
+    if (!candidate) continue
+
+    currentSurvival = (currentSurvival / (leg.probability / 100)) * (candidate.probability / 100)
+    draftEdits[i] = formatSwap(leg, candidate, match, `[Fallback] Improved survival.`)
+  }
+  
+  // If still below target survival, drop the most dangerous legs
+  if (currentSurvival < targetSurvival) {
+    const dropOrder = [...legs.keys()].sort((a, b) => draftEdits[a].leg.probability - draftEdits[b].leg.probability)
+    for (const i of dropOrder) {
+      if (currentSurvival >= targetSurvival) break
+      if (!draftEdits[i].dropped) {
+         currentSurvival = currentSurvival / (draftEdits[i].leg.probability / 100)
+         draftEdits[i].dropped = true
+         draftEdits[i].changed = true
+         draftEdits[i].message = `[Fallback] Dropped to boost slip survival.`
+      }
+    }
+  }
+
+  draftEdits.forEach(e => edits.push(e))
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -220,21 +321,49 @@ export async function optimizeSlipWithGoal(
   } catch (err: any) {
     console.warn('AI Optimization failed, falling back to deterministic logic:', err)
     
-    freshLegs.forEach((leg) => {
-      const match = _matches.get(leg.matchId)
-      if (!match) {
-        edits.push({ leg, changed: false, message: `Match data not found.` })
-        return
-      }
+    if (goal.mode === 'target_odds') {
+      applyTargetOddsFallback(freshLegs, _matches, edits, goal.targetOdds || 20, availableMarkets)
+    } else if (goal.mode === 'target_survival') {
+      applyTargetSurvivalFallback(freshLegs, _matches, edits, goal.targetSurvival || 60, availableMarkets)
+    } else {
+      freshLegs.forEach((leg) => {
+        const match = _matches.get(leg.matchId)
+        if (!match) {
+          edits.push({ leg, changed: false, message: `Match data not found.` })
+          return
+        }
 
-      if (goal.mode === 'safe_mode') {
-        const result = optimizeLegSafely(match, leg, availableMarkets)
-        edits.push({ ...result, message: `[Fallback] ${result.message}` })
-      } else {
-        const result = reProfileLeg(match, leg, availableMarkets)
-        edits.push({ ...result, message: `[Fallback] ${result.message}` })
-      }
-    })
+        if (goal.mode === 'safe_mode') {
+          const result = optimizeLegSafely(match, leg, availableMarkets)
+          edits.push({ ...result, message: `[Fallback] ${result.message}` })
+        } else if (goal.mode === 'balanced') {
+          const analysis = analyzeMatch(match, availableMarkets)
+          const best = [...analysis.recommendations].sort((a, b) => (b.ev * b.probability) - (a.ev * a.probability))[0]
+          edits.push(formatSwap(leg, best, match, '[Fallback] Balanced mode applied.'))
+        } else if (goal.mode === 'best_ev') {
+          const analysis = analyzeMatch(match, availableMarkets)
+          const best = [...analysis.recommendations].sort((a, b) => b.ev - a.ev)[0]
+          if (best && best.ev < 0) {
+            edits.push({ leg, changed: true, dropped: true, message: '[Fallback] Dropped: Negative EV.' })
+          } else {
+            edits.push(formatSwap(leg, best, match, '[Fallback] Max EV applied.'))
+          }
+        } else if (goal.mode === 'dreamer') {
+          // Dreamer: avoid dropping, but bump to slightly safer tier if it's crazy risky
+          const analysis = analyzeMatch(match, availableMarkets)
+          const safer = analysis.recommendations.find(r => r.probability >= 50) || analysis.recommendations[0]
+          if (leg.probability < 50 && safer && safer.probability > leg.probability) {
+             edits.push(formatSwap(leg, safer, match, '[Fallback] Dreamer: Reduced stupidity.'))
+          } else {
+             edits.push({ leg, changed: false, message: '[Fallback] Dreamer: Kept high odds.' })
+          }
+        } else {
+          // Default to reprofile
+          const result = reProfileLeg(match, leg, availableMarkets)
+          edits.push({ ...result, message: `[Fallback] ${result.message}` })
+        }
+      })
+    }
   }
 
   const optimizedLegs = edits.filter((e) => !e.dropped).map((e) => e.leg)

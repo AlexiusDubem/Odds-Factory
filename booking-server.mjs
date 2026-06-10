@@ -255,11 +255,20 @@ ${JSON.stringify(legs, null, 2)}
 Available Markets per Match:
 ${JSON.stringify(availableMarkets, null, 2)}
 
+Mode Definitions:
+- balanced: Maximize EV * Survival probability. Avoid purely suicidal legs, keep positive EV bets with reasonable survival. Drop legs with horrible survival unless EV is astronomically high.
+- target_survival: Keep adding the safest/highest-confidence legs to the slip until the combined probability of the slip hits the targetSurvival (e.g. 10%). Drop all other legs.
+- best_ev: For every leg, swap to the market with the highest mathematical Expected Value. Drop any legs that have negative EV. Do not worry about slip survival.
+- target_odds: Swap legs to lower-risk markets to bring the combined total odds down near targetOdds. If the slip still exceeds targetOdds, drop the riskiest legs entirely until it hits the target. No concern for safety.
+- safe_mode: Score each leg by WinProbability * Confidence. Keep only highly probable markets (e.g., Double Chance, Over 0.5 Goals). Drop legs if probability is < 75%.
+- dreamer: For large accumulators. Preserve high odds, just reduce absolute stupidity. Change "Over 3.5 Goals" to "Over 1.5 Goals", or "Away Win" to "X2". DO NOT drop legs unless absolutely necessary.
+
 Instructions:
 1. Analyze the real-world form and risk of these matches.
-2. Based on the user's goal, determine the best market and outcome replacement for EACH leg.
-3. If a leg is simply too risky and has no safe alternatives, mark it as dropped (dropped: true).
-4. Output EXACTLY a JSON array of EditResult objects. No markdown formatting, just raw JSON.
+2. Strictly follow the Mode Definition for the user's selected goal (${goal.mode}).
+3. Determine the best market and outcome replacement for EACH leg.
+4. If the active Mode Definition dictates a leg should be dropped, mark it as dropped (dropped: true).
+5. Output EXACTLY a JSON array of EditResult objects. No markdown formatting, just raw JSON.
 Format of each EditResult object:
 {
   "legId": "string",
