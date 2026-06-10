@@ -2,6 +2,9 @@ import { useCallback, useState, useEffect } from 'react'
 import type { Slip } from './types'
 import { sampleMatches } from './data/sampleMatches'
 import { SlipEditorPanel } from './components/SlipEditorPanel'
+import { LoginPanel } from './components/LoginPanel'
+import { auth } from './config/firebase'
+import { onAuthStateChanged, signOut, User } from 'firebase/auth'
 
 type Tab = 'edit'
 
@@ -13,10 +16,19 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>('edit')
   const [slips, setSlips] = useState<Slip[]>([])
   const [showSplash, setShowSplash] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
+  const [authInitialized, setAuthInitialized] = useState(false)
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser)
+      setAuthInitialized(true)
+    })
     const t = setTimeout(() => setShowSplash(false), 2000)
-    return () => clearTimeout(t)
+    return () => {
+      clearTimeout(t)
+      unsubscribe()
+    }
   }, [])
 
   const handleSlipUpdated = useCallback((slip: Slip) => {
@@ -34,6 +46,17 @@ function App() {
            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-[0.2em] uppercase font-sans mb-2">Odds Factory</h1>
            <p className="text-accent text-xs sm:text-sm font-bold tracking-widest uppercase">Initializing Engine...</p>
         </div>
+      </div>
+    )
+  }
+  if (!authInitialized) {
+    return null // wait for auth state to resolve
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-100/50">
+        <LoginPanel />
       </div>
     )
   }
@@ -55,8 +78,16 @@ function App() {
               </div>
             </div>
             <div className="hidden sm:flex items-center gap-4 text-sm text-slate-500">
-              <i className="fa-solid fa-bolt text-warning"></i>
-              <span>Ready to Optimize</span>
+              <span className="font-medium text-slate-700 bg-slate-100 px-3 py-1 rounded-full text-xs">
+                {user.email}
+              </span>
+              <button 
+                onClick={() => signOut(auth)} 
+                className="hover:text-red-500 transition-colors flex items-center gap-1.5 font-medium"
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                Log Out
+              </button>
             </div>
           </div>
         </div>

@@ -12,6 +12,7 @@
     "book:local": "node ./scripts/automateSportybet.mjs"
   },
   "dependencies": {
+    "firebase": "^12.14.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
