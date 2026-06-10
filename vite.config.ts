@@ -47,7 +47,7 @@ export default defineConfig({
       },
       // Proxies booking requests to the local Playwright server (booking-server.mjs)
       '/api/local': {
-        target: 'http://127.0.0.1:3001',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/local/, ''),
       },

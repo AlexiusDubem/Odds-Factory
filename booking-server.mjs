@@ -362,11 +362,11 @@ Please return:
 })
 
 const PORT = 3001
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, () => {
   console.log('')
   console.log('╔══════════════════════════════════════╗')
   console.log('║   Odds Factory — Booking Server      ║')
-  console.log(`║   http://127.0.0.1:${PORT}              ║`)
+  console.log(`║   http://localhost:${PORT}              ║`)
   console.log('╚══════════════════════════════════════╝')
   console.log('')
   console.log('Waiting for requests from the React app…')
