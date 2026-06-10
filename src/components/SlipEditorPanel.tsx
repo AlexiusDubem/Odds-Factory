@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
+import Swal from 'sweetalert2'
 import type { Match, OptimizationGoal, OptimizationMode, Slip, SlipLeg, MarketOdds } from '../types'
 import { optimizeSlipWithGoal } from '../engine/slipEditor'
 import { analyzeMatch } from '../engine/markets'
@@ -317,8 +318,20 @@ Please return:
     setHasOptimized(true)
     setShowGoalPanel(false)
     const changed = edits.filter((e) => e.changed).length
+    const droppedLegs = edits.filter((e) => e.dropped)
+
+    if (droppedLegs.length > 0) {
+      const messages = droppedLegs.map(e => `• ${e.leg.matchLabel} (${e.leg.market})`).join('\n')
+      Swal.fire({
+        title: 'Risky Legs Removed!',
+        text: `To meet your optimization goal, the engine removed the following extremely high-risk legs entirely:\n\n${messages}`,
+        icon: 'warning',
+        confirmButtonColor: '#16a34a'
+      })
+    }
+
     if (changed > 0) {
-      toast('success', `${changed} leg${changed > 1 ? 's' : ''} optimized`, 'Review below, then click Generate Code.')
+      toast('success', `${changed} leg${changed > 1 ? 's' : ''} optimized`, 'Review below, then View Optimized Ticket.')
     } else {
       toast('info', 'Already Optimal', 'No swaps needed for this goal.')
     }
@@ -531,8 +544,8 @@ Please return:
             </h4>
             <ul className="space-y-2">
               {editLog.map((entry, i) => (
-                <li key={i} className={`flex items-start gap-3 text-sm ${entry.changed ? 'text-slate-700' : 'text-slate-400'}`}>
-                  <i className={`mt-0.5 shrink-0 ${entry.changed ? 'fa-solid fa-arrow-right-arrow-left text-accent' : 'fa-solid fa-check text-slate-300'}`} />
+                <li key={i} className={`flex items-start gap-3 text-sm ${entry.changed ? (entry.dropped ? 'text-red-500 font-medium' : 'text-slate-700') : 'text-slate-400'}`}>
+                  <i className={`mt-0.5 shrink-0 ${entry.changed ? (entry.dropped ? 'fa-solid fa-trash' : 'fa-solid fa-arrow-right-arrow-left text-accent') : 'fa-solid fa-check text-slate-300'}`} />
                   {entry.message}
                 </li>
               ))}
