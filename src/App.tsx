@@ -3,8 +3,10 @@ import type { Slip } from './types'
 import { sampleMatches } from './data/sampleMatches'
 import { SlipEditorPanel } from './components/SlipEditorPanel'
 import { LoginPanel } from './components/LoginPanel'
-import { auth } from './config/firebase'
+import { auth, db, messaging } from './config/firebase'
 import { onAuthStateChanged, signOut, User } from 'firebase/auth'
+import { getToken } from 'firebase/messaging'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 
 type Tab = 'edit'
 
@@ -20,9 +22,27 @@ function App() {
   const [authInitialized, setAuthInitialized] = useState(false)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser)
       setAuthInitialized(true)
+      
+      if (currentUser) {
+        try {
+          const m = await messaging()
+          if (m) {
+            // In a real production app, VAPID key is required here to generate the token
+            const token = await getToken(m, { vapidKey: 'BOGUS_VAPID_KEY_REPLACE_LATER' }).catch(() => null)
+            if (token) {
+              await setDoc(doc(db, 'users', currentUser.uid), {
+                fcmToken: token,
+                lastLogin: serverTimestamp()
+              }, { merge: true })
+            }
+          }
+        } catch (err) {
+          console.log('FCM Setup Error:', err)
+        }
+      }
     })
     const t = setTimeout(() => setShowSplash(false), 2000)
     return () => {
