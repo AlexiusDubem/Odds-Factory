@@ -4,13 +4,13 @@ import { getFirestore } from 'firebase/firestore'
 import { getMessaging, isSupported } from 'firebase/messaging'
 
 const firebaseConfig = {
-  projectId: "odds-factory",
-  appId: "1:461615555734:web:09a6343d1a0ed953cdceb7",
-  storageBucket: "odds-factory.firebasestorage.app",
-  apiKey: "AIzaSyARS5Mzvp22Wt1qn8HFknlaAl83YHRPwyY",
-  authDomain: "odds-factory.firebaseapp.com",
-  messagingSenderId: "461615555734",
-  measurementId: "G-5ZEL06L9DR"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 }
 
 // Initialize Firebase
