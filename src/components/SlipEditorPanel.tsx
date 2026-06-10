@@ -521,38 +521,23 @@ Please return:
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button id="save-slip-btn" onClick={handleSaveSlip} disabled={isSaving} className="px-4 py-2 rounded-xl text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors font-medium text-sm border border-transparent hover:border-blue-200 disabled:opacity-50">
+            <button id="save-slip-btn" onClick={handleSaveSlip} disabled={isSaving} className="px-4 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors font-semibold text-sm border border-slate-200 shadow-sm disabled:opacity-50">
               {isSaving ? <i className="fa-solid fa-circle-notch fa-spin mr-2" /> : <i className="fa-regular fa-bookmark mr-2" />}
-              {isSaving ? 'Saving...' : 'Save Slip'}
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
-            <button id="clear-slip-btn" onClick={handleClear} className="px-4 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors font-medium text-sm border border-transparent hover:border-border">
-              <i className="fa-solid fa-times mr-2" />Clear
+            <button id="clear-slip-btn" onClick={handleClear} className="px-4 py-2.5 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm border border-transparent">
+              <i className="fa-solid fa-times mr-1.5" />Clear
             </button>
-            <button id="ai-analysis-btn" onClick={handleGetAIAnalysis} disabled={isAnalyzing} className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold transition-all shadow-sm shadow-violet-200 flex items-center gap-2 disabled:opacity-50">
-              {isAnalyzing ? <i className="fa-solid fa-circle-notch fa-spin animate-spin" /> : <i className="fa-solid fa-brain" />}
-              {isAnalyzing ? 'Analyzing…' : 'AI Analysis'}
+            <button id="optimize-btn" onClick={() => setShowGoalPanel((v) => !v)} className="px-5 py-2.5 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-700 font-bold transition-all shadow-sm border border-violet-200 flex items-center gap-2">
+              <i className="fa-solid fa-wand-magic-sparkles" />AI Optimize
             </button>
-            <button id="optimize-btn" onClick={() => setShowGoalPanel((v) => !v)} className="px-5 py-2.5 rounded-xl bg-accent hover:bg-accent-muted text-white font-semibold transition-all shadow-sm shadow-accent/20 flex items-center gap-2">
-              <i className="fa-solid fa-wand-magic-sparkles" />Optimize
-            </button>
-            <div className="relative group">
-              <button id="view-ticket-btn" onClick={() => setShowTicketPreview(true)} className="relative inline-block p-px font-semibold leading-6 text-slate-900 bg-white shadow-md cursor-pointer rounded-xl transition-transform duration-300 ease-in-out hover:scale-105 active:scale-95">
-                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-blue-500 to-purple-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                <span className="relative z-10 block px-5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
+            <div className="relative group ml-2">
+              <button id="generate-code-btn" onClick={handleGenerateCode} disabled={isGenerating} className="relative inline-block p-px font-black leading-6 text-white bg-accent shadow-xl cursor-pointer rounded-xl transition-all duration-300 ease-in-out hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-emerald-500 to-green-500 p-[2px] opacity-100" />
+                <span className="relative z-10 block px-6 py-2.5 rounded-xl bg-accent border border-transparent transition-colors shadow-inner">
                   <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
-                    <i className="fa-solid fa-receipt transition-transform duration-500 group-hover:-translate-y-1 text-accent" />
-                    <span className="transition-all duration-500 group-hover:translate-x-1">View Ticket</span>
-                  </div>
-                </span>
-              </button>
-            </div>
-            <div className="relative group">
-              <button id="generate-code-btn" onClick={handleGenerateCode} disabled={isGenerating} className="relative inline-block p-px font-semibold leading-6 text-slate-900 bg-white shadow-md cursor-pointer rounded-xl transition-transform duration-300 ease-in-out hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
-                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-blue-500 to-purple-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                <span className="relative z-10 block px-5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
-                  <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
-                    {isGenerating ? <i className="fa-solid fa-circle-notch fa-spin text-accent" /> : <i className="fa-solid fa-bolt transition-transform duration-500 group-hover:-translate-y-1 text-accent" />}
-                    <span className="transition-all duration-500 group-hover:translate-x-1">{isGenerating ? 'Booking...' : 'Generate Code'}</span>
+                    {isGenerating ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-bolt" />}
+                    <span className="tracking-wide text-sm">{isGenerating ? 'GENERATING...' : 'GENERATE SPORTYBET CODE'}</span>
                   </div>
                 </span>
               </button>

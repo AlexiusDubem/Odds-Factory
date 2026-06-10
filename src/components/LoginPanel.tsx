@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { auth } from '../config/firebase'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { auth, googleProvider } from '../config/firebase'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth'
 
 export const LoginPanel: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false)
@@ -8,6 +8,7 @@ export const LoginPanel: React.FC = () => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,6 +29,19 @@ export const LoginPanel: React.FC = () => {
     }
   }
 
+  const handleGoogleSignIn = async () => {
+    setError(null)
+    setIsGoogleLoading(true)
+    try {
+      await signInWithPopup(auth, googleProvider)
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || 'Google sign in failed. Please try again.')
+    } finally {
+      setIsGoogleLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center justify-center py-24 px-4 w-full">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-8 space-y-6">
@@ -45,6 +59,27 @@ export const LoginPanel: React.FC = () => {
             <span>{error}</span>
           </div>
         )}
+
+        <div className="space-y-4">
+          <button 
+            onClick={handleGoogleSignIn}
+            disabled={isGoogleLoading || isLoading}
+            className="w-full py-3.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold transition-all shadow-sm active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+          >
+            {isGoogleLoading ? (
+              <i className="fa-solid fa-circle-notch fa-spin text-slate-400" />
+            ) : (
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" className="w-5 h-5" />
+            )}
+            Continue with Google
+          </button>
+
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-semibold">Or</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
@@ -79,11 +114,11 @@ export const LoginPanel: React.FC = () => {
 
           <button 
             type="submit" 
-            disabled={isLoading}
+            disabled={isLoading || isGoogleLoading}
             className="w-full py-3.5 rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-semibold transition-all shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
           >
             {isLoading ? <i className="fa-solid fa-circle-notch fa-spin text-accent" /> : <i className="fa-solid fa-arrow-right-to-bracket text-accent" />}
-            {isRegistering ? 'Create Account' : 'Sign In'}
+            {isRegistering ? 'Create Account' : 'Sign In with Email'}
           </button>
         </form>
 

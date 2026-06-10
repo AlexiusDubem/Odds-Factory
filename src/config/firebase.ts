@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getMessaging, isSupported } from 'firebase/messaging'
 
@@ -17,6 +17,7 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
+export const googleProvider = new GoogleAuthProvider()
 
 // Initialize Messaging (conditionally because it requires browser support)
 export const messaging = async () => {
