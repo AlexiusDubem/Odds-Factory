@@ -10,6 +10,7 @@
  * Vite dev server proxies /api/local → http://localhost:3001
  */
 
+import 'dotenv/config'
 import http from 'http'
 import { chromium } from 'playwright'
 

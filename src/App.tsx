@@ -8,11 +8,13 @@ import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
 import { getToken } from 'firebase/messaging'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { SavedSlipsPanel } from './components/SavedSlipsPanel'
 
-type Tab = 'edit'
+type Tab = 'edit' | 'saved'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'edit', label: 'Optimize Booking Code', icon: 'fa-solid fa-wand-magic-sparkles' },
+  { id: 'saved', label: 'Saved Slips', icon: 'fa-regular fa-folder-open' },
 ]
 
 function App() {
@@ -98,8 +100,8 @@ function App() {
                 </p>
               </div>
             </div>
-            <div className="hidden sm:flex items-center gap-4 text-sm text-slate-500">
-              <span className="font-medium text-slate-700 bg-slate-100 px-3 py-1 rounded-full text-xs">
+            <div className="flex items-center gap-4 text-sm text-slate-500">
+              <span className="font-medium text-slate-700 bg-slate-100 px-3 py-1 rounded-full text-xs hidden sm:inline-block">
                 {user.email}
               </span>
               <button 
@@ -144,6 +146,7 @@ function App() {
             onSlipUpdated={handleSlipUpdated}
           />
         )}
+        {activeTab === 'saved' && <SavedSlipsPanel />}
       </main>
 
       <footer className="border-t border-border py-4 text-center text-xs text-slate-500 bg-surface">
