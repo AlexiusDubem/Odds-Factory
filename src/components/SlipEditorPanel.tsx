@@ -75,9 +75,13 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
   const [bookingCode, setBookingCode]     = useState('')
   const [isLoading, setIsLoading]         = useState(false)
-  const [goalMode, setGoalMode]           = useState<OptimizationMode>('safe_mode')
-  const [targetOdds, setTargetOdds]       = useState<number | ''>(20)
+  const [goalMode, setGoalMode] = useState<OptimizationMode>('safe_mode')
+  const [targetOdds, setTargetOdds] = useState<number | ''>(20)
   const [targetSurvival, setTargetSurvival] = useState<number | ''>(60)
+
+  // Auto-booking state
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null)
   const [showGoalPanel, setShowGoalPanel] = useState(false)
   const [showTicketPreview, setShowTicketPreview] = useState(false)
   const [editLog, setEditLog]             = useState<EditResult[]>([])
@@ -303,6 +307,54 @@ Please return:
     }
   }
 
+  // ── Auto-Booking ──────────────────────────────────────────────────────────
+
+  const handleGenerateCode = async () => {
+    if (!selectedSlip) return
+    setIsGenerating(true)
+    setGeneratedCode(null)
+
+    const selections = selectedSlip.legs.map(l => l.rawSelection).filter(Boolean)
+    
+    if (selections.length === 0) {
+      toast('error', 'Generation Failed', 'No valid market data available to book.')
+      setIsGenerating(false)
+      return
+    }
+
+    try {
+      // Connects to local Playwright server (must be running on localhost:3001)
+      const res = await fetch('/api/local/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selections })
+      })
+      if (!res.ok) throw new Error('Failed to connect to local booking server.')
+      const data = await res.json()
+      if (data.success && data.shareCode) {
+        setGeneratedCode(data.shareCode)
+        Swal.fire({
+          title: 'Code Generated!',
+          html: `<p>Your fresh SportyBet code is:</p><h1 class="text-4xl font-black text-slate-900 tracking-[0.2em] my-4">${data.shareCode}</h1>`,
+          icon: 'success',
+          confirmButtonColor: '#16a34a'
+        })
+      } else {
+        throw new Error(data.message || 'Unknown error from server')
+      }
+    } catch (err: any) {
+      console.error(err)
+      Swal.fire({
+        title: 'Auto-Booker Unavailable',
+        text: 'To generate codes, you must be running the local Odds Factory booking server (npm run server). Make sure it is active!',
+        icon: 'error',
+        confirmButtonColor: '#16a34a'
+      })
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
   // ── Optimize ───────────────────────────────────────────────────────────────
 
   const handleOptimize = useCallback(() => {
@@ -436,7 +488,18 @@ Please return:
                 <span className="relative z-10 block px-5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
                   <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
                     <i className="fa-solid fa-receipt transition-transform duration-500 group-hover:-translate-y-1 text-accent" />
-                    <span className="transition-all duration-500 group-hover:translate-x-1">View Optimized Ticket</span>
+                    <span className="transition-all duration-500 group-hover:translate-x-1">View Ticket</span>
+                  </div>
+                </span>
+              </button>
+            </div>
+            <div className="relative group">
+              <button id="generate-code-btn" onClick={handleGenerateCode} disabled={isGenerating} className="relative inline-block p-px font-semibold leading-6 text-slate-900 bg-white shadow-md cursor-pointer rounded-xl transition-transform duration-300 ease-in-out hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-blue-500 to-purple-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <span className="relative z-10 block px-5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
+                  <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
+                    {isGenerating ? <i className="fa-solid fa-circle-notch fa-spin text-accent" /> : <i className="fa-solid fa-bolt transition-transform duration-500 group-hover:-translate-y-1 text-accent" />}
+                    <span className="transition-all duration-500 group-hover:translate-x-1">{isGenerating ? 'Booking...' : 'Generate Code'}</span>
                   </div>
                 </span>
               </button>
