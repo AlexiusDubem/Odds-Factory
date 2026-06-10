@@ -85,6 +85,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null)
   const [showGoalPanel, setShowGoalPanel] = useState(false)
   const [showTicketPreview, setShowTicketPreview] = useState(false)
   const [editLog, setEditLog]             = useState<EditResult[]>([])
@@ -268,6 +269,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const handleGenerateCode = async () => {
     if (!selectedSlip) return
     setIsGenerating(true)
+    setGeneratedCode(null)
 
     const selections = selectedSlip.legs.map(l => l.rawSelection).filter(Boolean)
     
@@ -287,6 +289,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       if (!res.ok) throw new Error('Failed to connect to local booking server.')
       const data = await res.json()
       if (data.success && data.shareCode) {
+        setGeneratedCode(data.shareCode)
         Swal.fire({
           title: 'Code Generated!',
           html: `<p>Your fresh SportyBet code is:</p><h1 class="text-4xl font-black text-slate-900 tracking-[0.2em] my-4">${data.shareCode}</h1>`,
@@ -465,6 +468,23 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
             </div>
           </div>
         </div>
+
+        {generatedCode && (
+          <div className="mt-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex items-center justify-between shadow-sm animate-in zoom-in duration-300">
+            <div>
+              <p className="text-xs text-emerald-600 font-bold tracking-widest uppercase mb-1 flex items-center gap-2">
+                <i className="fa-solid fa-check-circle"></i> Booking Code Generated
+              </p>
+              <h1 className="text-4xl font-black text-slate-900 tracking-[0.25em] drop-shadow-sm">{generatedCode}</h1>
+            </div>
+            <button 
+              onClick={() => { navigator.clipboard.writeText(generatedCode); toast('success', 'Copied!', 'Code copied to clipboard') }}
+              className="w-14 h-14 rounded-xl bg-white border border-emerald-200 shadow-sm flex items-center justify-center text-emerald-600 hover:text-white hover:bg-emerald-500 hover:border-transparent transition-all hover:scale-105 active:scale-95 group"
+            >
+              <i className="fa-regular fa-copy text-2xl group-hover:scale-110 transition-transform"></i>
+            </button>
+          </div>
+        )}
 
         {/* ── AI Analysis Panel ────────────────────────────────────────────── */}
         {aiAnalysis && (

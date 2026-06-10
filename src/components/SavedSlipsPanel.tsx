@@ -3,7 +3,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { db, auth } from '../config/firebase'
 import type { Slip } from '../types'
 
-export function SavedSlipsPanel() {
+export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => void }) {
   const [savedSlips, setSavedSlips] = useState<Slip[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -70,8 +70,10 @@ export function SavedSlipsPanel() {
               </p>
             </div>
             <div>
-              {/* Future feature: click to load the slip back into the editor */}
-              <button className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-sm transition-colors border border-slate-200">
+              <button 
+                onClick={() => onLoadSlip(slip)}
+                className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-sm transition-colors border border-slate-200"
+              >
                 View Details
               </button>
             </div>

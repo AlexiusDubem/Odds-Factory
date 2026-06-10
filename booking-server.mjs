@@ -257,7 +257,7 @@ ${JSON.stringify(availableMarkets, null, 2)}
 
 Instructions:
 1. Analyze the real-world form and risk of these matches.
-2. Based on the user's goal, determine the best market replacement for EACH leg.
+2. Based on the user's goal, determine the best market and outcome replacement for EACH leg.
 3. If a leg is simply too risky and has no safe alternatives, mark it as dropped (dropped: true).
 4. Output EXACTLY a JSON array of EditResult objects. No markdown formatting, just raw JSON.
 Format of each EditResult object:
@@ -265,7 +265,9 @@ Format of each EditResult object:
   "legId": "string",
   "changed": true/false,
   "dropped": true/false,
-  "newMarket": "string",
+  "marketId": "string",
+  "outcomeId": "string",
+  "specifier": "string",
   "message": "string"
 }`
 

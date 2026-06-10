@@ -183,20 +183,24 @@ export async function optimizeSlipWithGoal(
       return
     }
 
-    if (!aiEdit.changed || !aiEdit.newMarket) {
+    if (!aiEdit.changed || !aiEdit.marketId || !aiEdit.outcomeId) {
       edits.push({ leg: originalLeg, changed: false, message: aiEdit.message || 'Kept original.' })
       return
     }
 
     const matchMarkets = marketsPayload[originalLeg.matchId] || []
-    const newMarketData = matchMarkets.find((m: any) => m.desc === aiEdit.newMarket)
+    const newMarketData = matchMarkets.find((m: any) => m.id === String(aiEdit.marketId) && (m.specifier || '') === (aiEdit.specifier || ''))
 
     if (newMarketData) {
-      const firstOutcome = newMarketData.outcomes?.[0] || { odds: 1.5, id: '1' }
-      const newOdds = Number(firstOutcome.odds) || 1.5
+      const outcome = newMarketData.outcomes?.find((o: any) => o.id === String(aiEdit.outcomeId)) || newMarketData.outcomes?.[0] || { odds: 1.5, id: aiEdit.outcomeId, desc: 'Unknown' }
+      const newOdds = Number(outcome.odds) || 1.5
+      
+      // We also need a descriptive name for the market
+      const marketLabel = newMarketData.specifier ? `${newMarketData.desc} (${newMarketData.specifier}) — ${outcome.desc}` : `${newMarketData.desc} — ${outcome.desc}`
+
       const newLeg: SlipLeg = {
         ...originalLeg,
-        market: aiEdit.newMarket,
+        market: marketLabel,
         odds: newOdds,
         probability: Math.min(100, (100 / newOdds) * 0.9),
         wasSwapped: true,
@@ -204,13 +208,13 @@ export async function optimizeSlipWithGoal(
         rawSelection: {
           ...originalLeg.rawSelection,
           marketId: newMarketData.id,
-          outcomeId: firstOutcome.id,
+          outcomeId: outcome.id,
           specifier: newMarketData.specifier || ''
         }
       }
       edits.push({ leg: newLeg, changed: true, previousMarket: originalLeg.market, message: aiEdit.message })
     } else {
-      edits.push({ leg: originalLeg, changed: false, message: `[AI Hallucinated] Could not find market ${aiEdit.newMarket}. Kept original.` })
+      edits.push({ leg: originalLeg, changed: false, message: `[AI Hallucinated] Could not find exact market ID ${aiEdit.marketId} with specifier ${aiEdit.specifier}. Kept original.` })
     }
   })
 

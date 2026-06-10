@@ -146,7 +146,14 @@ function App() {
             onSlipUpdated={handleSlipUpdated}
           />
         )}
-        {activeTab === 'saved' && <SavedSlipsPanel />}
+        {activeTab === 'saved' && (
+          <SavedSlipsPanel 
+            onLoadSlip={(slip) => {
+              setSlips([slip])
+              setActiveTab('edit')
+            }} 
+          />
+        )}
       </main>
 
       <footer className="border-t border-border py-4 text-center text-xs text-slate-500 bg-surface">
