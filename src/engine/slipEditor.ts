@@ -359,38 +359,82 @@ function applyTargetSurvival(
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Optimize a slip according to the user's selected goal.
- * Only swaps markets — never removes or adds legs.
+ * Optimize a slip according to the user's selected goal using Gemini AI.
+ * Sends the slip and available markets to the backend for real-world form analysis.
  */
-export function optimizeSlipWithGoal(
+export async function optimizeSlipWithGoal(
   slip: Slip,
   matches: Map<string, Match>,
-  goal: OptimizationGoal
-): { slip: Slip; edits: EditResult[] } {
-  // Clear any previous swap indicators before re-running
+  goal: OptimizationGoal,
+  availableMarkets: Map<string, any[]>
+): Promise<{ slip: Slip; edits: EditResult[] }> {
   const freshLegs: SlipLeg[] = slip.legs.map((l) => ({
     ...l,
     wasSwapped: false,
     previousMarket: undefined,
   }))
 
-  let edits: EditResult[]
+  const marketsPayload: Record<string, any[]> = {}
+  freshLegs.forEach(leg => {
+    if (availableMarkets.has(leg.matchId)) {
+      marketsPayload[leg.matchId] = availableMarkets.get(leg.matchId)!
+    }
+  })
 
-  switch (goal.mode) {
-    case 'target_odds':
-      edits = applyTargetOdds(freshLegs, matches, goal.targetOdds ?? 20)
-      break
-    case 'target_survival':
-      edits = applyTargetSurvival(freshLegs, matches, goal.targetSurvival ?? 60)
-      break
-    case 'best_ev':
-      edits = applyBestEV(freshLegs, matches)
-      break
-    case 'safe_mode':
-    default:
-      edits = applySafeMode(freshLegs, matches)
-      break
+  const response = await fetch('/api/local/ai-optimize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ legs: freshLegs, goal, availableMarkets: marketsPayload })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to reach AI Optimizer backend')
   }
+
+  const data = await response.json()
+  if (!data.success) throw new Error(data.error || 'AI Optimization failed')
+
+  const edits: EditResult[] = []
+  
+  data.edits.forEach((aiEdit: any) => {
+    const originalLeg = freshLegs.find(l => l.id === aiEdit.legId)
+    if (!originalLeg) return
+
+    if (aiEdit.dropped) {
+      edits.push({ leg: originalLeg, changed: true, dropped: true, message: aiEdit.message || 'Dropped by AI.' })
+      return
+    }
+
+    if (!aiEdit.changed || !aiEdit.newMarket) {
+      edits.push({ leg: originalLeg, changed: false, message: aiEdit.message || 'Kept original.' })
+      return
+    }
+
+    const matchMarkets = marketsPayload[originalLeg.matchId] || []
+    const newMarketData = matchMarkets.find((m: any) => m.desc === aiEdit.newMarket)
+
+    if (newMarketData) {
+      const firstOutcome = newMarketData.outcomes?.[0] || { odds: 1.5, id: '1' }
+      const newOdds = Number(firstOutcome.odds) || 1.5
+      const newLeg: SlipLeg = {
+        ...originalLeg,
+        market: aiEdit.newMarket,
+        odds: newOdds,
+        probability: Math.min(100, (100 / newOdds) * 0.9),
+        wasSwapped: true,
+        previousMarket: originalLeg.market,
+        rawSelection: {
+          ...originalLeg.rawSelection,
+          marketId: newMarketData.id,
+          outcomeId: firstOutcome.id,
+          specifier: newMarketData.specifier || ''
+        }
+      }
+      edits.push({ leg: newLeg, changed: true, previousMarket: originalLeg.market, message: aiEdit.message })
+    } else {
+      edits.push({ leg: originalLeg, changed: false, message: `[AI Hallucinated] Could not find market ${aiEdit.newMarket}. Kept original.` })
+    }
+  })
 
   const optimizedLegs = edits.filter((e) => !e.dropped).map((e) => e.leg)
   const combinedOdds = calcCombinedOdds(optimizedLegs)
@@ -408,12 +452,12 @@ export function optimizeSlipWithGoal(
 }
 
 /**
- * Legacy entry point (kept for backward compat with slipBuilder).
- * Defaults to safe_mode behaviour.
+ * Legacy entry point.
  */
-export function optimizeSlip(
+export async function optimizeSlip(
   slip: Slip,
-  matches: Map<string, Match>
-): { slip: Slip; edits: EditResult[] } {
-  return optimizeSlipWithGoal(slip, matches, { mode: 'safe_mode' })
+  matches: Map<string, Match>,
+  availableMarkets: Map<string, any[]>
+): Promise<{ slip: Slip; edits: EditResult[] }> {
+  return optimizeSlipWithGoal(slip, matches, { mode: 'safe_mode' }, availableMarkets)
 }

@@ -236,6 +236,62 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // ── POST /ai-optimize — Gemini real-world form AI Optimizer ───────────────
+  if (req.method === 'POST' && req.url === '/ai-optimize') {
+    try {
+      const { legs, goal, availableMarkets } = await readBody(req)
+      if (!legs) throw new Error('No legs provided')
+
+      console.log(`🧠 Querying Gemini AI for slip optimization (${legs.length} legs) [Goal: ${goal.mode}]…`)
+      const API_KEY = process.env.GEMINI_API_KEY
+      
+      const prompt = `You are Odds Factory's AI Engine. A user wants to optimize their betting slip.
+Goal: ${goal.mode} (Target Odds: ${goal.targetOdds}, Target Survival: ${goal.targetSurvival})
+
+Current Slip:
+${JSON.stringify(legs, null, 2)}
+
+Available Markets per Match:
+${JSON.stringify(availableMarkets, null, 2)}
+
+Instructions:
+1. Analyze the real-world form and risk of these matches.
+2. Based on the user's goal, determine the best market replacement for EACH leg.
+3. If a leg is simply too risky and has no safe alternatives, mark it as dropped (dropped: true).
+4. Output EXACTLY a JSON array of EditResult objects. No markdown formatting, just raw JSON.
+Format of each EditResult object:
+{
+  "legId": "string",
+  "changed": true/false,
+  "dropped": true/false,
+  "newMarket": "string",
+  "message": "string"
+}`
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { response_mime_type: "application/json" }
+        })
+      })
+
+      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`)
+      const resJson = await response.json()
+      const jsonStr = resJson.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
+      const edits = JSON.parse(jsonStr)
+
+      res.writeHead(200)
+      res.end(JSON.stringify({ success: true, edits }))
+    } catch (err) {
+      console.error('AI Optimize error:', err.message)
+      res.writeHead(500)
+      res.end(JSON.stringify({ error: err.message }))
+    }
+    return
+  }
+
   // ── POST /analyze — perform advanced Gemini AI match research & UI overview ──
   if (req.method === 'POST' && req.url === '/analyze') {
     try {

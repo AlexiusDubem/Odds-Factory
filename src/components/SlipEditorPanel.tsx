@@ -8,6 +8,8 @@ import { SlipLegRow } from './SlipLegRow'
 import { ToastContainer, useToast } from './Toast'
 import { TicketPreviewModal } from './TicketPreviewModal'
 import type { EditResult } from '../engine/slipEditor'
+import { auth, db } from '../config/firebase'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -81,6 +83,8 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
   // Auto-booking state
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isOptimizing, setIsOptimizing] = useState(false)
   const [generatedCode, setGeneratedCode] = useState<string | null>(null)
   const [showGoalPanel, setShowGoalPanel] = useState(false)
   const [showTicketPreview, setShowTicketPreview] = useState(false)
@@ -307,6 +311,35 @@ Please return:
     }
   }
 
+  // ── Save Slip to Firestore ────────────────────────────────────────────────
+
+  const handleSaveSlip = async () => {
+    if (!selectedSlip) return
+    if (!auth.currentUser) {
+      toast('error', 'Not Logged In', 'You must be logged in to save slips.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const slipsRef = collection(db, 'users', auth.currentUser.uid, 'slips')
+      await addDoc(slipsRef, {
+        name: selectedSlip.name,
+        combinedOdds: selectedSlip.combinedOdds,
+        survivalProbability: selectedSlip.survivalProbability,
+        legs: selectedSlip.legs,
+        createdAt: serverTimestamp(),
+        status: 'active'
+      })
+      toast('success', 'Slip Saved!', 'Check My Slips to view it anytime.')
+    } catch (err: any) {
+      console.error('Save error:', err)
+      toast('error', 'Save Failed', err.message || 'Could not save slip.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   // ── Auto-Booking ──────────────────────────────────────────────────────────
 
   const handleGenerateCode = async () => {
@@ -357,35 +390,51 @@ Please return:
 
   // ── Optimize ───────────────────────────────────────────────────────────────
 
-  const handleOptimize = useCallback(() => {
+  const handleOptimize = useCallback(async () => {
     if (!selectedSlip) return
     const goal: OptimizationGoal = {
       mode: goalMode,
       targetOdds:     goalMode === 'target_odds'     ? Number(targetOdds) || 20     : undefined,
       targetSurvival: goalMode === 'target_survival' ? Number(targetSurvival) || 60 : undefined,
     }
-    const { slip, edits } = optimizeSlipWithGoal(selectedSlip, localMatchMap, goal)
-    onSlipUpdated(slip)
-    setEditLog(edits)
-    setHasOptimized(true)
-    setShowGoalPanel(false)
-    const changed = edits.filter((e) => e.changed).length
-    const droppedLegs = edits.filter((e) => e.dropped)
 
-    if (droppedLegs.length > 0) {
-      const messages = droppedLegs.map(e => `• ${e.leg.matchLabel} (${e.leg.market})`).join('\n')
-      Swal.fire({
-        title: 'Risky Legs Removed!',
-        text: `To meet your optimization goal, the engine removed the following extremely high-risk legs entirely:\n\n${messages}`,
-        icon: 'warning',
-        confirmButtonColor: '#16a34a'
-      })
-    }
+    setIsOptimizing(true)
+    try {
+      const { slip, edits } = await optimizeSlipWithGoal(
+        selectedSlip, 
+        localMatchMap, 
+        goal, 
+        eventMarketsCache.current
+      )
+      
+      onSlipUpdated(slip)
+      setEditLog(edits)
+      setHasOptimized(true)
+      setShowGoalPanel(false)
+      
+      const changed = edits.filter((e) => e.changed).length
+      const droppedLegs = edits.filter((e) => e.dropped)
 
-    if (changed > 0) {
-      toast('success', `${changed} leg${changed > 1 ? 's' : ''} optimized`, 'Review below, then View Optimized Ticket.')
-    } else {
-      toast('info', 'Already Optimal', 'No swaps needed for this goal.')
+      if (droppedLegs.length > 0) {
+        const messages = droppedLegs.map(e => `• ${e.leg.matchLabel} (${e.leg.market})`).join('\n')
+        Swal.fire({
+          title: 'Risky Legs Removed!',
+          text: `To meet your optimization goal, the AI removed the following extremely high-risk legs entirely:\n\n${messages}`,
+          icon: 'warning',
+          confirmButtonColor: '#16a34a'
+        })
+      }
+
+      if (changed > 0) {
+        toast('success', `${changed} leg${changed > 1 ? 's' : ''} optimized`, 'Review below, then View Optimized Ticket.')
+      } else if (droppedLegs.length === 0) {
+        toast('info', 'Already Optimal', 'The AI determined no safe swaps were needed.')
+      }
+    } catch (err: any) {
+      toast('error', 'Optimization Failed', err.message || 'The AI could not optimize your slip right now.')
+      console.error(err)
+    } finally {
+      setIsOptimizing(false)
     }
   }, [selectedSlip, localMatchMap, goalMode, targetOdds, targetSurvival, onSlipUpdated])
 
@@ -472,6 +521,10 @@ Please return:
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button id="save-slip-btn" onClick={handleSaveSlip} disabled={isSaving} className="px-4 py-2 rounded-xl text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors font-medium text-sm border border-transparent hover:border-blue-200 disabled:opacity-50">
+              {isSaving ? <i className="fa-solid fa-circle-notch fa-spin mr-2" /> : <i className="fa-regular fa-bookmark mr-2" />}
+              {isSaving ? 'Saving...' : 'Save Slip'}
+            </button>
             <button id="clear-slip-btn" onClick={handleClear} className="px-4 py-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors font-medium text-sm border border-transparent hover:border-border">
               <i className="fa-solid fa-times mr-2" />Clear
             </button>
@@ -577,12 +630,12 @@ Please return:
               </div>
             )}
             <div className="relative group w-full">
-              <button id="apply-optimize-btn" onClick={handleOptimize} className="relative inline-block w-full p-px font-semibold leading-6 text-slate-900 bg-white shadow-md cursor-pointer rounded-xl transition-transform duration-300 ease-in-out hover:scale-[1.02] active:scale-[0.98]">
+              <button id="apply-optimize-btn" onClick={handleOptimize} disabled={isOptimizing} className="relative inline-block w-full p-px font-semibold leading-6 text-slate-900 bg-white shadow-md cursor-pointer rounded-xl transition-transform duration-300 ease-in-out hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
                 <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-blue-500 to-purple-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 <span className="relative z-10 block py-3 rounded-xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
                   <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
-                    <i className="fa-solid fa-wand-magic-sparkles transition-transform duration-500 group-hover:rotate-12 text-accent" />
-                    <span className="transition-all duration-500 group-hover:translate-x-1">Apply Optimization</span>
+                    {isOptimizing ? <i className="fa-solid fa-circle-notch fa-spin text-accent" /> : <i className="fa-solid fa-wand-magic-sparkles transition-transform duration-500 group-hover:rotate-12 text-accent" />}
+                    <span className="transition-all duration-500 group-hover:translate-x-1">{isOptimizing ? 'AI is Optimizing...' : 'Apply Optimization'}</span>
                   </div>
                 </span>
               </button>
