@@ -20,78 +20,78 @@ interface MarketConfig {
 
 const FOOTBALL_MARKETS: Record<string, MarketConfig> = {
   high_goal: {
-    primary: ['Over 1.5'],
-    secondary: ['BTTS Yes'],
-    avoid: ['Pure Away', 'Over 2.5'],
+    primary: ['Over 1.5', 'Over 2.5', 'Home or Draw', 'Away or Draw'],
+    secondary: ['BTTS Yes', 'Draw No Bet', 'Over 0.5'],
+    avoid: ['Pure Away', 'Under 1.5'],
   },
   low_goal: {
-    primary: ['Both Halves Under 1.5 Yes'],
-    secondary: ['Under 2.5'],
-    avoid: ['Over 2.5', 'Over 1.5'],
+    primary: ['Under 2.5', 'Under 3.5', 'Both Halves Under 1.5 Yes', 'Home or Draw'],
+    secondary: ['Under 4.5', 'Draw No Bet', 'Away or Draw'],
+    avoid: ['Over 2.5', 'Over 3.5'],
   },
   controlled: {
-    primary: ['Home or Draw'],
-    secondary: ['Asian Handicap -0.5', 'Draw No Bet'],
+    primary: ['Home or Draw', 'Away or Draw', 'Draw No Bet'],
+    secondary: ['Asian Handicap -0.5', 'Over 1.5', 'Under 3.5'],
     avoid: ['Pure Home', 'Pure Away'],
   },
   chaos: {
-    primary: ['Over 1.5', 'Both Halves Under 1.5 Yes'],
-    secondary: ['Over 1.5'],
-    avoid: ['Pure Away', 'Under 2.5'],
+    primary: ['Over 1.5', 'Home or Draw', 'Away or Draw', 'BTTS Yes'],
+    secondary: ['Both Halves Under 1.5 Yes', 'Over 0.5', 'Draw No Bet'],
+    avoid: ['Pure Away', 'Under 1.5'],
   },
   balanced: {
-    primary: ['Over 1.5'],
-    secondary: ['Asian Handicap +0.5', 'Home or Draw'],
-    avoid: ['Over 2.5'],
+    primary: ['Over 1.5', 'Home or Draw', 'Away or Draw'],
+    secondary: ['Asian Handicap +0.5', 'Draw No Bet', 'Over 0.5', 'Under 3.5'],
+    avoid: ['Over 3.5', 'Pure Away'],
   },
 }
 
 const BASKETBALL_MARKETS: Record<string, MarketConfig> = {
   high_scoring: {
-    primary: ['Over Total Points'],
-    secondary: ['Team Over'],
+    primary: ['Over Total Points', 'Moneyline'],
+    secondary: ['Team Over', 'Spread on Favorite'],
     avoid: ['Tight Spread', 'Under Total Points'],
   },
   low_scoring: {
-    primary: ['Under Total Points'],
-    secondary: ['Team Under'],
+    primary: ['Under Total Points', 'Moneyline'],
+    secondary: ['Team Under', 'Spread on Favorite'],
     avoid: ['Over Total Points', 'Team Over'],
   },
   controlled_favorite: {
-    primary: ['Spread on Favorite', 'Moneyline (Favorite)'],
-    secondary: ['Asian Handicap'],
+    primary: ['Spread on Favorite', 'Moneyline (Favorite)', 'Moneyline'],
+    secondary: ['Asian Handicap', 'Over Total Points'],
     avoid: ['Big Underdog Moneyline'],
   },
   volatile: {
-    primary: ['Over Total Points'],
-    secondary: ['Spread on Underdog'],
+    primary: ['Over Total Points', 'Moneyline'],
+    secondary: ['Spread on Underdog', 'Team Over'],
     avoid: ['Tight Spread'],
   },
   even_matchup: {
-    primary: ['Over Total Points'],
+    primary: ['Over Total Points', 'Moneyline'],
     secondary: ['Spread on Underdog', 'Asian Handicap'],
-    avoid: ['Moneyline (Favorite)'],
+    avoid: [],
   },
 }
 
 const GENERIC_MARKETS: Record<string, MarketConfig> = {
   generic_favorite: {
-    primary: ['Moneyline (Favorite)', 'Match Winner'],
+    primary: ['Moneyline (Favorite)', 'Match Winner', 'Moneyline'],
     secondary: ['Spread on Favorite', 'Handicap'],
     avoid: ['Moneyline (Underdog)'],
   },
   generic_underdog: {
     primary: ['Spread on Underdog', 'Handicap (+)', 'Over Total Points'],
-    secondary: ['Moneyline (Underdog)'],
+    secondary: ['Moneyline (Underdog)', 'Moneyline'],
     avoid: ['Moneyline (Favorite)'],
   },
   generic_balanced: {
-    primary: ['Over Total Points', 'Over Total Games', 'Over 1.5'],
-    secondary: ['Moneyline', 'Match Winner'],
+    primary: ['Over Total Points', 'Over Total Games', 'Over 1.5', 'Moneyline'],
+    secondary: ['Match Winner'],
     avoid: ['Under Total Points'],
   },
   generic_volatile: {
-    primary: ['Over Total', 'BTTS Yes', 'Any Team to Win'],
+    primary: ['Over Total', 'BTTS Yes', 'Any Team to Win', 'Moneyline'],
     secondary: ['Spread on Underdog'],
     avoid: ['Under Total', 'Exact Score'],
   },
