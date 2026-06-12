@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import type { Slip } from './types'
 import { sampleMatches } from './data/sampleMatches'
-import { SlipEditorPanel } from './components/SlipEditorPanel'
-import { SavedSlipsPanel } from './components/SavedSlipsPanel'
-import { DashboardPanel } from './components/DashboardPanel'
-import { ProfilePanel } from './components/ProfilePanel'
 import { LoginPanel } from './components/LoginPanel'
-import { ControlPanel } from './components/ControlPanel'
 import { NotificationCenter } from './components/NotificationCenter'
+
+const SlipEditorPanel = lazy(() => import('./components/SlipEditorPanel').then(m => ({ default: m.SlipEditorPanel })))
+const SavedSlipsPanel = lazy(() => import('./components/SavedSlipsPanel').then(m => ({ default: m.SavedSlipsPanel })))
+const DashboardPanel = lazy(() => import('./components/DashboardPanel').then(m => ({ default: m.DashboardPanel })))
+const ProfilePanel = lazy(() => import('./components/ProfilePanel').then(m => ({ default: m.ProfilePanel })))
+const ControlPanel = lazy(() => import('./components/ControlPanel').then(m => ({ default: m.ControlPanel })))
 import { auth, db, messaging } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
@@ -138,33 +139,33 @@ function App() {
       </nav>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 pb-24 sm:pb-6">
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPanel />} />
-          <Route 
-            path="/audit" 
-            element={
+        <Suspense fallback={
+          <div className="flex justify-center items-center h-64">
+            <i className="fa-solid fa-circle-notch fa-spin text-3xl text-accent"></i>
+          </div>
+        }>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPanel />} />
+            <Route path="/audit" element={
               <SlipEditorPanel
                 matches={sampleMatches}
                 slips={slips}
                 setSlips={setSlips}
                 onSlipUpdated={(slip) => setSlips((prev) => prev.map((s) => (s.id === slip.id ? slip : s)))}
               />
-            } 
-          />
-          <Route 
-            path="/history" 
-            element={
+            } />
+            <Route path="/history" element={
               <SavedSlipsPanel 
                 onLoadSlip={(slip) => {
                   setSlips([slip])
                 }} 
               />
-            } 
-          />
-          <Route path="/profile" element={<ProfilePanel />} />
-          <Route path="/control" element={<ControlPanel />} />
-        </Routes>
+            } />
+            <Route path="/profile" element={<ProfilePanel />} />
+            <Route path="/control" element={<ControlPanel />} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* Mobile Bottom Navigation */}

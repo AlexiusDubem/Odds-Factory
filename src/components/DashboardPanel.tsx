@@ -5,21 +5,33 @@ import type { Slip } from '../types'
 
 export const DashboardPanel = () => {
   const [slips, setSlips] = useState<Slip[]>([])
+  const [recentActivities, setRecentActivities] = useState<Slip[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!auth.currentUser) return;
       try {
+        // Fetch saved slips for stats
         const slipsRef = collection(db, 'users', auth.currentUser.uid, 'slips')
-        const q = query(slipsRef, orderBy('createdAt', 'desc'))
-        const snap = await getDocs(q)
+        const snap = await getDocs(query(slipsRef, orderBy('createdAt', 'desc')))
         
-        const fetched: Slip[] = []
+        const fetchedSlips: Slip[] = []
         snap.forEach(doc => {
-          fetched.push({ id: doc.id, ...doc.data() } as Slip)
+          fetchedSlips.push({ id: doc.id, ...doc.data() } as Slip)
         })
-        setSlips(fetched)
+        setSlips(fetchedSlips)
+
+        // Fetch recent optimizations for activity feed
+        const activityRef = collection(db, 'users', auth.currentUser.uid, 'recent_optimizations')
+        const activitySnap = await getDocs(query(activityRef, orderBy('createdAt', 'desc')))
+        
+        const fetchedActivities: Slip[] = []
+        activitySnap.forEach(doc => {
+          fetchedActivities.push({ id: doc.id, ...doc.data() } as Slip)
+        })
+        setRecentActivities(fetchedActivities)
+
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err)
       } finally {
@@ -78,22 +90,22 @@ export const DashboardPanel = () => {
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <i className="fa-solid fa-clock-rotate-left text-accent"></i> Recent Activity
+          <i className="fa-solid fa-clock-rotate-left text-accent"></i> Recent Optimizations
         </h3>
-        {slips.length === 0 ? (
+        {recentActivities.length === 0 ? (
           <p className="text-sm text-slate-500 py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            You haven't saved any slips yet. Go to Audit Slip to import and optimize a SportyBet code!
+            You haven't run any AI optimizations yet. Go to Audit Slip to import and analyze a ticket!
           </p>
         ) : (
           <div className="space-y-3">
-            {slips.slice(0, 5).map(slip => (
+            {recentActivities.slice(0, 5).map(slip => (
               <div key={slip.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400">
-                    <i className="fa-solid fa-receipt"></i>
+                    <i className="fa-solid fa-wand-magic-sparkles text-accent"></i>
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-800">{slip.name}</h4>
+                    <h4 className="text-sm font-bold text-slate-800">{slip.name} <span className="ml-2 text-[10px] uppercase font-bold text-accent tracking-wider bg-accent/10 px-2 py-0.5 rounded-full">Optimized</span></h4>
                     <p className="text-xs text-slate-500">{slip.legs.length} legs · Combined Odds: {slip.combinedOdds.toFixed(2)}</p>
                   </div>
                 </div>

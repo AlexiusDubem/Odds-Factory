@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 
 export interface AppNotification {
@@ -15,11 +15,20 @@ export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  // Request Web Push Permissions
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission()
+    }
+  }, [])
+
   useEffect(() => {
     if (!auth.currentUser) return
 
     const notifRef = collection(db, 'users', auth.currentUser.uid, 'notifications')
     const q = query(notifRef, orderBy('createdAt', 'desc'))
+
+    let isInitialLoad = true
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data: AppNotification[] = []
@@ -27,6 +36,22 @@ export function NotificationCenter() {
         data.push({ id: doc.id, ...doc.data() } as AppNotification)
       })
       setNotifications(data)
+
+      // Trigger Web Push for new unread notifications
+      if (!isInitialLoad && 'Notification' in window && Notification.permission === 'granted') {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const notif = change.doc.data() as AppNotification
+            if (!notif.read) {
+              new Notification(notif.title, {
+                body: notif.message,
+                icon: '/logo.png'
+              })
+            }
+          }
+        })
+      }
+      isInitialLoad = false
     })
 
     return () => unsubscribe()
@@ -49,6 +74,15 @@ export function NotificationCenter() {
       await updateDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', id), {
         read: true
       })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!auth.currentUser) return
+    try {
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', id))
     } catch (e) {
       console.error(e)
     }
@@ -93,25 +127,37 @@ export function NotificationCenter() {
                     className={`p-4 transition-colors hover:bg-slate-50 cursor-pointer ${n.read ? 'opacity-60' : 'bg-blue-50/30'}`}
                     onClick={() => !n.read && handleMarkAsRead(n.id)}
                   >
-                    <div className="flex gap-3">
-                      <div className="mt-1">
-                        {n.read ? (
-                          <i className="fa-solid fa-envelope-open text-slate-400"></i>
-                        ) : (
-                          <i className="fa-solid fa-envelope text-accent"></i>
-                        )}
+                    <div className="flex gap-3 justify-between items-start">
+                      <div className="flex gap-3">
+                        <div className="mt-1">
+                          {n.read ? (
+                            <i className="fa-solid fa-envelope-open text-slate-400"></i>
+                          ) : (
+                            <i className="fa-solid fa-envelope text-accent"></i>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className={`text-sm ${n.read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
+                            {n.title}
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            {n.message}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-2 font-medium uppercase tracking-wider">
+                            {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleString() : 'Just now'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className={`text-sm ${n.read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
-                          {n.title}
-                        </h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          {n.message}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-2 font-medium uppercase tracking-wider">
-                          {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleString() : 'Just now'}
-                        </p>
-                      </div>
+                      
+                      {n.read && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDelete(n.id) }}
+                          className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                          title="Delete notification"
+                        >
+                          <i className="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}

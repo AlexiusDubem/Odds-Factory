@@ -444,14 +444,24 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     }
 
     const newLegs = selectedSlip.legs.filter(l => !legIdsToDrop.includes(l.id));
-    onSlipUpdated({ 
+    const optimizedSlipData = { 
       ...selectedSlip, 
       legs: newLegs, 
       combinedOdds: calcCombinedOdds(newLegs), 
       survivalProbability: calcSurvival(newLegs) 
-    });
+    };
+
+    onSlipUpdated(optimizedSlipData);
     setSmartDropResult(null);
     toast('success', 'Slip Optimized', 'Weak links successfully dropped.');
+
+    // Log the final slip to recent_optimizations for the dashboard feed
+    if (auth.currentUser) {
+      addDoc(collection(db, 'users', auth.currentUser.uid, 'recent_optimizations'), {
+        ...optimizedSlipData,
+        createdAt: serverTimestamp()
+      }).catch(console.error);
+    }
   };
 
   // ── Remove / Clear ─────────────────────────────────────────────────────────
