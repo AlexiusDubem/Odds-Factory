@@ -26,7 +26,6 @@ function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [slips, setSlips] = useState<Slip[]>([])
-  const [selectedSlip, setSelectedSlip] = useState<Slip | null>(null)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -37,15 +36,18 @@ function App() {
         // Request Web Push token and save to DB
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
-            const token = await getToken(messaging, { 
-              vapidKey: 'YOUR_PUBLIC_VAPID_KEY_HERE' // Optional, if using web push certs
-            })
-            if (token) {
-              await setDoc(doc(db, 'users', currentUser.uid, 'fcmTokens', token), {
-                token,
-                createdAt: serverTimestamp(),
-                device: navigator.userAgent
-              }, { merge: true })
+            const m = await messaging()
+            if (m) {
+              const token = await getToken(m, { 
+                vapidKey: 'YOUR_PUBLIC_VAPID_KEY_HERE' // Optional, if using web push certs
+              })
+              if (token) {
+                await setDoc(doc(db, 'users', currentUser.uid, 'fcmTokens', token), {
+                  token,
+                  createdAt: serverTimestamp(),
+                  device: navigator.userAgent
+                }, { merge: true })
+              }
             }
           }
         } catch (err) {
@@ -55,11 +57,6 @@ function App() {
     })
     return () => unsubscribe()
   }, [])
-
-  const handleLoadSlip = (slip: Slip) => {
-    setSelectedSlip(slip)
-    // Optional: navigate to audit programmatically using useNavigate here
-  }
 
   if (loading) {
     return (
