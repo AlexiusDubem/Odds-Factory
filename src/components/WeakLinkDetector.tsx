@@ -36,9 +36,10 @@ export function WeakLinkDetector({ smartDropResult, onApplyDrops, onCancel }: Pr
                   {idx + 1}
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-800 text-sm">Pick Threat Level: <span className="text-red-500">CRITICAL</span></h4>
-                  <p className="text-xs font-medium text-slate-500 mt-1 flex items-center gap-1">
-                    <i className="fa-solid fa-robot text-slate-400"></i> {drop.rationale}
+                  <h4 className="font-bold text-slate-800 text-sm truncate max-w-[200px] sm:max-w-xs">{drop.matchLabel}</h4>
+                  <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-0.5">{drop.market}</p>
+                  <p className="text-xs font-medium text-slate-500 mt-1 flex items-start gap-1.5 leading-relaxed">
+                    <i className="fa-solid fa-robot text-slate-400 mt-0.5 shrink-0"></i> {drop.rationale}
                   </p>
                 </div>
               </div>

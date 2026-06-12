@@ -13,6 +13,8 @@ export interface DroppingMetrics {
   oddsReduction: number;
   impactScore: number;
   rationale: string;
+  matchLabel: string;
+  market: string;
 }
 
 export interface SmartDropResult {
@@ -118,7 +120,9 @@ export async function analyzeSmartDrops(slip: Slip, goal: OptimizationGoal): Pro
       sspIncrease,
       oddsReduction,
       impactScore,
-      rationale
+      rationale,
+      matchLabel: leg.matchLabel,
+      market: leg.market
     });
   }
 
@@ -156,7 +160,16 @@ export async function analyzeSmartDrops(slip: Slip, goal: OptimizationGoal): Pro
   const legsToDrop = droppingMetrics.slice(0, dropCount).map(m => m.legId);
   
   // 6. Generate optimized slip
-  const keptLegs = slip.legs.filter(l => !legsToDrop.includes(l.id));
+  const keptLegs = slip.legs
+    .filter(l => !legsToDrop.includes(l.id))
+    .map(l => {
+      const metric = droppingMetrics.find(m => m.legId === l.id);
+      return {
+        ...l,
+        rationale: metric?.rationale || l.rationale
+      }
+    });
+
   const newOdds = keptLegs.reduce((acc, l) => acc * l.odds, 1);
   const newProb = keptLegs.reduce((acc, l) => acc * (l.probability || 0.5), 1);
 
