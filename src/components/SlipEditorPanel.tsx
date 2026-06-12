@@ -7,7 +7,10 @@ import { analyzeMatch } from '../engine/markets'
 import { SlipLegRow } from './SlipLegRow'
 import { ToastContainer, useToast } from './Toast'
 import { TicketPreviewModal } from './TicketPreviewModal'
+import { HealthScoreCard } from './HealthScoreCard'
+import { WeakLinkDetector } from './WeakLinkDetector'
 import type { EditResult } from '../engine/slipEditor'
+import { analyzeSmartDrops, calculateSlipHealth, type SmartDropResult } from '../engine/smartDropping'
 import { auth, db } from '../config/firebase'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 
@@ -92,6 +95,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const [showTicketPreview, setShowTicketPreview] = useState(false)
   const [editLog, setEditLog]             = useState<EditResult[]>([])
   const [hasOptimized, setHasOptimized]   = useState(false)
+  const [smartDropResult, setSmartDropResult] = useState<SmartDropResult | null>(null)
   const [aiAnalysis, setAiAnalysis]       = useState<string | null>(null)
   const [localMatchMap, setLocalMatchMap] = useState<Map<string, Match>>(
     new Map(matches.map((m) => [m.id, m]))
@@ -99,6 +103,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const eventMarketsCache = useRef<Map<string, RawSportyMarket[]>>(new Map())
 
   const selectedSlip = slips[0]
+  const currentHealth = selectedSlip ? calculateSlipHealth(selectedSlip.legs, selectedSlip.combinedOdds) : null;
 
 
 
@@ -326,43 +331,35 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
     setIsOptimizing(true)
     try {
-      const { slip, edits } = await optimizeSlipWithGoal(
-        selectedSlip, 
-        localMatchMap, 
-        goal, 
-        eventMarketsCache.current
-      )
+      const result = await analyzeSmartDrops(selectedSlip, goal);
+      setSmartDropResult(result);
+      setShowGoalPanel(false);
       
-      onSlipUpdated(slip)
-      setEditLog(edits)
-      setHasOptimized(true)
-      setShowGoalPanel(false)
-      
-      const changed = edits.filter((e) => e.changed).length
-      const droppedLegs = edits.filter((e) => e.dropped)
-
-      if (droppedLegs.length > 0) {
-        const messages = droppedLegs.map(e => `• ${e.leg.matchLabel} (${e.leg.market})`).join('\n')
-        Swal.fire({
-          title: 'Risky Legs Removed!',
-          text: `To meet your optimization goal, the AI removed the following extremely high-risk legs entirely:\n\n${messages}`,
-          icon: 'warning',
-          confirmButtonColor: '#16a34a'
-        })
-      }
-
-      if (changed > 0) {
-        toast('success', `${changed} leg${changed > 1 ? 's' : ''} optimized`, 'Review below, then View Optimized Ticket.')
-      } else if (droppedLegs.length === 0) {
-        toast('info', 'Already Optimal', 'The AI determined no safe swaps were needed.')
+      if (result.droppedLegs.length > 0) {
+        toast('info', 'AI Analysis Complete', 'Weak links detected. Review the recommendations to optimize your ticket.');
+      } else {
+        toast('success', 'Perfect Slip!', 'Your ticket is mathematically sound. No drops recommended.');
       }
     } catch (err: any) {
-      toast('error', 'Optimization Failed', err.message || 'The AI could not optimize your slip right now.')
+      toast('error', 'Analysis Failed', err.message || 'The AI could not analyze your slip right now.')
       console.error(err)
     } finally {
       setIsOptimizing(false)
     }
-  }, [selectedSlip, localMatchMap, goalMode, targetOdds, targetSurvival, onSlipUpdated])
+  }, [selectedSlip, goalMode, targetOdds, targetSurvival])
+
+  const handleApplyDrops = (legIdsToDrop: string[]) => {
+    if (!selectedSlip) return;
+    const newLegs = selectedSlip.legs.filter(l => !legIdsToDrop.includes(l.id));
+    onSlipUpdated({ 
+      ...selectedSlip, 
+      legs: newLegs, 
+      combinedOdds: calcCombinedOdds(newLegs), 
+      survivalProbability: calcSurvival(newLegs) 
+    });
+    setSmartDropResult(null);
+    toast('success', 'Slip Optimized', 'Weak links successfully dropped.');
+  };
 
   // ── Remove / Clear ─────────────────────────────────────────────────────────
 
@@ -470,6 +467,19 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
             </div>
           </div>
         </div>
+
+        {/* ── Dashboard Health Score & Weak Links ──────────────────────────── */}
+        {currentHealth && (
+          <div className="mt-6 mb-8">
+            <HealthScoreCard health={currentHealth} />
+          </div>
+        )}
+
+        <WeakLinkDetector 
+          smartDropResult={smartDropResult} 
+          onApplyDrops={handleApplyDrops} 
+          onCancel={() => setSmartDropResult(null)} 
+        />
 
         {generatedCode && (
           <div className="mt-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex items-center justify-between shadow-sm animate-in zoom-in duration-300">
