@@ -99,17 +99,20 @@ export const DashboardPanel = () => {
         ) : (
           <div className="space-y-3">
             {recentActivities.slice(0, 5).map(slip => (
-              <div key={slip.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+              <div key={slip.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors gap-3">
+                <div className="flex items-center gap-3 sm:gap-4 overflow-hidden w-full">
+                  <div className="w-10 h-10 shrink-0 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400">
                     <i className="fa-solid fa-wand-magic-sparkles text-accent"></i>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">{slip.name} <span className="ml-2 text-[10px] uppercase font-bold text-accent tracking-wider bg-accent/10 px-2 py-0.5 rounded-full">Optimized</span></h4>
-                    <p className="text-xs text-slate-500">{slip.legs.length} legs · Combined Odds: {slip.combinedOdds.toFixed(2)}</p>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center flex-wrap gap-2">
+                      <span className="truncate">{slip.name}</span>
+                      <span className="text-[10px] uppercase font-bold text-accent tracking-wider bg-accent/10 px-2 py-0.5 rounded-full shrink-0">Optimized</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 truncate">{slip.legs.length} legs · Combined Odds: {slip.combinedOdds.toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right shrink-0 ml-13 sm:ml-0">
                   <div className="text-xs font-bold text-emerald-600 mb-1">{slip.survivalProbability.toFixed(1)}% Health</div>
                 </div>
               </div>

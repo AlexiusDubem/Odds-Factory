@@ -503,7 +503,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
               value={bookingCode}
               onChange={(e) => setBookingCode(e.target.value.toUpperCase())}
               disabled={isLoading}
-              className="w-full px-5 py-4 rounded-2xl bg-white border-2 border-border focus:border-accent/60 text-slate-900 placeholder:text-slate-400 focus:outline-none text-center font-bold tracking-[0.3em] uppercase text-lg shadow-sm transition-colors"
+              className="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-2xl bg-white border-2 border-border focus:border-accent/60 text-slate-900 placeholder:text-slate-400 focus:outline-none text-center font-bold tracking-[0.2em] sm:tracking-[0.3em] uppercase text-base sm:text-lg shadow-sm transition-colors"
             />
             <div className="relative group w-full">
               <button
@@ -513,10 +513,10 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
                 className="relative inline-block w-full p-px font-semibold leading-6 text-slate-900 bg-white shadow-xl cursor-pointer rounded-2xl transition-transform duration-300 ease-in-out hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="absolute inset-0 rounded-2xl bg-gradient-to-r from-teal-400 via-blue-500 to-purple-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                <span className="relative z-10 block px-5 py-4 rounded-2xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
+                <span className="relative z-10 block px-4 sm:px-5 py-3 sm:py-4 rounded-2xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
                   <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
                     {isLoading ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-download transition-transform duration-500 group-hover:-translate-y-1" />}
-                    <span className="transition-all duration-500 group-hover:translate-x-1">{isLoading ? 'Loading picks…' : 'Load Booking Code'}</span>
+                    <span className="transition-all duration-500 group-hover:translate-x-1 text-sm sm:text-base">{isLoading ? 'Loading picks…' : 'Load Booking Code'}</span>
                   </div>
                 </span>
               </button>
@@ -534,38 +534,38 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   return (
     <>
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
-      <div className="space-y-5 max-w-4xl mx-auto">
+      <div className="space-y-5 max-w-4xl mx-auto w-full overflow-x-hidden">
 
         {/* ── Header bar ──────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between p-5 rounded-2xl bg-white border border-border shadow-sm gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200 tracking-wide">{selectedSlip.name}</span>
-              <span className="text-sm text-slate-500 font-medium">{selectedSlip.legs.length} {selectedSlip.legs.length === 1 ? 'leg' : 'legs'}</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-white border border-border shadow-sm gap-4 w-full">
+          <div className="w-full sm:w-auto">
+            <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200 tracking-wide break-all max-w-[200px] truncate">{selectedSlip.name}</span>
+              <span className="text-sm text-slate-500 font-medium whitespace-nowrap">{selectedSlip.legs.length} {selectedSlip.legs.length === 1 ? 'leg' : 'legs'}</span>
             </div>
-            <p className="text-sm text-slate-600">
+            <p className="text-xs sm:text-sm text-slate-600 break-words">
               Survival: <strong className={survivalColor}>{selectedSlip.survivalProbability < 0.1 ? '<0.1' : selectedSlip.survivalProbability.toFixed(1)}%</strong>
               {' · '}Combined Odds: <strong className="text-accent">{selectedSlip.combinedOdds.toFixed(2)}</strong>
             </p>
           </div>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-end gap-3 w-full">
-            <button id="save-slip-btn" onClick={handleSaveSlip} disabled={isSaving || !selectedSlip} className="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors font-semibold text-sm border border-slate-200 shadow-sm disabled:opacity-50 flex items-center justify-center">
+          <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 w-full sm:w-auto">
+            <button id="save-slip-btn" onClick={handleSaveSlip} disabled={isSaving || !selectedSlip} className="w-full sm:w-auto px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors font-semibold text-sm border border-slate-200 shadow-sm disabled:opacity-50 flex items-center justify-center whitespace-nowrap">
               {isSaving ? <i className="fa-solid fa-circle-notch fa-spin mr-2" /> : <i className="fa-regular fa-bookmark mr-2" />}
               {isSaving ? 'Saving...' : 'Save'}
             </button>
-            <button id="clear-slip-btn" onClick={handleClear} className="w-full sm:w-auto px-4 py-3 sm:py-2.5 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm border border-transparent">
+            <button id="clear-slip-btn" onClick={handleClear} className="w-full sm:w-auto px-4 sm:px-4 py-3 sm:py-2.5 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm border border-transparent flex items-center justify-center whitespace-nowrap">
               <i className="fa-solid fa-times mr-1.5" />Clear
             </button>
-            <button id="optimize-btn" onClick={() => setShowGoalPanel((v) => !v)} className="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-700 font-bold transition-all shadow-sm border border-violet-200 flex items-center justify-center gap-2">
+            <button id="optimize-btn" onClick={() => setShowGoalPanel((v) => !v)} className="w-full sm:w-auto px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-700 font-bold transition-all shadow-sm border border-violet-200 flex items-center justify-center gap-2 whitespace-nowrap">
               <i className="fa-solid fa-wand-magic-sparkles" />AI Optimize
             </button>
             <div className="relative group w-full sm:w-auto sm:ml-2">
-              <button id="generate-code-btn" onClick={handleGenerateCode} disabled={isGenerating} className="relative inline-block w-full p-px font-black leading-6 text-white bg-accent shadow-xl cursor-pointer rounded-xl transition-all duration-300 ease-in-out hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button id="generate-code-btn" onClick={handleGenerateCode} disabled={isGenerating} className="relative flex w-full p-px font-black leading-6 text-white bg-accent shadow-xl cursor-pointer rounded-xl transition-all duration-300 ease-in-out hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center">
                 <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-emerald-500 to-green-500 p-[2px] opacity-100" />
-                <span className="relative z-10 block px-6 py-3 sm:py-2.5 rounded-xl bg-accent border border-transparent transition-colors shadow-inner">
+                <span className="relative z-10 flex w-full items-center justify-center px-4 sm:px-6 py-3 sm:py-2.5 rounded-xl bg-accent border border-transparent transition-colors shadow-inner">
                   <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
                     {isGenerating ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-bolt" />}
-                    <span className="tracking-wide text-sm">{isGenerating ? 'GENERATING...' : 'GENERATE SPORTYBET CODE'}</span>
+                    <span className="tracking-wide text-[10px] sm:text-sm">{isGenerating ? 'GENERATING...' : 'GENERATE SPORTYBET CODE'}</span>
                   </div>
                 </span>
               </button>
@@ -575,7 +575,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
         {/* ── Dashboard Health Score & Weak Links ──────────────────────────── */}
         {currentHealth && (
-          <div className="mt-6 mb-8">
+          <div className="mt-6 mb-8 w-full overflow-hidden">
             <HealthScoreCard health={currentHealth} />
           </div>
         )}
@@ -587,16 +587,16 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
         />
 
         {generatedCode && (
-          <div className="mt-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex items-center justify-between shadow-sm animate-in zoom-in duration-300">
-            <div>
-              <p className="text-xs text-emerald-600 font-bold tracking-widest uppercase mb-1 flex items-center gap-2">
+          <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm animate-in zoom-in duration-300 gap-4">
+            <div className="w-full">
+              <p className="text-[10px] sm:text-xs text-emerald-600 font-bold tracking-widest uppercase mb-1 flex items-center gap-2">
                 <i className="fa-solid fa-check-circle"></i> Booking Code Generated
               </p>
-              <h1 className="text-4xl font-black text-slate-900 tracking-[0.25em] drop-shadow-sm">{generatedCode}</h1>
+              <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-[0.1em] sm:tracking-[0.25em] drop-shadow-sm break-all">{generatedCode}</h1>
             </div>
             <button 
               onClick={() => { navigator.clipboard.writeText(generatedCode); toast('success', 'Copied!', 'Code copied to clipboard') }}
-              className="w-14 h-14 rounded-xl bg-white border border-emerald-200 shadow-sm flex items-center justify-center text-emerald-600 hover:text-white hover:bg-emerald-500 hover:border-transparent transition-all hover:scale-105 active:scale-95 group"
+              className="w-full sm:w-14 h-12 sm:h-14 rounded-xl bg-white border border-emerald-200 shadow-sm flex items-center justify-center text-emerald-600 hover:text-white hover:bg-emerald-500 hover:border-transparent transition-all hover:scale-105 active:scale-95 group shrink-0"
             >
               <i className="fa-regular fa-copy text-2xl group-hover:scale-110 transition-transform"></i>
             </button>

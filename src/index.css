@@ -26,6 +26,7 @@ body {
   color: #0f172a;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 #root {
