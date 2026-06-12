@@ -28,6 +28,9 @@ export const ControlPanel = () => {
   const [notifMessage, setNotifMessage] = useState('')
   const [notifTarget, setNotifTarget] = useState('ALL')
   const [isSending, setIsSending] = useState(false)
+  
+  // Analytics Filter State
+  const [timeFilter, setTimeFilter] = useState<number>(24 * 60 * 60 * 1000) // Default 24h
 
   const fetchAdminData = async () => {
     if (!auth.currentUser) return;
@@ -57,18 +60,18 @@ export const ControlPanel = () => {
       const matchesRef = collection(db, 'processed_matches')
       const matchesSnap = await getDocs(matchesRef)
       
-      // Fetch dropped picks for analytics (Filter to last 24 hours)
+      // Fetch dropped picks for analytics
       const droppedRef = collection(db, 'dropped_picks')
       const droppedSnap = await getDocs(droppedRef)
       
       const pickCounts: Record<string, number> = {}
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      const cutoffTime = timeFilter > 0 ? Date.now() - timeFilter : 0;
       
       droppedSnap.docs.forEach(d => {
         const data = d.data()
-        // Check if it exists and is within 24h
-        if (data.droppedAt && typeof data.droppedAt.toMillis === 'function') {
-          if (data.droppedAt.toMillis() < oneDayAgo) return;
+        // Filter by time if timeFilter > 0 (0 means ALL time)
+        if (cutoffTime > 0 && data.droppedAt && typeof data.droppedAt.toMillis === 'function') {
+          if (data.droppedAt.toMillis() < cutoffTime) return;
         }
         
         const key = `${data.matchLabel} | ${data.market}`
@@ -97,7 +100,7 @@ export const ControlPanel = () => {
 
   useEffect(() => {
     fetchAdminData()
-  }, [])
+  }, [timeFilter]) // Re-fetch when time filter changes
 
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Are you sure you want to delete this user profile?')) return;
@@ -244,12 +247,23 @@ export const ControlPanel = () => {
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Top Dropped Picks</h3>
-            <i className="fa-solid fa-trash-can text-slate-400"></i>
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+              <i className="fa-solid fa-trash-can text-slate-400"></i> Top Dropped Picks
+            </h3>
+            <select 
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(Number(e.target.value))}
+              className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value={24 * 60 * 60 * 1000}>Last 24H</option>
+              <option value={7 * 24 * 60 * 60 * 1000}>Last 7 Days</option>
+              <option value={30 * 24 * 60 * 60 * 1000}>Last 30 Days</option>
+              <option value={0}>All Time</option>
+            </select>
           </div>
           <div className="flex-1 overflow-y-auto max-h-[400px]">
              {droppedPicks.length === 0 ? (
-               <div className="p-8 text-center text-slate-500 text-sm">No picks dropped in the last 24 hours.</div>
+               <div className="p-8 text-center text-slate-500 text-sm">No picks dropped in this timeframe.</div>
              ) : (
                <ul className="divide-y divide-slate-100">
                  {droppedPicks.map((pick, i) => (
