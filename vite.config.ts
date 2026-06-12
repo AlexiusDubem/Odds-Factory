@@ -45,6 +45,12 @@ export default defineConfig({
           'Referer': 'https://www.sportybet.com/ng/',
         },
       },
+      // Proxies SportMonks API calls to bypass CORS
+      '/api/sportmonks': {
+        target: 'https://api.sportmonks.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/sportmonks/, ''),
+      },
       // Proxies booking requests to the local Playwright server (booking-server.mjs)
       '/api/local': {
         target: 'http://localhost:3001',

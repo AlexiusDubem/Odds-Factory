@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, query, getDocs, orderBy, collectionGroup } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 
 interface UserStats {
@@ -9,59 +9,94 @@ interface UserStats {
   lastLogin: string
 }
 
+interface DroppedPickStats {
+  matchLabel: string
+  market: string
+  count: number
+}
+
 export const ControlPanel = () => {
   const [users, setUsers] = useState<UserStats[]>([])
+  const [droppedPicks, setDroppedPicks] = useState<DroppedPickStats[]>([])
   const [totalSlips, setTotalSlips] = useState(0)
   const [totalMatches, setTotalMatches] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchAdminData = async () => {
-      if (!auth.currentUser) return;
-      try {
-        // Fetch all users
-        const usersRef = collection(db, 'users')
-        const userSnap = await getDocs(usersRef)
+  const fetchAdminData = async () => {
+    if (!auth.currentUser) return;
+    try {
+      setLoading(true)
+      const usersRef = collection(db, 'users')
+      const userSnap = await getDocs(usersRef)
+      
+      let allSlipsCount = 0
+      const userData: UserStats[] = []
+      
+      for (const userDoc of userSnap.docs) {
+        const data = userDoc.data()
+        const slipsRef = collection(db, 'users', userDoc.id, 'slips')
+        const slipsSnap = await getDocs(slipsRef)
+        allSlipsCount += slipsSnap.size
         
-        let allSlipsCount = 0
-        const userData: UserStats[] = []
-        
-        // This is a naive fetch for demo purposes. In production, 
-        // you'd use Cloud Functions to aggregate these counts.
-        for (const userDoc of userSnap.docs) {
-          const data = userDoc.data()
-          
-          // Fetch their slips
-          const slipsRef = collection(db, 'users', userDoc.id, 'slips')
-          const slipsSnap = await getDocs(slipsRef)
-          
-          allSlipsCount += slipsSnap.size
-          
-          userData.push({
-            id: userDoc.id,
-            email: data.email || 'Unknown',
-            slipCount: slipsSnap.size,
-            lastLogin: data.lastLogin?.toDate().toLocaleDateString() || 'Never'
-          })
-        }
-        // Fetch all global matches processed
-        const matchesRef = collection(db, 'processed_matches')
-        const matchesSnap = await getDocs(matchesRef)
-        
-        setUsers(userData)
-        setTotalSlips(allSlipsCount)
-        setTotalMatches(matchesSnap.size)
-      } catch (err: any) {
-        console.error('Failed to fetch admin data:', err)
-        setError('Permission Denied. Are you sure you are the Admin? Check Firestore Rules.')
-      } finally {
-        setLoading(false)
+        userData.push({
+          id: userDoc.id,
+          email: data.email || 'Unknown',
+          slipCount: slipsSnap.size,
+          lastLogin: data.lastLogin?.toDate().toLocaleDateString() || 'Never'
+        })
       }
+      
+      // Fetch global matches
+      const matchesRef = collection(db, 'processed_matches')
+      const matchesSnap = await getDocs(matchesRef)
+      
+      // Fetch dropped picks for analytics
+      const droppedRef = collection(db, 'dropped_picks')
+      const droppedSnap = await getDocs(droppedRef)
+      
+      const pickCounts: Record<string, number> = {}
+      droppedSnap.docs.forEach(d => {
+        const data = d.data()
+        const key = `${data.matchLabel} | ${data.market}`
+        pickCounts[key] = (pickCounts[key] || 0) + 1
+      })
+      
+      const sortedPicks = Object.entries(pickCounts)
+        .map(([key, count]) => {
+          const [matchLabel, market] = key.split(' | ')
+          return { matchLabel, market, count }
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10) // Top 10
+
+      setUsers(userData)
+      setTotalSlips(allSlipsCount)
+      setTotalMatches(matchesSnap.size)
+      setDroppedPicks(sortedPicks)
+    } catch (err: any) {
+      console.error('Failed to fetch admin data:', err)
+      setError('Permission Denied. Are you sure you are the Admin? Check Firestore Rules.')
+    } finally {
+      setLoading(false)
     }
-    
+  }
+
+  useEffect(() => {
     fetchAdminData()
   }, [])
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user profile?')) return;
+    try {
+      await deleteDoc(doc(db, 'users', userId))
+      alert('User profile deleted. Refreshing data...')
+      fetchAdminData()
+    } catch (err) {
+      console.error(err)
+      alert('Failed to delete user.')
+    }
+  }
 
   if (loading) {
     return (
@@ -82,7 +117,7 @@ export const ControlPanel = () => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto pb-12">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
@@ -90,6 +125,9 @@ export const ControlPanel = () => {
           </h2>
           <p className="text-sm text-slate-500">Superadmin Dashboard</p>
         </div>
+        <button onClick={fetchAdminData} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors">
+          <i className="fa-solid fa-rotate-right mr-2"></i> Refresh
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -118,46 +156,75 @@ export const ControlPanel = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">User Database</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-              <tr>
-                <th className="px-6 py-3 border-b border-slate-100">User UID</th>
-                <th className="px-6 py-3 border-b border-slate-100">Email</th>
-                <th className="px-6 py-3 border-b border-slate-100">Slips Audited</th>
-                <th className="px-6 py-3 border-b border-slate-100">Last Login</th>
-                <th className="px-6 py-3 border-b border-slate-100 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs text-slate-400">{u.id.substring(0, 8)}...</td>
-                  <td className="px-6 py-4 font-medium text-slate-900">{u.email}</td>
-                  <td className="px-6 py-4 text-slate-600">
-                    <span className="bg-slate-100 px-2 py-1 rounded-full text-xs font-bold">{u.slipCount}</span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">{u.lastLogin}</td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-accent hover:text-accent/80 text-xs font-bold uppercase tracking-wide">
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">User Database</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                    No users found.
-                  </td>
+                  <th className="px-6 py-3 border-b border-slate-100">User UID</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Email</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Slips</th>
+                  <th className="px-6 py-3 border-b border-slate-100">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {users.map(u => (
+                  <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-mono text-xs text-slate-400">{u.id.substring(0, 8)}...</td>
+                    <td className="px-6 py-4 font-medium text-slate-900">{u.email}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      <span className="bg-slate-100 px-2 py-1 rounded-full text-xs font-bold">{u.slipCount}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button 
+                        onClick={() => handleDeleteUser(u.id)}
+                        className="text-red-500 hover:text-red-700 text-xs font-bold uppercase tracking-wide"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                      No users found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Top Dropped Picks</h3>
+            <i className="fa-solid fa-trash-can text-slate-400"></i>
+          </div>
+          <div className="flex-1 overflow-y-auto max-h-[400px]">
+             {droppedPicks.length === 0 ? (
+               <div className="p-8 text-center text-slate-500 text-sm">No picks dropped yet.</div>
+             ) : (
+               <ul className="divide-y divide-slate-100">
+                 {droppedPicks.map((pick, i) => (
+                   <li key={i} className="p-4 flex items-center justify-between hover:bg-slate-50">
+                     <div className="min-w-0 pr-4">
+                       <p className="text-sm font-bold text-slate-900 truncate">{pick.matchLabel}</p>
+                       <p className="text-xs text-slate-500">{pick.market}</p>
+                     </div>
+                     <div className="shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 font-bold text-xs">
+                       {pick.count}
+                     </div>
+                   </li>
+                 ))}
+               </ul>
+             )}
+          </div>
         </div>
       </div>
     </div>

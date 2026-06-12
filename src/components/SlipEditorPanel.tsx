@@ -421,6 +421,28 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
   const handleApplyDrops = (legIdsToDrop: string[]) => {
     if (!selectedSlip) return;
+    
+    // Log dropped picks to analytics database
+    if (auth.currentUser && smartDropResult) {
+      const droppedPicksRef = collection(db, 'dropped_picks')
+      for (const droppedLeg of smartDropResult.droppedLegs) {
+        if (legIdsToDrop.includes(droppedLeg.legId)) {
+          const legDetail = selectedSlip.legs.find(l => l.id === droppedLeg.legId)
+          if (legDetail) {
+             addDoc(droppedPicksRef, {
+               matchLabel: legDetail.matchLabel,
+               market: legDetail.market,
+               odds: legDetail.odds,
+               ev: droppedLeg.ev,
+               rationale: droppedLeg.rationale,
+               userId: auth.currentUser.uid,
+               droppedAt: serverTimestamp()
+             }).catch(console.error)
+          }
+        }
+      }
+    }
+
     const newLegs = selectedSlip.legs.filter(l => !legIdsToDrop.includes(l.id));
     onSlipUpdated({ 
       ...selectedSlip, 
