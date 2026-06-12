@@ -1,4 +1,3 @@
-import React from 'react'
 import type { SlipHealth } from '../engine/smartDropping'
 
 interface Props {

@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import Swal from 'sweetalert2'
 import type { Match, OptimizationGoal, OptimizationMode, Slip, SlipLeg, MarketOdds } from '../types'
-import { optimizeSlipWithGoal } from '../engine/slipEditor'
 import { analyzeMatch } from '../engine/markets'
 import { SlipLegRow } from './SlipLegRow'
 import { ToastContainer, useToast } from './Toast'
@@ -31,12 +30,8 @@ const GOAL_OPTIONS: {
   icon: string
   description: string
 }[] = [
-  { mode: 'balanced',        label: 'Balanced',         icon: 'fa-solid fa-gem',           description: 'Maximize EV × Survival. Best overall mode.' },
-  { mode: 'target_survival', label: 'Survival',         icon: 'fa-solid fa-shield-halved', description: 'Upgrade markets until your slip hits a minimum survival rate.' },
-  { mode: 'best_ev',         label: 'Best EV',          icon: 'fa-solid fa-chart-line',    description: 'Keep positive EV bets, drop negative ones. Long-term profit.' },
+  { mode: 'balanced',        label: 'Smart Drop',       icon: 'fa-solid fa-scissors',      description: 'AI Flags and removes toxic picks to maximize survival.' },
   { mode: 'target_odds',     label: 'Target Odds',      icon: 'fa-solid fa-bullseye',      description: 'Swap risky markets to hit a combined odds payout goal.' },
-  { mode: 'safe_mode',       label: 'Safe',             icon: 'fa-solid fa-lock',          description: 'Keep only highly probable picks. Maximize survival probability.' },
-  { mode: 'dreamer',         label: 'Dreamer',          icon: 'fa-solid fa-rocket',        description: 'Preserve high odds while reducing stupidity. Casual bettors.' },
 ]
 
 // ─── SportyBet market resolution helpers ─────────────────────────────────────
@@ -162,11 +157,27 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
           eventMarketsCache.current.set(rawSelection.eventId, rawMarkets)
         }
 
-        const matchedGame = matches.find((m) => {
+        let matchedGame = matches.find((m) => {
           if (!pHome && !pAway) return false
           return (pHome && m.homeTeam.toLowerCase().includes(pHome.toLowerCase())) ||
                  (pAway && m.awayTeam.toLowerCase().includes(pAway.toLowerCase()))
-        }) ?? matches[i % matches.length]
+        })
+
+        if (!matchedGame) {
+          matchedGame = {
+            id: `match-${Date.now()}-${i}`,
+            sport: pick.sport?.name ?? pick.sportName ?? 'football',
+            homeTeam: pHome || 'Home',
+            awayTeam: pAway || 'Away',
+            kickoff: pick.date || pick.startTime || new Date().toISOString(),
+            isHome: true,
+            context: [],
+            motivation: 50,
+            fatigue: 50,
+            injuries: [],
+            availableMarkets: [],
+          }
+        }
 
         const realAvailableMarkets: MarketOdds[] = []
         for (const rm of rawMarkets) {
@@ -215,7 +226,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
           probability: Math.max(1, Math.min(95, Math.round((1 / displayOdds) * 100 * 0.90))),
           ev: 0.8,
           tier: 3 as const,
-          rationale: 'Scraped from SportyBet — optimize to improve this pick.',
+          rationale: 'Analyzed live. Run AI Optimization to reveal insights.',
           isOriginal: true,
           rawSelection,
         }

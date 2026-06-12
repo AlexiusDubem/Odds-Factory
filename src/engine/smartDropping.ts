@@ -1,4 +1,4 @@
-import { Slip, SlipLeg, OptimizationGoal } from '../types'
+import type { Slip, SlipLeg, OptimizationGoal } from '../types'
 import { fetchMatchEnrichment } from './sportmonks'
 
 export interface DroppingMetrics {
@@ -104,11 +104,10 @@ export async function analyzeSmartDrops(slip: Slip, goal: OptimizationGoal): Pro
     // Negative EV, high volatility, and great SSP increase drive this up.
     let impactScore = (sspIncrease * 50) - (ev * 10) + (volatility * 5);
     
-    let rationale = '';
-    if (ev < -0.1) rationale = 'Negative expected value (EV). The odds do not justify the risk.';
-    else if (volatility > 0.7) rationale = 'High historical volatility in this matchup. Unpredictable outcome.';
-    else if (rrr > 2) rationale = 'Dropping this drastically improves ticket survival for minimal odds loss.';
-    else rationale = 'Low confidence statistical edge.';
+    let rationale = stats.aiExplanation;
+    if (ev < -0.1) rationale = 'Negative expected value (EV) detected. ' + stats.aiExplanation;
+    else if (volatility > 0.7) rationale = 'High historical volatility. ' + stats.aiExplanation;
+    else if (rrr > 2) rationale = 'Massive survival boost. ' + stats.aiExplanation;
 
     droppingMetrics.push({
       legId: leg.id,

@@ -9,16 +9,16 @@ interface Props {
 }
 
 const PROFILE_LABELS: Record<string, string> = {
-  high_goal: 'High Goal',
-  low_goal: 'Low Goal',
-  controlled: 'Controlled',
-  chaos: 'Chaos',
-  balanced: 'Balanced',
+  high_goal: 'High Goal Expectancy',
+  low_goal: 'Low Goal Expectancy',
+  controlled: 'Tactical Match',
+  chaos: 'High Volatility',
+  balanced: 'Balanced Matchup',
   high_scoring: 'High Scoring',
   low_scoring: 'Low Scoring',
-  controlled_favorite: 'Favorite',
+  controlled_favorite: 'Strong Favorite',
   volatile: 'Volatile',
-  even_matchup: 'Even',
+  even_matchup: 'Even Matchup',
   generic_favorite: 'Favorite',
   generic_underdog: 'Underdog',
   generic_balanced: 'Balanced',

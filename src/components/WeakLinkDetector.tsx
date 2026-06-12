@@ -1,5 +1,4 @@
-import React from 'react'
-import type { DroppingMetrics, SmartDropResult } from '../engine/smartDropping'
+import type { SmartDropResult } from '../engine/smartDropping'
 
 interface Props {
   smartDropResult: SmartDropResult | null;
@@ -28,9 +27,6 @@ export function WeakLinkDetector({ smartDropResult, onApplyDrops, onCancel }: Pr
 
       <div className="space-y-4 mb-6">
         {smartDropResult.droppedLegs.map((drop, idx) => {
-          const leg = smartDropResult.optimizedSlip.legs.find(l => l.id === drop.legId) || 
-                      smartDropResult.originalHealth; // Hack to get name, but we need the leg obj actually.
-                      
           // We need the original legs passed in, or just map them from the original slip.
           // For now, assume the legId matches the UI.
           return (

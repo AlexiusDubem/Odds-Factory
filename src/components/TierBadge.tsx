@@ -7,9 +7,9 @@ const TIER_STYLES: Record<ConfidenceTier, string> = {
 }
 
 const TIER_LABELS: Record<ConfidenceTier, string> = {
-  1: 'Tier 1 — Safe Core',
-  2: 'Tier 2 — Good',
-  3: 'Tier 3 — Risky',
+  1: 'Safe Pick',
+  2: 'Medium Risk',
+  3: 'High Risk',
 }
 
 interface Props {
@@ -22,7 +22,7 @@ export function TierBadge({ tier, compact }: Props) {
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${TIER_STYLES[tier]}`}
     >
-      {compact ? `T${tier}` : TIER_LABELS[tier]}
+      {TIER_LABELS[tier]}
     </span>
   )
 }

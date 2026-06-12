@@ -25,7 +25,6 @@ function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [user, setUser] = useState<User | null>(null)
   const [authInitialized, setAuthInitialized] = useState(false)
-  const location = useLocation()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
