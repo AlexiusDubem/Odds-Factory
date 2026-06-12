@@ -3,7 +3,6 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 
 export const ProfilePanel = () => {
-  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -13,7 +12,7 @@ export const ProfilePanel = () => {
         const userRef = doc(db, 'users', auth.currentUser.uid)
         const snap = await getDoc(userRef)
         if (snap.exists()) {
-          // setProfile(snap.data())
+          // fetch any user fields if needed
         }
       } catch (err) {
         console.error('Failed to fetch profile:', err)

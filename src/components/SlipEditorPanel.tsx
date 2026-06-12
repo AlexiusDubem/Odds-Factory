@@ -178,7 +178,6 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
             injuries: [],
             availableMarkets: [],
             football: sport === 'football' || sport === 'soccer' ? {
-              league: 'unknown',
               goalsFor: 1.5,
               goalsAgainst: 1.5,
               homeGoalsFor: 1.5,
@@ -187,20 +186,22 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
               awayGoalsAgainst: 1.5,
               xG: 1.5,
               xGA: 1.5,
-              possession: 50,
-              shotsOnTarget: 5,
+              cornersPerGame: 5,
               cleanSheetRate: 0.3,
               bttsRate: 0.5,
               tempo: 50
             } : undefined,
             basketball: sport === 'basketball' ? {
-              league: 'unknown',
+              league: 'other',
               avgTotalPoints: 200,
               pace: 100,
               offensiveRating: 110,
               defensiveRating: 110,
-              threePointRate: 35,
-              reboundRate: 50,
+              pointsPerGame: 100,
+              reboundsPerGame: 40,
+              assistsPerGame: 20,
+              homePPG: 100,
+              awayPPG: 100,
               starPlayerImpact: 10,
               backToBackGames: 0,
               overUnderHitRate: 0.5
@@ -228,16 +229,17 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
           realAvailableMarkets.push({ market: pMarket, odds: isNaN(pOdds) ? 2.0 : pOdds })
         }
 
+        const uniqueId = `${matchedGame?.id || 'm'}-${Date.now()}-${i}`
+
         const enhancedMatch: Match = {
-          ...matchedGame,
+          ...(matchedGame as Match),
+          id: uniqueId,
           h2hWinRate:     50,
           formScore:      50,
           learningWeight: 50,
-          availableMarkets: realAvailableMarkets.length > 0 ? realAvailableMarkets : matchedGame.availableMarkets,
+          availableMarkets: realAvailableMarkets.length > 0 ? realAvailableMarkets : (matchedGame?.availableMarkets || []),
         }
 
-        const uniqueId = `${enhancedMatch.id}-${Date.now()}-${i}`
-        enhancedMatch.id = uniqueId
         updatedMap.set(uniqueId, enhancedMatch)
 
         const analysis    = analyzeMatch(enhancedMatch)

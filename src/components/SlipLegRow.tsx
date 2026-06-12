@@ -5,23 +5,6 @@ interface Props {
   onRemove?: () => void
 }
 
-const PROFILE_LABELS: Record<string, string> = {
-  high_goal: 'High Goal Expectancy',
-  low_goal: 'Low Goal Expectancy',
-  controlled: 'Tactical Match',
-  chaos: 'High Volatility',
-  balanced: 'Balanced Matchup',
-  high_scoring: 'High Scoring',
-  low_scoring: 'Low Scoring',
-  controlled_favorite: 'Strong Favorite',
-  volatile: 'Volatile',
-  even_matchup: 'Even Matchup',
-  generic_favorite: 'Favorite',
-  generic_underdog: 'Underdog',
-  generic_balanced: 'Balanced',
-  generic_volatile: 'Volatile',
-}
-
 export function SlipLegRow({ leg, index, onRemove }: Props) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-surface border border-border group hover:bg-surface-hover transition-colors">
