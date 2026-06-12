@@ -40,7 +40,7 @@ export const ProfilePanel = () => {
           <div className="w-24 h-24 bg-slate-900 rounded-full mx-auto flex items-center justify-center mb-6 shadow-xl border-4 border-white">
             <i className="fa-solid fa-user-astronaut text-4xl text-white"></i>
           </div>
-          <h2 className="text-2xl font-black text-slate-900">{auth.currentUser?.email}</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 break-all px-2">{auth.currentUser?.email}</h2>
           <p className="text-sm text-slate-500 font-medium mt-1">OddsFactory Member</p>
         </div>
       </div>

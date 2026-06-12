@@ -103,17 +103,22 @@ export function NotificationCenter() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto sm:right-0 top-[73px] sm:top-full sm:mt-2 bg-white border border-slate-200 shadow-2xl sm:shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 w-auto sm:w-80">
           <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <h3 className="font-bold text-slate-900">Notifications</h3>
-            {unreadCount > 0 && (
-              <span className="bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                {unreadCount} New
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <span className="bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  {unreadCount} New
+                </span>
+              )}
+              <button onClick={() => setIsOpen(false)} className="sm:hidden text-slate-400 hover:text-slate-600">
+                <i className="fa-solid fa-times text-lg"></i>
+              </button>
+            </div>
           </div>
           
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[60vh] sm:max-h-[400px] overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-8 text-center text-slate-500">
                 <i className="fa-regular fa-bell-slash text-3xl mb-3 text-slate-300"></i>
@@ -152,7 +157,7 @@ export function NotificationCenter() {
                       {n.read && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleDelete(n.id) }}
-                          className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                          className="text-slate-300 hover:text-red-500 transition-colors p-2 shrink-0"
                           title="Delete notification"
                         >
                           <i className="fa-solid fa-trash-can text-sm"></i>

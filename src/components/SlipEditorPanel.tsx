@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import Swal from 'sweetalert2'
 import type { Match, OptimizationGoal, OptimizationMode, Slip, SlipLeg, MarketOdds } from '../types'
 import { analyzeMatch } from '../engine/markets'
 import { SlipLegRow } from './SlipLegRow'
@@ -92,6 +91,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const [hasOptimized, setHasOptimized]   = useState(false)
   const [smartDropResult, setSmartDropResult] = useState<SmartDropResult | null>(null)
   const [aiAnalysis, setAiAnalysis]       = useState<string | null>(null)
+  const [modalError, setModalError]       = useState<{title: string, message: string} | null>(null)
   const [localMatchMap, setLocalMatchMap] = useState<Map<string, Match>>(
     new Map(matches.map((m) => [m.id, m]))
   )
@@ -113,7 +113,8 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     eventMarketsCache.current.clear()
 
     try {
-      const response = await fetch(`/api/sportybet/orders/share/${bookingCode.toUpperCase()}`, {
+      const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${bookingCode.toUpperCase()}`)
+      const response = await fetch(`https://api.allorigins.win/raw?url=${targetUrl}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
       })
@@ -370,22 +371,14 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       const data = await res.json()
       if (data.success && data.shareCode) {
         setGeneratedCode(data.shareCode)
-        Swal.fire({
-          title: 'Code Generated!',
-          html: `<p>Your fresh SportyBet code is:</p><h1 class="text-4xl font-black text-slate-900 tracking-[0.2em] my-4">${data.shareCode}</h1>`,
-          icon: 'success',
-          confirmButtonColor: '#16a34a'
-        })
       } else {
         throw new Error(data.message || 'Unknown error from server')
       }
     } catch (err: any) {
       console.error(err)
-      Swal.fire({
+      setModalError({
         title: 'Auto-Booker Unavailable',
-        text: 'To generate codes, you must be running the local Odds Factory booking server (npm run server). Make sure it is active!',
-        icon: 'error',
-        confirmButtonColor: '#16a34a'
+        message: 'To generate codes, you must be running the local Odds Factory booking server (npm run server). Make sure it is active!'
       })
     } finally {
       setIsGenerating(false)
@@ -717,6 +710,24 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       </div>
 
       {showTicketPreview && <TicketPreviewModal slip={selectedSlip} onClose={() => setShowTicketPreview(false)} />}
+
+      {modalError && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center mb-4 mx-auto shadow-sm">
+              <i className="fa-solid fa-triangle-exclamation text-lg text-red-500"></i>
+            </div>
+            <h3 className="text-xl font-black text-center text-slate-900 mb-2">{modalError.title}</h3>
+            <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">{modalError.message}</p>
+            <button 
+              onClick={() => setModalError(null)}
+              className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-md"
+            >
+              Okay, got it
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
