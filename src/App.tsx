@@ -1,15 +1,14 @@
-import { useState, useEffect, Suspense, lazy } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import type { Slip } from './types'
 import { sampleMatches } from './data/sampleMatches'
 import { LoginPanel } from './components/LoginPanel'
 import { NotificationCenter } from './components/NotificationCenter'
-
-const SlipEditorPanel = lazy(() => import('./components/SlipEditorPanel').then(m => ({ default: m.SlipEditorPanel })))
-const SavedSlipsPanel = lazy(() => import('./components/SavedSlipsPanel').then(m => ({ default: m.SavedSlipsPanel })))
-const DashboardPanel = lazy(() => import('./components/DashboardPanel').then(m => ({ default: m.DashboardPanel })))
-const ProfilePanel = lazy(() => import('./components/ProfilePanel').then(m => ({ default: m.ProfilePanel })))
-const ControlPanel = lazy(() => import('./components/ControlPanel').then(m => ({ default: m.ControlPanel })))
+import { SlipEditorPanel } from './components/SlipEditorPanel'
+import { SavedSlipsPanel } from './components/SavedSlipsPanel'
+import { DashboardPanel } from './components/DashboardPanel'
+import { ProfilePanel } from './components/ProfilePanel'
+import { ControlPanel } from './components/ControlPanel'
 import { auth, db, messaging } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
@@ -24,61 +23,55 @@ const NAV_LINKS = [
 ]
 
 function App() {
-  const [slips, setSlips] = useState<Slip[]>([])
-  const [showSplash, setShowSplash] = useState(true)
   const [user, setUser] = useState<User | null>(null)
-  const [authInitialized, setAuthInitialized] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [slips, setSlips] = useState<Slip[]>([])
+  const [selectedSlip, setSelectedSlip] = useState<Slip | null>(null)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser)
-      setAuthInitialized(true)
-      
+      setLoading(false)
+
       if (currentUser) {
+        // Request Web Push token and save to DB
         try {
-          const m = await messaging()
-          if (m) {
-            const token = await getToken(m, { vapidKey: 'BOGUS_VAPID_KEY_REPLACE_LATER' }).catch(() => null)
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const token = await getToken(messaging, { 
+              vapidKey: 'YOUR_PUBLIC_VAPID_KEY_HERE' // Optional, if using web push certs
+            })
             if (token) {
-              await setDoc(doc(db, 'users', currentUser.uid), {
-                fcmToken: token,
-                lastLogin: serverTimestamp()
+              await setDoc(doc(db, 'users', currentUser.uid, 'fcmTokens', token), {
+                token,
+                createdAt: serverTimestamp(),
+                device: navigator.userAgent
               }, { merge: true })
             }
           }
         } catch (err) {
-          console.log('FCM Setup Error:', err)
+          console.error('FCM Token error:', err)
         }
       }
     })
-    const t = setTimeout(() => setShowSplash(false), 2000)
-    return () => {
-      clearTimeout(t)
-      unsubscribe()
-    }
+    return () => unsubscribe()
   }, [])
 
-  if (showSplash) {
+  const handleLoadSlip = (slip: Slip) => {
+    setSelectedSlip(slip)
+    // Optional: navigate to audit programmatically using useNavigate here
+  }
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
-           <img src="/logo.png" className="w-[150vw] h-auto object-cover blur-sm" alt="" />
-        </div>
-        <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-700">
-           <img src="/logo.png" className="w-24 h-24 object-contain animate-pulse mb-6 drop-shadow-2xl bg-white rounded-2xl p-2" alt="Odds Factory" />
-           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-[0.2em] uppercase font-sans mb-2">Odds Factory</h1>
-           <p className="text-accent text-xs sm:text-sm font-bold tracking-widest uppercase">Initializing Intelligence...</p>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <i className="fa-solid fa-circle-notch fa-spin text-4xl text-accent"></i>
       </div>
     )
-  }
-  if (!authInitialized) {
-    return null // wait for auth state to resolve
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col bg-slate-100/50">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <LoginPanel />
       </div>
     )
@@ -139,33 +132,27 @@ function App() {
       </nav>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 pb-24 sm:pb-6">
-        <Suspense fallback={
-          <div className="flex justify-center items-center h-64">
-            <i className="fa-solid fa-circle-notch fa-spin text-3xl text-accent"></i>
-          </div>
-        }>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPanel />} />
-            <Route path="/audit" element={
-              <SlipEditorPanel
-                matches={sampleMatches}
-                slips={slips}
-                setSlips={setSlips}
-                onSlipUpdated={(slip) => setSlips((prev) => prev.map((s) => (s.id === slip.id ? slip : s)))}
-              />
-            } />
-            <Route path="/history" element={
-              <SavedSlipsPanel 
-                onLoadSlip={(slip) => {
-                  setSlips([slip])
-                }} 
-              />
-            } />
-            <Route path="/profile" element={<ProfilePanel />} />
-            <Route path="/control" element={<ControlPanel />} />
-          </Routes>
-        </Suspense>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPanel />} />
+          <Route path="/audit" element={
+            <SlipEditorPanel
+              matches={sampleMatches}
+              slips={slips}
+              setSlips={setSlips}
+              onSlipUpdated={(slip) => setSlips((prev) => prev.map((s) => (s.id === slip.id ? slip : s)))}
+            />
+          } />
+          <Route path="/history" element={
+            <SavedSlipsPanel 
+              onLoadSlip={(slip) => {
+                setSlips([slip])
+              }} 
+            />
+          } />
+          <Route path="/profile" element={<ProfilePanel />} />
+          <Route path="/control" element={<ControlPanel />} />
+        </Routes>
       </main>
 
       {/* Mobile Bottom Navigation */}

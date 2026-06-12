@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/sportybet/:match*",
+      "destination": "https://www.sportybet.com/api/ng/:match*"
+    },
+    {
+      "source": "/api/sportmonks/:match*",
+      "destination": "https://api.sportmonks.com/:match*"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
