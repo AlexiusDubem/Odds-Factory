@@ -361,24 +361,32 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     }
 
     try {
-      // Connects to local Playwright server (must be running on localhost:3001)
-      const res = await fetch('/api/local/book', {
+      // Direct cloud proxy generation (bypassing local server dependency)
+      const targetUrl = encodeURIComponent('https://www.sportybet.com/api/ng/orders/share')
+      const proxyUrl = `https://corsproxy.io/?${targetUrl}`
+
+      const res = await fetch(proxyUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selections })
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ selections, device: 'web', source: 'betslip' })
       })
-      if (!res.ok) throw new Error('Failed to connect to local booking server.')
+
+      if (!res.ok) throw new Error('Failed to generate code via proxy.')
       const data = await res.json()
-      if (data.success && data.shareCode) {
-        setGeneratedCode(data.shareCode)
+
+      if (data.bizCode === 10000 && data.data?.shareCode) {
+        setGeneratedCode(data.data.shareCode)
       } else {
-        throw new Error(data.message || 'Unknown error from server')
+        throw new Error(data.message || 'Unknown error from SportyBet API')
       }
     } catch (err: any) {
       console.error(err)
       setModalError({
-        title: 'Auto-Booker Unavailable',
-        message: 'To generate codes, you must be running the local Odds Factory booking server (npm run server). Make sure it is active!'
+        title: 'Proxy Connection Failed',
+        message: 'OddsFactory could not connect to the SportyBet servers via the cloud proxy. This usually happens if SportyBet is temporarily blocking the proxy IP or your internet connection is unstable.'
       })
     } finally {
       setIsGenerating(false)
