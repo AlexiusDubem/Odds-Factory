@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore'
+import { collection, query, getDocs, orderBy } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 import type { Slip } from '../types'
 
@@ -38,7 +38,6 @@ export const DashboardPanel = () => {
     )
   }
 
-  const activeSlips = slips.filter(s => (s as any).status === 'active' || !s.survivalProbability) // fallback if status missing
   const avgHealth = slips.length > 0 
     ? slips.reduce((acc, s) => acc + (s.survivalProbability || 0), 0) / slips.length 
     : 0;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import type { Slip } from './types'
 import { sampleMatches } from './data/sampleMatches'
 import { SlipEditorPanel } from './components/SlipEditorPanel'
@@ -7,6 +7,7 @@ import { SavedSlipsPanel } from './components/SavedSlipsPanel'
 import { DashboardPanel } from './components/DashboardPanel'
 import { ProfilePanel } from './components/ProfilePanel'
 import { LoginPanel } from './components/LoginPanel'
+import { ControlPanel } from './components/ControlPanel'
 import { auth, db, messaging } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
@@ -160,6 +161,7 @@ function App() {
             } 
           />
           <Route path="/profile" element={<ProfilePanel />} />
+          <Route path="/control" element={<ControlPanel />} />
         </Routes>
       </main>
 

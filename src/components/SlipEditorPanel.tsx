@@ -164,9 +164,10 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
         })
 
         if (!matchedGame) {
+          const sport = (pick.sport?.name ?? pick.sportName ?? 'football').toLowerCase()
           matchedGame = {
             id: `match-${Date.now()}-${i}`,
-            sport: pick.sport?.name ?? pick.sportName ?? 'football',
+            sport: sport,
             homeTeam: pHome || 'Home',
             awayTeam: pAway || 'Away',
             kickoff: pick.date || pick.startTime || new Date().toISOString(),
@@ -176,6 +177,34 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
             fatigue: 50,
             injuries: [],
             availableMarkets: [],
+            football: sport === 'football' || sport === 'soccer' ? {
+              league: 'unknown',
+              goalsFor: 1.5,
+              goalsAgainst: 1.5,
+              homeGoalsFor: 1.5,
+              homeGoalsAgainst: 1.5,
+              awayGoalsFor: 1.5,
+              awayGoalsAgainst: 1.5,
+              xG: 1.5,
+              xGA: 1.5,
+              possession: 50,
+              shotsOnTarget: 5,
+              cleanSheetRate: 0.3,
+              bttsRate: 0.5,
+              tempo: 50
+            } : undefined,
+            basketball: sport === 'basketball' ? {
+              league: 'unknown',
+              avgTotalPoints: 200,
+              pace: 100,
+              offensiveRating: 110,
+              defensiveRating: 110,
+              threePointRate: 35,
+              reboundRate: 50,
+              starPlayerImpact: 10,
+              backToBackGames: 0,
+              overUnderHitRate: 0.5
+            } : undefined
           }
         }
 
@@ -232,19 +261,50 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
         }
       })
 
-      setLocalMatchMap(updatedMap)
-      setSlips([{
+      const newSlip = {
         id: `slip-${Date.now()}`,
         name: `Code: ${bookingCode.toUpperCase()}`,
-        mode: 'single_acca',
+        mode: 'single_acca' as const,
         legs: parsedLegs,
-        combinedOdds:       calcCombinedOdds(parsedLegs),
+        combinedOdds: calcCombinedOdds(parsedLegs),
         survivalProbability: calcSurvival(parsedLegs),
-        createdAt:   new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         stakePercent: 10,
-      }])
+      }
+      setLocalMatchMap(updatedMap)
+      setSlips([newSlip])
       setBookingCode('')
-      toast('success', 'Slip Loaded', `${parsedLegs.length} leg${parsedLegs.length !== 1 ? 's' : ''} imported. Set your goal and click Optimize.`)
+      toast('success', 'Slip Loaded', `${parsedLegs.length} leg${parsedLegs.length !== 1 ? 's' : ''} imported. Auto-saving...`)
+      
+      // Auto-save slip to dashboard and log global matches
+      if (auth.currentUser) {
+        try {
+          const slipsRef = collection(db, 'users', auth.currentUser.uid, 'slips')
+          await addDoc(slipsRef, {
+            name: newSlip.name,
+            combinedOdds: newSlip.combinedOdds,
+            survivalProbability: newSlip.survivalProbability,
+            legs: newSlip.legs,
+            status: 'active',
+            createdAt: serverTimestamp()
+          })
+
+          const globalMatchesRef = collection(db, 'processed_matches')
+          for (const leg of parsedLegs) {
+            await addDoc(globalMatchesRef, {
+              matchLabel: leg.matchLabel,
+              sport: leg.sport,
+              market: leg.market,
+              odds: leg.odds,
+              probability: leg.probability,
+              processedAt: serverTimestamp(),
+              processedBy: auth.currentUser.uid
+            })
+          }
+        } catch (e) {
+          console.error("Failed to auto-save to Firestore:", e)
+        }
+      }
     } catch (err: any) {
       console.error('Load failed:', err)
       toast('error', 'Load Failed', err.message ?? 'Could not load the booking code.')

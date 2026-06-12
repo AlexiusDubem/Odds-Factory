@@ -1,7 +1,4 @@
 import type { SlipLeg } from '../types'
-import { ProfileBadge } from './ProfileBadge'
-import { TierBadge } from './TierBadge'
-
 interface Props {
   leg: SlipLeg
   index: number
@@ -34,21 +31,16 @@ export function SlipLegRow({ leg, index, onRemove }: Props) {
       </span>
 
       <div className="flex-1 min-w-0">
-        {/* Match label + profile badge */}
+        {/* Match label */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-slate-900">{leg.matchLabel}</span>
-          <ProfileBadge
-            profile={leg.profile}
-            label={PROFILE_LABELS[leg.profile] ?? leg.profile}
-            sport={leg.sport}
-          />
         </div>
 
-        {/* Market + odds + tier + probability */}
+        {/* Market + odds + probability */}
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           <span className="text-accent font-semibold text-sm">{leg.market}</span>
           <span className="text-slate-800 font-bold text-sm">@{leg.odds.toFixed(2)}</span>
-          <TierBadge tier={leg.tier} compact />
+          <span className="text-emerald-600 font-bold text-xs">{leg.probability.toFixed(1)}% Win Prob</span>
 
           {/* Swap indicator */}
           {leg.wasSwapped && leg.previousMarket && (
@@ -66,7 +58,9 @@ export function SlipLegRow({ leg, index, onRemove }: Props) {
         </div>
 
         {/* Rationale */}
-        <p className="text-xs text-slate-400 mt-1 line-clamp-1">{leg.rationale}</p>
+        <p className="text-xs text-slate-500 font-medium mt-1.5 line-clamp-2 leading-relaxed">
+          <i className="fa-solid fa-robot text-accent/70 mr-1"></i> {leg.rationale}
+        </p>
       </div>
 
       {/* Remove button — visible on hover */}

@@ -13,7 +13,7 @@ export const ProfilePanel = () => {
         const userRef = doc(db, 'users', auth.currentUser.uid)
         const snap = await getDoc(userRef)
         if (snap.exists()) {
-          setProfile(snap.data())
+          // setProfile(snap.data())
         }
       } catch (err) {
         console.error('Failed to fetch profile:', err)

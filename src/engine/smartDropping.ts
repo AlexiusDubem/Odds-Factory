@@ -134,12 +134,23 @@ export async function analyzeSmartDrops(slip: Slip, goal: OptimizationGoal): Pro
       currentProb += m.sspIncrease;
       dropCount++;
     }
+  } else if (goal.mode === 'target_odds' && goal.targetOdds) {
+    let currentOdds = OSO;
+    for (const m of droppingMetrics) {
+      if (currentOdds <= goal.targetOdds) break;
+      const legOdds = slip.legs.find(l => l.id === m.legId)?.odds || 1;
+      currentOdds = currentOdds / legOdds;
+      dropCount++;
+    }
   } else if (goal.mode === 'best_ev') {
     dropCount = droppingMetrics.filter(m => m.ev < 0).length;
   } else {
-    // Balanced or default: drop the top 1-3 worst offenders if they are really bad
-    dropCount = droppingMetrics.filter(m => m.impactScore > 5).slice(0, 3).length;
-    if (dropCount === 0 && droppingMetrics.length > 5) dropCount = 1; // Drop at least 1 if slip is big
+    // Smart Drop (Balanced): Drop legs that have negative EV or extremely high volatility.
+    // Cap drops at 40% of the slip to preserve the accumulator structure unless the slip is tiny.
+    const toxicLegs = droppingMetrics.filter(m => m.ev < -0.05 || m.volatility > 0.65 || m.impactScore > 8);
+    const maxDrops = Math.max(1, Math.ceil(slip.legs.length * 0.4)); 
+    dropCount = Math.min(toxicLegs.length, maxDrops);
+    if (dropCount === 0 && droppingMetrics.length > 3) dropCount = 1; // Always drop the absolute worst pick
   }
 
   const legsToDrop = droppingMetrics.slice(0, dropCount).map(m => m.legId);
