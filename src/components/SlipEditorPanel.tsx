@@ -113,8 +113,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     eventMarketsCache.current.clear()
 
     try {
-      const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${bookingCode.toUpperCase()}`)
-      const response = await fetch(`https://api.allorigins.win/raw?url=${targetUrl}`, {
+      const response = await fetch(`/api/load?code=${encodeURIComponent(bookingCode.trim())}`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
       })
@@ -361,11 +360,8 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     }
 
     try {
-      // Direct cloud proxy generation (bypassing local server dependency)
-      const targetUrl = encodeURIComponent('https://www.sportybet.com/api/ng/orders/share')
-      const proxyUrl = `https://corsproxy.io/?${targetUrl}`
-
-      const res = await fetch(proxyUrl, {
+      // Direct proxy via Vercel serverless API
+      const res = await fetch('/api/book', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
