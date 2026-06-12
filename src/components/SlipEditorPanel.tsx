@@ -113,12 +113,48 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     eventMarketsCache.current.clear()
 
     try {
-      const response = await fetch(`/api/load?code=${encodeURIComponent(bookingCode.trim())}`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const json = await response.json()
+      // Robust multi-proxy fallback array
+      const proxyList = [
+        (url: string) => `/api/load?code=${bookingCode.trim()}`, // Vercel Backend
+        (url: string) => `https://api.codetabs.com/v1/proxy/?quest=${url}`, // Fallback 1
+        (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`, // Fallback 2
+        (url: string) => `https://corsproxy.io/?${url}` // Fallback 3
+      ];
+
+      const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${bookingCode.toUpperCase()}`);
+      
+      let json = null;
+      let lastError = null;
+
+      for (const proxyFn of proxyList) {
+        try {
+          const proxyUrl = proxyFn(targetUrl);
+          const response = await fetch(proxyUrl, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          });
+          
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const text = await response.text();
+          // Detect HTML block pages (Cloudflare/Vercel errors)
+          if (text.trim().startsWith('<')) {
+             throw new Error('Proxy returned HTML instead of JSON');
+          }
+          
+          json = JSON.parse(text);
+          break; // Success, break out of loop
+        } catch (e: any) {
+          lastError = e;
+          console.warn(`Proxy failed:`, e.message);
+          continue;
+        }
+      }
+
+      if (!json) {
+        throw new Error('All proxies failed to connect to SportyBet. SportyBet might be under maintenance or blocking all traffic.');
+      }
+
       if (json.bizCode === 19000 || json.message?.toLowerCase().includes('invalid')) {
         throw new Error(json.message ?? 'Invalid booking code')
       }
@@ -360,18 +396,46 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     }
 
     try {
-      // Direct proxy via Vercel serverless API
-      const res = await fetch('/api/book', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ selections, device: 'web', source: 'betslip' })
-      })
+      // Robust POST proxy fallback array
+      const targetUrl = encodeURIComponent('https://www.sportybet.com/api/ng/orders/share');
+      const proxyList = [
+        '/api/book', // Vercel Backend
+        `https://corsproxy.io/?${targetUrl}` // Fallback 1
+      ];
 
-      if (!res.ok) throw new Error('Failed to generate code via proxy.')
-      const data = await res.json()
+      let data = null;
+      let lastError = null;
+
+      for (const proxyUrl of proxyList) {
+        try {
+          const res = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ selections, device: 'web', source: 'betslip' })
+          });
+
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          
+          const text = await res.text();
+          if (text.trim().startsWith('<')) {
+            throw new Error('Proxy returned HTML block page');
+          }
+
+          data = JSON.parse(text);
+          break; // Success
+        } catch (e: any) {
+          console.warn(`POST Proxy failed:`, e.message);
+          lastError = e;
+          continue;
+        }
+      }
+
+      if (!data) {
+        throw new Error('All proxy generation servers are currently blocked by SportyBet.');
+      }
 
       if (data.bizCode === 10000 && data.data?.shareCode) {
         setGeneratedCode(data.data.shareCode)
