@@ -115,7 +115,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     try {
       // Robust multi-proxy fallback array
       const proxyList = [
-        (url: string) => `/api/load?code=${bookingCode.trim()}`, // Vercel Backend
+        () => `/api/load?code=${bookingCode.trim()}`, // Vercel Backend
         (url: string) => `https://api.codetabs.com/v1/proxy/?quest=${url}`, // Fallback 1
         (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`, // Fallback 2
         (url: string) => `https://corsproxy.io/?${url}` // Fallback 3
@@ -124,7 +124,6 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${bookingCode.toUpperCase()}`);
       
       let json = null;
-      let lastError = null;
 
       for (const proxyFn of proxyList) {
         try {
@@ -145,7 +144,6 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
           json = JSON.parse(text);
           break; // Success, break out of loop
         } catch (e: any) {
-          lastError = e;
           console.warn(`Proxy failed:`, e.message);
           continue;
         }
@@ -404,7 +402,6 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       ];
 
       let data = null;
-      let lastError = null;
 
       for (const proxyUrl of proxyList) {
         try {
@@ -428,7 +425,6 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
           break; // Success
         } catch (e: any) {
           console.warn(`POST Proxy failed:`, e.message);
-          lastError = e;
           continue;
         }
       }
