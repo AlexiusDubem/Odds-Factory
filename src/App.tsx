@@ -8,6 +8,7 @@ import { DashboardPanel } from './components/DashboardPanel'
 import { ProfilePanel } from './components/ProfilePanel'
 import { LoginPanel } from './components/LoginPanel'
 import { ControlPanel } from './components/ControlPanel'
+import { NotificationCenter } from './components/NotificationCenter'
 import { auth, db, messaging } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
@@ -102,6 +103,7 @@ function App() {
               <span className="font-medium text-slate-700 bg-slate-100 px-3 py-1 rounded-full text-xs hidden sm:inline-block">
                 {user.email}
               </span>
+              <NotificationCenter />
               <button 
                 onClick={() => signOut(auth)} 
                 className="hover:text-red-500 transition-colors flex items-center gap-1.5 font-medium"

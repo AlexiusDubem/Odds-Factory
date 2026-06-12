@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 
 interface UserStats {
@@ -22,6 +22,12 @@ export const ControlPanel = () => {
   const [totalMatches, setTotalMatches] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Notification Form State
+  const [notifTitle, setNotifTitle] = useState('')
+  const [notifMessage, setNotifMessage] = useState('')
+  const [notifTarget, setNotifTarget] = useState('ALL')
+  const [isSending, setIsSending] = useState(false)
 
   const fetchAdminData = async () => {
     if (!auth.currentUser) return;
@@ -51,13 +57,20 @@ export const ControlPanel = () => {
       const matchesRef = collection(db, 'processed_matches')
       const matchesSnap = await getDocs(matchesRef)
       
-      // Fetch dropped picks for analytics
+      // Fetch dropped picks for analytics (Filter to last 24 hours)
       const droppedRef = collection(db, 'dropped_picks')
       const droppedSnap = await getDocs(droppedRef)
       
       const pickCounts: Record<string, number> = {}
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      
       droppedSnap.docs.forEach(d => {
         const data = d.data()
+        // Check if it exists and is within 24h
+        if (data.droppedAt && typeof data.droppedAt.toMillis === 'function') {
+          if (data.droppedAt.toMillis() < oneDayAgo) return;
+        }
+        
         const key = `${data.matchLabel} | ${data.market}`
         pickCounts[key] = (pickCounts[key] || 0) + 1
       })
@@ -95,6 +108,34 @@ export const ControlPanel = () => {
     } catch (err) {
       console.error(err)
       alert('Failed to delete user.')
+    }
+  }
+
+  const handleSendNotification = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!notifTitle.trim() || !notifMessage.trim()) return
+    
+    setIsSending(true)
+    try {
+      const targets = notifTarget === 'ALL' ? users.map(u => u.id) : [notifTarget]
+      
+      for (const uid of targets) {
+        await addDoc(collection(db, 'users', uid, 'notifications'), {
+          title: notifTitle,
+          message: notifMessage,
+          read: false,
+          createdAt: serverTimestamp()
+        })
+      }
+      
+      alert(`Notification sent to ${targets.length} user(s).`)
+      setNotifTitle('')
+      setNotifMessage('')
+    } catch (err) {
+      console.error(err)
+      alert('Failed to send notification.')
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -208,7 +249,7 @@ export const ControlPanel = () => {
           </div>
           <div className="flex-1 overflow-y-auto max-h-[400px]">
              {droppedPicks.length === 0 ? (
-               <div className="p-8 text-center text-slate-500 text-sm">No picks dropped yet.</div>
+               <div className="p-8 text-center text-slate-500 text-sm">No picks dropped in the last 24 hours.</div>
              ) : (
                <ul className="divide-y divide-slate-100">
                  {droppedPicks.map((pick, i) => (
@@ -226,6 +267,59 @@ export const ControlPanel = () => {
              )}
           </div>
         </div>
+
+        {/* Push Notification Sender */}
+        <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden p-6 mt-4">
+          <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <i className="fa-solid fa-paper-plane text-accent"></i> Broadcast Notification
+          </h3>
+          <form onSubmit={handleSendNotification} className="space-y-4 max-w-2xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Target Audience</label>
+                <select 
+                  value={notifTarget}
+                  onChange={e => setNotifTarget(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="ALL">All Users</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.email}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Notification Title</label>
+                <input 
+                  type="text" 
+                  value={notifTitle}
+                  onChange={e => setNotifTitle(e.target.value)}
+                  placeholder="e.g. Server Maintenance"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Message</label>
+              <textarea 
+                value={notifMessage}
+                onChange={e => setNotifMessage(e.target.value)}
+                placeholder="Type your message to users here..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-accent min-h-[100px]"
+                required
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={isSending}
+              className="px-6 py-3 bg-accent text-white font-bold rounded-xl hover:bg-emerald-500 transition-colors disabled:opacity-50"
+            >
+              {isSending ? 'Broadcasting...' : 'Send Notification'}
+            </button>
+          </form>
+        </div>
+
       </div>
     </div>
   )

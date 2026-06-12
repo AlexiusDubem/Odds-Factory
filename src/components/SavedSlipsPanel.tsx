@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
 import { db, auth } from '../config/firebase'
 import type { Slip } from '../types'
 
@@ -27,6 +27,17 @@ export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => vo
 
     return () => unsubscribe()
   }, [])
+
+  const handleDeleteSlip = async (slipId: string) => {
+    if (!auth.currentUser) return
+    if (!confirm('Are you sure you want to delete this saved slip?')) return
+    try {
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'slips', slipId))
+    } catch (err) {
+      console.error(err)
+      alert('Failed to delete slip.')
+    }
+  }
 
   if (loading) {
     return (
@@ -56,7 +67,7 @@ export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => vo
       <h2 className="text-2xl font-bold text-slate-900 px-2">Your Saved Slips</h2>
       <div className="grid gap-4">
         {savedSlips.map((slip) => (
-          <div key={slip.id} className="bg-white rounded-2xl p-5 border border-border shadow-sm flex items-center justify-between">
+          <div key={slip.id} className="bg-white rounded-2xl p-5 border border-border shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <span className="font-bold text-slate-900 text-lg tracking-widest">{slip.name}</span>
@@ -69,12 +80,19 @@ export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => vo
                 {' · '} Combined Odds: <strong className="text-accent">{slip.combinedOdds.toFixed(2)}</strong>
               </p>
             </div>
-            <div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <button 
                 onClick={() => onLoadSlip(slip)}
-                className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-sm transition-colors border border-slate-200"
+                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-sm transition-colors border border-slate-200"
               >
                 View Details
+              </button>
+              <button 
+                onClick={() => handleDeleteSlip(slip.id)}
+                className="px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-500 font-semibold transition-colors border border-red-100"
+                title="Delete Slip"
+              >
+                <i className="fa-solid fa-trash-can"></i>
               </button>
             </div>
           </div>

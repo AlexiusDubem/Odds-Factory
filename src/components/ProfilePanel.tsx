@@ -46,6 +46,21 @@ export const ProfilePanel = () => {
         </div>
       </div>
 
+      {/* Freemium Banner */}
+      <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-6 shadow-md text-white flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 className="font-black text-lg flex items-center gap-2">
+            <i className="fa-solid fa-crown text-amber-400"></i> Freemium Access Activated
+          </h3>
+          <p className="text-sm text-violet-100 mt-1 max-w-xl">
+            OddsFactory is currently in Freemium mode! Premium plans are coming soon, but for now, enjoy full unlimited Pro access on the house.
+          </p>
+        </div>
+        <button className="px-5 py-2.5 bg-white text-indigo-600 font-bold text-sm rounded-xl hover:bg-slate-50 transition-colors shrink-0">
+          You're a Pro!
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -89,7 +104,9 @@ export const ProfilePanel = () => {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-2 border-b border-slate-800">
               <span className="text-slate-400">Subscription</span>
-              <span className="font-bold text-emerald-400">Pro Beta</span>
+              <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                <i className="fa-solid fa-crown text-xs"></i> Pro Plan <span className="text-[10px] text-slate-400 uppercase">(Early Access Free)</span>
+              </span>
             </div>
             <div className="flex justify-between py-2 border-b border-slate-800">
               <span className="text-slate-400">API Calls Used</span>
