@@ -155,7 +155,7 @@ Return ONLY a raw JSON array:
               response_mime_type: 'application/json',
             },
           }),
-          signal: AbortSignal.timeout(20000),
+          // No timeout — let Gemini always finish, even for large slips
         }
       )
 
@@ -196,7 +196,7 @@ async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): 
         })),
         goal,
       }),
-      signal: AbortSignal.timeout(30000),
+      // No timeout — let the server finish all batches regardless of slip size
     })
 
     if (res.ok) {

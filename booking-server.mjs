@@ -24,7 +24,7 @@ async function bzzoiroFetch(sport, endpoint, searchQuery) {
   try {
     const r = await fetch(url, {
       headers: { Authorization: `Token ${BZZOIRO_API_KEY}`, Accept: 'application/json' },
-      signal: AbortSignal.timeout(2000), // Fast 2s timeout
+      signal: AbortSignal.timeout(3000), // 3s — optional live data enrichment only
     })
     if (r.status === 402) return { error: 'subscription_required' }
     if (!r.ok)           return null
@@ -69,7 +69,7 @@ async function callGemini(prompt, geminiKey, jsonMode = false) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(25000),
+          // No timeout — let Gemini always finish regardless of slip size
         }
       )
       if (r.status === 404) continue
