@@ -12,7 +12,7 @@
 import { fetchBzzoiroSportsData } from './sportmonks'
 
 const GEMINI_MODEL = 'gemini-1.5-flash'
-const BZZOIRO_API_KEY = '44f7f68bac9c7ed68631979a69ba1d855448b7fb'
+const BZZOIRO_API_KEY = import.meta.env.VITE_BZZOIRO_API_KEY || '44f7f68bac9c7ed68631979a69ba1d855448b7fb'
 const BZZOIRO_BASE = 'https://sports.bzzoiro.com'
 
 // ─── Types ────────────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ import http from 'http'
 import { chromium } from 'playwright'
 
 // ── AI Orchestrator (ESM dynamic import on first use) ─────────────────────────
-const BZZOIRO_API_KEY = '44f7f68bac9c7ed68631979a69ba1d855448b7fb'
+const BZZOIRO_API_KEY = process.env.BZZOIRO_API_KEY || '44f7f68bac9c7ed68631979a69ba1d855448b7fb'
 const BZZOIRO_BASE    = 'https://sports.bzzoiro.com'
 
 async function bzzoiroFetch(sport, endpoint, searchQuery) {

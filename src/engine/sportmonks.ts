@@ -77,7 +77,7 @@ async function fetchTeamStats(teamId: number): Promise<TeamStats | null> {
   }
 }
 
-const BZZOIRO_API_KEY = '44f7f68bac9c7ed68631979a69ba1d855448b7fb';
+const BZZOIRO_API_KEY = import.meta.env.VITE_BZZOIRO_API_KEY || '44f7f68bac9c7ed68631979a69ba1d855448b7fb';
 const BZZOIRO_BASE_URL = 'https://sports.bzzoiro.com';
 
 interface BzzoiroMatch {
