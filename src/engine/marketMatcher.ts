@@ -281,7 +281,7 @@ export class SportyMarketMatcher {
 
   // ─── Build result ──────────────────────────────────────────────────────────
 
-  private _build(raw: RawMarket, o: RawOutcome, label: string): ResolvedMarket {
+  private _build(raw: RawMarket, o: RawOutcome, _label?: string): ResolvedMarket {
     return {
       marketId: String(raw.id ?? raw.marketId ?? ''),
       outcomeId: String(o.id ?? ''),
