@@ -69,7 +69,7 @@ async function callGemini(prompt, geminiKey, jsonMode = false) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(25000),
         }
       )
       if (r.status === 404) continue
@@ -433,68 +433,76 @@ Be brutally honest. Use emojis. Format beautifully with headers and bullet point
 
 
   // ── POST /eval-legs — Gemini per-leg evaluator for SmartDrop ─────────────────
-  // Frontend can't call Gemini directly (API key type mismatch), so it proxies here.
+  // Batches large slips into chunks of 12 legs per Gemini call to avoid timeouts.
   if (req.method === 'POST' && req.url === '/eval-legs') {
     try {
       const { legs, goal } = await readBody(req)
       if (!Array.isArray(legs) || legs.length === 0) throw new Error('No legs provided')
 
       const API_KEY = process.env.GEMINI_API_KEY
+      const CHUNK_SIZE = 12
 
-      // Fetch live match data for all legs before asking Gemini
-      console.log(`🧠 [SmartDrop] Evaluating ${legs.length} legs with live data + Gemini…`)
+      console.log(`🧠 [SmartDrop] Evaluating ${legs.length} legs in batches of ${CHUNK_SIZE}…`)
+
+      // Fetch live data only for first 5 legs (fast, bounded)
       const liveData = await fetchLiveDataForLegs(legs)
       const hasData  = Object.values(liveData).some(d => d && (d.detail || d.pred))
 
       const dataSection = hasData
         ? `[LIVE MATCH DATA]\n${JSON.stringify(liveData, null, 2)}`
-        : `[RESEARCH MODE] No live API data. Use your knowledge of current team form, H2H history, injuries, and match context (derby/cup/rivalry) for each fixture below.`
+        : `[RESEARCH MODE] No live API data. Use your knowledge of current team form, H2H, injuries, and match context for each fixture.`
 
       const goalText = {
         balanced:        'Balanced: drop legs with negative EV, high volatility, or poor real-world form.',
-        target_survival: `Target Survival ${goal?.targetSurvival ?? 10}%: drop every leg killing the slip's survival probability.`,
-        target_odds:     `Target Odds ${goal?.targetOdds ?? 20}: drop legs until combined odds near the target.`,
+        target_survival: `Target Survival ${goal?.targetSurvival ?? 10}%: drop every leg hurting the slip's survival probability.`,
+        target_odds:     `Target Odds ${goal?.targetOdds ?? 20}: drop legs until combined odds approach the target.`,
         best_ev:         'Best EV: drop every leg where trueProbability × odds < 1.',
         safe_mode:       'Safe Mode: drop every leg where your estimated true probability is below 75%.',
         dreamer:         'Dreamer: only drop truly suicidal legs (EV < -0.3 or volatility > 0.85).',
       }[goal?.mode ?? 'balanced'] ?? 'Balanced: drop legs with negative EV or high volatility.'
 
-      const legsText = legs.map((l, i) =>
-        `Leg ${i + 1} [ID: ${l.id}]:\n  Match: ${l.matchLabel}\n  Market: ${l.market}\n  Odds: ${l.odds}\n  Engine probability: ${((l.probability || 0.5) * 100).toFixed(1)}%\n  Tier: ${l.tier ?? 2}`
-      ).join('\n\n')
+      // Split into chunks
+      const chunks = []
+      for (let i = 0; i < legs.length; i += CHUNK_SIZE) {
+        chunks.push(legs.slice(i, i + CHUNK_SIZE))
+      }
 
-      const prompt = `You are OddsFactory's Elite Betting Risk Analyst. Evaluate each leg of this slip individually and precisely.
+      // Process all chunks in parallel
+      const chunkResults = await Promise.all(chunks.map(async (chunk, chunkIdx) => {
+        const legsText = chunk.map((l, i) =>
+          `Leg ${chunkIdx * CHUNK_SIZE + i + 1} [ID: ${l.id}]:\n  Match: ${l.matchLabel}\n  Market: ${l.market}\n  Odds: ${Math.min(l.odds, 20)}\n  Engine probability: ${((l.probability || 0.5) * 100).toFixed(0)}%\n  Tier: ${l.tier ?? 2}`
+        ).join('\n\n')
+
+        const prompt = `You are OddsFactory's Elite Betting Risk Analyst. Evaluate each leg precisely.
 
 ${dataSection}
 
 GOAL: ${goalText}
 
-SLIP LEGS:
+LEGS TO EVALUATE:
 ${legsText}
 
-Combined odds: ${legs.reduce((a, l) => a * l.odds, 1).toFixed(2)}
-Combined survival: ${(legs.reduce((a, l) => a * (l.probability || 0.5), 1) * 100).toFixed(1)}%
+CRITICAL RULES:
+1. Name the EXACT teams in every rationale (e.g. "Arsenal vs Chelsea" not "both teams").
+2. Reference real form, H2H, injuries, or match context (derby/cup/dead rubber).
+3. NEVER use phrases like "elevated uncertainty", "fixture type shows", or "Tier confidence".
+4. Keep each rationale under 20 words.
+5. EV must equal trueProbability * singleLegOdds - 1, bounded between -0.9 and +0.5.
 
-For each leg, use your knowledge of:
-- Current form (last 5 matches for both teams)
-- Head-to-head record
-- Recent injuries / suspensions
-- Match type volatility (derby / cup / rivalry / dead rubber)
-- Whether the market odds genuinely reflect reality
-- For Over/Under: average goals, defensive records, pace of play
+Return ONLY a raw JSON array, no markdown:
+[{"legId": "exact ID", "trueProbability": 0.1-0.9, "ev": number, "volatility": 0.1-0.9, "shouldDrop": boolean, "rationale": "specific match reason naming teams"}]`
 
-Return ONLY a raw JSON array. No markdown. Each object must have EXACTLY these fields:
-{
-  "legId": "exact ID string from above",
-  "trueProbability": number (0 to 1),
-  "ev": number (trueProbability times odds minus 1),
-  "volatility": number (0 to 1),
-  "shouldDrop": boolean,
-  "rationale": "Specific reason — name the teams, cite form/stats, explain the exact risk of THIS market for THIS match. Never generic text."
-}`
+        try {
+          const jsonStr = await callGemini(prompt, API_KEY, true)
+          return JSON.parse(jsonStr || '[]')
+        } catch (e) {
+          console.error(`[SmartDrop] Chunk ${chunkIdx + 1} failed:`, e.message)
+          return []
+        }
+      }))
 
-      const jsonStr = await callGemini(prompt, API_KEY, true)
-      const evals   = JSON.parse(jsonStr || '[]')
+      const evals = chunkResults.flat()
+      console.log(`✅ [SmartDrop] Got ${evals.length}/${legs.length} evals across ${chunks.length} batch(es)`)
 
       res.writeHead(200)
       res.end(JSON.stringify({ success: true, evals, dataSource: hasData ? 'live_api' : 'gemini_research' }))

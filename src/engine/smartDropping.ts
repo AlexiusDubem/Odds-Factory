@@ -155,7 +155,7 @@ Return ONLY a raw JSON array:
               response_mime_type: 'application/json',
             },
           }),
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(20000),
         }
       )
 
@@ -196,7 +196,7 @@ async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): 
         })),
         goal,
       }),
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(30000),
     })
 
     if (res.ok) {
