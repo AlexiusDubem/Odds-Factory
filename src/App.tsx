@@ -14,6 +14,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
 import { getToken } from 'firebase/messaging'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { UpdatePrompt } from './components/UpdatePrompt'
 
 const NAV_LINKS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-solid fa-chart-line' },
@@ -173,6 +174,8 @@ function App() {
       <footer className="hidden sm:block border-t border-border py-4 text-center text-xs text-slate-500 bg-surface">
         Odds Factory v2 — AI audits your betting slip before you place it.
       </footer>
+
+      <UpdatePrompt />
     </div>
   )
 }
