@@ -1,21 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { BacktestRecord } from '../types'
 
 const STORAGE_KEY = 'odds-factory-backtests'
 
 export function useBacktest() {
-  const [records, setRecords] = useState<BacktestRecord[]>([])
-
-  useEffect(() => {
+  const [records, setRecords] = useState<BacktestRecord[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       try {
-        setRecords(JSON.parse(stored))
+        return JSON.parse(stored)
       } catch {
-        setRecords([])
+        return []
       }
     }
-  }, [])
+    return []
+  })
 
   const save = useCallback((newRecords: BacktestRecord[]) => {
     setRecords(newRecords)

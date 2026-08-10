@@ -97,27 +97,72 @@ const GENERIC_MARKETS: Record<string, MarketConfig> = {
   },
 }
 
-export function findOdds(match: Match, marketName: string, availableMarketsMap?: Map<string, any[]>): MarketOdds | null {
+export const SPORTYBET_MARKET_SCHEMA = {
+  '1X2': { id: '1', outcomes: { home: '1', draw: '2', away: '3' } },
+  'Over 1.5': { id: '18', specifier: 'total=1.5', outcome: 'Over' },
+  'Over 2.5': { id: '18', specifier: 'total=2.5', outcome: 'Over' },
+  'Under 1.5': { id: '18', specifier: 'total=1.5', outcome: 'Under' },
+  'Under 2.5': { id: '18', specifier: 'total=2.5', outcome: 'Under' },
+  'Under 3.5': { id: '18', specifier: 'total=3.5', outcome: 'Under' },
+  'Under 4.5': { id: '18', specifier: 'total=4.5', outcome: 'Under' },
+  'Over 0.5': { id: '18', specifier: 'total=0.5', outcome: 'Over' },
+  'Double Chance': { id: '29', outcomes: { home_draw: '1X', home_away: '12', draw_away: 'X2' } },
+  'Home or Draw': { id: '29', outcome: '1X' },
+  'Away or Draw': { id: '29', outcome: 'X2' },
+  'Draw No Bet': { id: '258', outcomes: { home: '1', away: '2' } },
+  'Both Teams to Score': { id: '36', outcomes: { yes: '1', no: '2' } },
+  'BTTS Yes': { id: '36', outcome: '1' },
+  'BTTS No': { id: '36', outcome: '2' },
+  'Asian Handicap': { id: '12' },
+  'Half-Time 1X2': { id: '2' },
+} as const
+
+export function findOdds(match: Match, marketName: string, availableMarketsMap?: Map<string, Array<{ id?: string | number; marketId?: string | number; desc?: string; name?: string; specifier?: string; outcomes?: Array<{ id?: string | number; desc?: string; name?: string; odds?: string | number; odd?: string | number; oddsDecimal?: string | number }> }>>): MarketOdds | null {
   if (availableMarketsMap && availableMarketsMap.has(match.id)) {
     const rawMarkets = availableMarketsMap.get(match.id)!
-    
-    // Check every market and every outcome to find the closest match
+    const searchName = marketName.toLowerCase().trim()
+    const schemaEntry = (SPORTYBET_MARKET_SCHEMA as Record<string, { id?: string; specifier?: string; outcome?: string }>)[marketName]
+
+    // 1. Try exact Market ID & Specifier matching if schema definition exists
+    if (schemaEntry) {
+      const targetMarketId = String(schemaEntry.id)
+      for (const m of rawMarkets) {
+        if (String(m.id ?? m.marketId) === targetMarketId) {
+          if (schemaEntry.specifier && m.specifier && m.specifier !== schemaEntry.specifier) {
+            continue
+          }
+          if (m.outcomes && Array.isArray(m.outcomes)) {
+            for (const o of m.outcomes) {
+              const oDesc = (o.desc || o.name || '').toLowerCase().trim()
+              if (schemaEntry.outcome && (oDesc === schemaEntry.outcome.toLowerCase() || String(o.id) === schemaEntry.outcome)) {
+                return {
+                  market: m.specifier ? `${m.desc || m.name} (${m.specifier}) — ${o.desc || o.name}` : `${m.desc || m.name} — ${o.desc || o.name}`,
+                  odds: Number(o.odds || o.odd || o.oddsDecimal || '1.5'),
+                  marketId: String(m.id ?? m.marketId),
+                  outcomeId: String(o.id),
+                  specifier: m.specifier || ''
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Strict regex search across raw markets & outcomes
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regexPattern = new RegExp(`\\b${escapeRegex(searchName)}\\b`, 'i')
+
     for (const m of rawMarkets) {
-      if (!m.desc || !m.outcomes) continue;
-      
+      if (!m.outcomes || !Array.isArray(m.outcomes)) continue
       for (const o of m.outcomes) {
-        if (!o.desc) continue;
-        
-        const combinedDesc = `${m.desc} ${o.desc}`.toLowerCase();
-        const searchName = marketName.toLowerCase();
-        
-        // Match if the target market name is found anywhere in the market or outcome
-        if (combinedDesc.includes(searchName) || searchName.includes(o.desc.toLowerCase())) {
+        const fullDesc = `${m.desc || m.name || ''} ${o.desc || o.name || ''}`.toLowerCase()
+        if (regexPattern.test(fullDesc) || fullDesc.includes(searchName)) {
           return {
-            market: m.specifier ? `${m.desc} (${m.specifier}) — ${o.desc}` : `${m.desc} — ${o.desc}`,
+            market: m.specifier ? `${m.desc || m.name} (${m.specifier}) — ${o.desc || o.name}` : `${m.desc || m.name} — ${o.desc || o.name}`,
             odds: Number(o.odds || o.odd || o.oddsDecimal || '1.5'),
-            marketId: m.id,
-            outcomeId: o.id,
+            marketId: String(m.id ?? m.marketId),
+            outcomeId: String(o.id),
             specifier: m.specifier || ''
           }
         }
@@ -125,9 +170,10 @@ export function findOdds(match: Match, marketName: string, availableMarketsMap?:
     }
   }
 
-  // Fallback to dummy data
+  // Fallback to match's pre-parsed availableMarkets (strict name check)
   const found = match.availableMarkets.find(
-    (m) => m.market.toLowerCase().includes(marketName.toLowerCase()) || marketName.toLowerCase().includes(m.market.toLowerCase())
+    (m) => m.market.toLowerCase().trim() === marketName.toLowerCase().trim() ||
+           m.market.toLowerCase().includes(marketName.toLowerCase())
   )
   return found ?? null
 }
@@ -146,7 +192,7 @@ function buildRationale(
   return `${role} pick for ${profileLabel}. Est. ${probability.toFixed(1)}% hit rate. Market aligns with profile behavior.`
 }
 
-export function analyzeMatch(match: Match, availableMarketsMap?: Map<string, any[]>): ProfileResult {
+export function analyzeMatch(match: Match, availableMarketsMap?: Map<string, Array<{ id?: string | number; marketId?: string | number; desc?: string; name?: string; specifier?: string; outcomes?: Array<{ id?: string | number; desc?: string; name?: string; odds?: string | number; odd?: string | number; oddsDecimal?: string | number }> }>>): ProfileResult {
   const { profile, profileLabel, features } = profileMatch(match)
   let config: MarketConfig
 
@@ -171,7 +217,7 @@ export function analyzeMatch(match: Match, availableMarketsMap?: Map<string, any
     if (!foundMarket) continue
 
     const { odds, marketId, outcomeId, specifier } = foundMarket;
-    const probability = estimateProbability(match.sport, profile, market, match, features)
+    const probability = estimateProbability(match.sport, profile, market, match, features, odds)
     if (!meetsMinimumProbability(probability)) continue
 
     const ev = calculateEV(probability, odds)
@@ -209,7 +255,7 @@ export function analyzeMatch(match: Match, availableMarketsMap?: Map<string, any
 export function getSafestEquivalent(
   match: Match,
   _currentMarket: string,
-  availableMarketsMap?: Map<string, any[]>
+  availableMarketsMap?: Map<string, Array<{ id?: string | number; marketId?: string | number; desc?: string; name?: string; specifier?: string; outcomes?: Array<{ id?: string | number; desc?: string; name?: string; odds?: string | number; odd?: string | number; oddsDecimal?: string | number }> }>>
 ): MarketRecommendation | null {
   const result = analyzeMatch(match, availableMarketsMap)
   if (result.recommendations.length === 0) return null

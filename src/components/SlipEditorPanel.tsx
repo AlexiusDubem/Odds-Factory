@@ -113,44 +113,61 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     eventMarketsCache.current.clear()
 
     try {
-      // Robust multi-proxy fallback array
-      const proxyList = [
-        () => `/api/load?code=${bookingCode.trim()}`, // Vercel Backend
-        (url: string) => `https://api.codetabs.com/v1/proxy/?quest=${url}`, // Fallback 1
-        (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`, // Fallback 2
-        (url: string) => `https://corsproxy.io/?${url}` // Fallback 3
-      ];
-
-      const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${bookingCode.toUpperCase()}`);
-      
+      // ── Step 1: Always try the local booking server first (Playwright real browser) ──
       let json = null;
+      const code = bookingCode.trim().toUpperCase();
 
-      for (const proxyFn of proxyList) {
-        try {
-          const proxyUrl = proxyFn(targetUrl);
-          const response = await fetch(proxyUrl, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-          });
-          
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          
-          const text = await response.text();
-          // Detect HTML block pages (Cloudflare/Vercel errors)
-          if (text.trim().startsWith('<')) {
-             throw new Error('Proxy returned HTML instead of JSON');
+      try {
+        const localResp = await fetch(`http://localhost:3001/load`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        if (localResp.ok) {
+          const localJson = await localResp.json();
+          // Booking server returns the raw SportyBet response body
+          if (localJson && !localJson.error) {
+            json = localJson;
+            console.log('✅ Loaded via local booking server (real browser session)');
+          } else if (localJson?.error) {
+            console.warn('Local server returned error:', localJson.error);
           }
-          
-          json = JSON.parse(text);
-          break; // Success, break out of loop
-        } catch (e: any) {
-          console.warn(`Proxy failed:`, e.message);
-          continue;
+        }
+      } catch (localErr: any) {
+        console.warn('Local booking server unreachable:', localErr.message);
+      }
+
+      // ── Step 2: If local server failed, try public CORS proxies ──
+      if (!json) {
+        console.log('⚠️  Local server unavailable — trying CORS proxies…');
+        const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${code}`);
+        const publicProxies = [
+          `https://api.codetabs.com/v1/proxy/?quest=${targetUrl}`,
+          `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
+          `https://corsproxy.io/?${targetUrl}`,
+        ];
+
+        for (const proxyUrl of publicProxies) {
+          try {
+            const r = await fetch(proxyUrl, { headers: { Accept: 'application/json' } });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const text = await r.text();
+            if (text.trim().startsWith('<')) throw new Error('Got HTML (Cloudflare block)');
+            json = JSON.parse(text);
+            console.log('✅ Loaded via CORS proxy:', proxyUrl);
+            break;
+          } catch (e: any) {
+            console.warn('Proxy failed:', e.message);
+          }
         }
       }
 
       if (!json) {
-        throw new Error('All proxies failed to connect to SportyBet. SportyBet might be under maintenance or blocking all traffic.');
+        throw new Error(
+          'Could not load booking code.\n\n' +
+          '• Make sure the local booking server is running (node booking-server.mjs)\n' +
+          '• Or check that the booking code is correct and valid on SportyBet'
+        );
       }
 
       if (json.bizCode === 19000 || json.message?.toLowerCase().includes('invalid')) {
@@ -386,63 +403,50 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     setGeneratedCode(null)
 
     const selections = selectedSlip.legs.map(l => l.rawSelection).filter(Boolean)
-    
+
     if (selections.length === 0) {
-      toast('error', 'Generation Failed', 'No valid market data available to book.')
+      toast('error', 'Generation Failed', 'No valid market data available. Load a booking code first, then optimize.')
+      setIsGenerating(false)
+      return
+    }
+
+    const invalidSelections = selections.filter((s: any) => !s.eventId || !s.marketId || !s.outcomeId)
+    if (invalidSelections.length > 0) {
+      toast('error', 'Validation Error', `${invalidSelections.length} leg(s) are missing outcome IDs. Try reloading the booking code.`)
       setIsGenerating(false)
       return
     }
 
     try {
-      // Robust POST proxy fallback array
-      const targetUrl = encodeURIComponent('https://www.sportybet.com/api/ng/orders/share');
-      const proxyList = [
-        '/api/book', // Vercel Backend
-        `https://corsproxy.io/?${targetUrl}` // Fallback 1
-      ];
+      // Always use the local Playwright booking server — it uses the real browser session
+      const res = await fetch('http://localhost:3001/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selections }),
+      })
 
-      let data = null;
-
-      for (const proxyUrl of proxyList) {
-        try {
-          const res = await fetch(proxyUrl, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify({ selections, device: 'web', source: 'betslip' })
-          });
-
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          
-          const text = await res.text();
-          if (text.trim().startsWith('<')) {
-            throw new Error('Proxy returned HTML block page');
-          }
-
-          data = JSON.parse(text);
-          break; // Success
-        } catch (e: any) {
-          console.warn(`POST Proxy failed:`, e.message);
-          continue;
-        }
+      if (!res.ok) {
+        throw new Error(`Booking server returned HTTP ${res.status}. Make sure the server is running.`)
       }
 
-      if (!data) {
-        throw new Error('All proxy generation servers are currently blocked by SportyBet.');
-      }
+      const data = await res.json()
 
-      if (data.bizCode === 10000 && data.data?.shareCode) {
-        setGeneratedCode(data.data.shareCode)
+      if (data.success && data.shareCode) {
+        setGeneratedCode(data.shareCode)
+        toast('success', 'Code Generated!', `Your optimised booking code is ready: ${data.shareCode}`)
       } else {
-        throw new Error(data.message || 'Unknown error from SportyBet API')
+        // SportyBet rejected — show their actual reason
+        const reason = data.message || `SportyBet error code: ${data.bizCode ?? 'unknown'}`
+        throw new Error(reason)
       }
     } catch (err: any) {
-      console.error(err)
+      console.error('Generate error:', err)
+      const isServerDown = err.message?.includes('fetch') || err.message?.includes('Failed to fetch') || err.message?.includes('ECONNREFUSED')
       setModalError({
-        title: 'Proxy Connection Failed',
-        message: 'OddsFactory could not connect to the SportyBet servers via the cloud proxy. This usually happens if SportyBet is temporarily blocking the proxy IP or your internet connection is unstable.'
+        title: isServerDown ? 'Booking Server Not Running' : 'Booking Failed',
+        message: isServerDown
+          ? 'The local booking server is not running.\n\nOpen a terminal in the project folder and run:\n  node booking-server.mjs\n\nThen try again.'
+          : err.message || 'SportyBet rejected the booking request. The selections may have expired or contain invalid odds.'
       })
     } finally {
       setIsGenerating(false)

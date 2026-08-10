@@ -1,5 +1,44 @@
 import type { ConfidenceTier, Match, MatchProfile } from '../types'
 
+export interface ProbabilityInput {
+  decimalOdds: number
+  aiScore?: number // 0 to 1
+  marketType: string
+  historicalHitRate?: number
+}
+
+/**
+ * Calculates true probability derived from bookmaker decimal odds,
+ * removing overround margin (~5%) and applying bounded AI feature adjustments (+/- 10% max).
+ */
+export function calculateTrueProbability(input: ProbabilityInput): number {
+  if (!input.decimalOdds || input.decimalOdds <= 1.0) return 50
+
+  // 1. Extract bookmaker implied probability (1 / odds)
+  const rawImplied = 1 / input.decimalOdds
+
+  // 2. Adjust for bookmaker overround margin (~1.05)
+  const OVERROUND_ESTIMATE = 1.05
+  const deMarginedProb = rawImplied / OVERROUND_ESTIMATE
+
+  // 3. Apply AI Feature Adjustment (bounded to +/- 0.10 max)
+  let aiAdjustment = 0
+  if (input.aiScore !== undefined) {
+    const rawDiff = (input.aiScore - deMarginedProb) * 0.15
+    aiAdjustment = Math.min(Math.max(rawDiff, -0.10), 0.10)
+  }
+
+  // 4. Historical hit rate adjustment
+  let historicalAdjustment = 0
+  if (input.historicalHitRate) {
+    const historicalProb = input.historicalHitRate / 100
+    historicalAdjustment = (historicalProb - deMarginedProb) * 0.10
+  }
+
+  const finalProb = (deMarginedProb + aiAdjustment + historicalAdjustment) * 100
+  return Math.min(88, Math.max(45, Math.round(finalProb * 10) / 10))
+}
+
 const BASE_PROBABILITIES: Record<string, Record<string, number>> = {
   football: {
     high_goal: 72,
@@ -50,8 +89,24 @@ export function estimateProbability(
   profile: MatchProfile,
   market: string,
   match: Match,
-  features: import('../types').ComputedFeatures
+  features: import('../types').ComputedFeatures,
+  marketOdds?: number
 ): number {
+  if (marketOdds && marketOdds > 1.0) {
+    // Compute AI feature score normalized between 0 and 1
+    const attack = features.attackIndex ?? 50
+    const defense = features.defenseIndex ?? 50
+    const form = features.formMomentum ?? 50
+    const h2h = features.h2hAdvantage ?? 50
+    const aiScore = (attack * 0.3 + (100 - defense) * 0.2 + form * 0.25 + h2h * 0.25) / 100
+
+    return calculateTrueProbability({
+      decimalOdds: marketOdds,
+      aiScore,
+      marketType: market
+    })
+  }
+
   const sportKey = sport.toLowerCase() === 'football' || sport.toLowerCase() === 'soccer' 
     ? 'football' 
     : sport.toLowerCase() === 'basketball' 
@@ -76,35 +131,30 @@ export function estimateProbability(
   }
 
   // ADVANCED ANALYTICAL LOGIC
-  
-  // H2H & Form Bonus
   const h2hAdvantage = features.h2hAdvantage ?? 50
-  if (h2hAdvantage > 75) contextAdj += 6 // Extreme H2H dominance
+  if (h2hAdvantage > 75) contextAdj += 6
   else if (h2hAdvantage > 60) contextAdj += 3 
-  else if (h2hAdvantage < 25) contextAdj -= 6 // Extreme struggle
+  else if (h2hAdvantage < 25) contextAdj -= 6
   else if (h2hAdvantage < 40) contextAdj -= 3
 
   const formMomentum = features.formMomentum ?? 50
-  if (formMomentum > 80) contextAdj += 6 // Exceptional form
+  if (formMomentum > 80) contextAdj += 6
   else if (formMomentum > 65) contextAdj += 3
-  else if (formMomentum < 20) contextAdj -= 6 // Terrible form
+  else if (formMomentum < 20) contextAdj -= 6
   else if (formMomentum < 35) contextAdj -= 3
 
-  // Under 2.5 / Draw / Low Score correlations
   if (sportKey === 'football' && (market === 'Under 2.5' || market === 'Home or Draw' || market === 'Draw No Bet')) {
     const u25Signal = features.under25Signal ?? 50
-    if (u25Signal > 80) contextAdj += 6 // Strong signal for tight defensive game
+    if (u25Signal > 80) contextAdj += 6
   }
 
-  // BTTS / Over correlations
   if (sportKey === 'football' && (market === 'BTTS Yes' || market === 'Over 2.5' || market === 'Over 1.5')) {
     const bttsSignal = features.bttsSignal ?? 50
-    if (bttsSignal > 80) contextAdj += 8 // High probability of both teams scoring
+    if (bttsSignal > 80) contextAdj += 8
     else if (bttsSignal > 65) contextAdj += 4
-    else if (bttsSignal < 35) contextAdj -= 5 // Defense is too solid or attack too weak
+    else if (bttsSignal < 35) contextAdj -= 5
   }
 
-  // AI Continuous Learning System Modifier
   const learningAdjustment = match.learningWeight ? (match.learningWeight - 50) / 10 : 0
   const clvAdjustment = match.clvErrorRate ? match.clvErrorRate * -0.5 : 0
   contextAdj += learningAdjustment + clvAdjustment
