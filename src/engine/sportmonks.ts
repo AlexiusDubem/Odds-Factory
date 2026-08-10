@@ -77,8 +77,11 @@ async function fetchTeamStats(teamId: number): Promise<TeamStats | null> {
   }
 }
 
-const BZZOIRO_API_KEY = import.meta.env.VITE_BZZOIRO_API_KEY || '44f7f68bac9c7ed68631979a69ba1d855448b7fb';
+const BZZOIRO_API_KEY = import.meta.env.VITE_BZZOIRO_API_KEY || '';
 const BZZOIRO_BASE_URL = 'https://sports.bzzoiro.com';
+if (!BZZOIRO_API_KEY && import.meta.env.DEV) {
+  console.warn('[sportmonks] VITE_BZZOIRO_API_KEY not set — Bzzoiro enrichment disabled (dev only).')
+}
 
 interface BzzoiroMatch {
   home_team?: { name?: string; win_rate?: number; avg_goals?: number; goals_conceded?: number }

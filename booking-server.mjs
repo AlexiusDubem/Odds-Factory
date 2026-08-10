@@ -14,11 +14,18 @@ import 'dotenv/config'
 import http from 'http'
 import { chromium } from 'playwright'
 
+const IS_DEBUG = process.env.DEBUG === 'true' || process.env.NODE_ENV !== 'production'
+const debug = (...args) => { if (IS_DEBUG) console.log(...args) }
+
 // ── AI Orchestrator (ESM dynamic import on first use) ─────────────────────────
-const BZZOIRO_API_KEY = process.env.BZZOIRO_API_KEY || '44f7f68bac9c7ed68631979a69ba1d855448b7fb'
+const BZZOIRO_API_KEY = process.env.BZZOIRO_API_KEY
 const BZZOIRO_BASE    = 'https://sports.bzzoiro.com'
+if (!BZZOIRO_API_KEY && IS_DEBUG) {
+  console.warn('BZZOIRO_API_KEY not set — live enrichment will be disabled (dev only).')
+}
 
 async function bzzoiroFetch(sport, endpoint, searchQuery) {
+  if (!BZZOIRO_API_KEY) return null
   const qs = searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ''
   const url = `${BZZOIRO_BASE}/${sport.toLowerCase()}${endpoint}${qs}`
   try {
@@ -101,7 +108,7 @@ async function getPage() {
     }
 
     if (!_browser) {
-      console.log('🌐 Trying to launch with locally installed Google Chrome...')
+      debug('🌐 Trying to launch with locally installed Google Chrome...')
       try {
         _browser = await chromium.launch({
           channel: 'chrome',
@@ -109,13 +116,13 @@ async function getPage() {
         })
       } catch (e) {
         try {
-          console.log('🌐 Google Chrome not found. Trying Microsoft Edge...')
+          debug('🌐 Google Chrome not found. Trying Microsoft Edge...')
           _browser = await chromium.launch({
             channel: 'msedge',
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
           })
         } catch (e2) {
-          console.log('🌐 Falling back to default Playwright browser...')
+          debug('🌐 Falling back to default Playwright browser...')
           _browser = await chromium.launch({
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
           })
@@ -132,9 +139,9 @@ async function getPage() {
         timezoneId: 'Africa/Lagos',
       })
       _page = await ctx.newPage()
-      console.log('🔗 Navigating to SportyBet…')
+      debug('🔗 Navigating to SportyBet…')
       await _page.goto('https://www.sportybet.com/ng/', { waitUntil: 'domcontentloaded', timeout: 15000 })
-      console.log('✅ SportyBet page loaded — session ready.')
+      debug('✅ SportyBet page loaded — session ready.')
     }
 
     // Quick test to ensure page/context is actually working
@@ -260,7 +267,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const status = resp.status()
-      console.log(`Load response status: ${status}`)
+      debug(`Load response status: ${status}`)
 
       if (body) {
         res.writeHead(200)
@@ -286,8 +293,8 @@ const server = http.createServer(async (req, res) => {
         throw new Error('No selections provided')
       }
 
-      console.log(`🎯 Booking ${selections.length} selection(s) on SportyBet…`)
-      console.log('Selections:', JSON.stringify(selections, null, 2))
+      debug(`🎯 Booking ${selections.length} selection(s) on SportyBet…`)
+      if (IS_DEBUG) console.log('Selections:', JSON.stringify(selections, null, 2))
 
       const page = await getPage()
 
@@ -302,7 +309,7 @@ const server = http.createServer(async (req, res) => {
 
       const status = resp.status()
       const body = await resp.json()
-      console.log(`Book response status: ${status}`, JSON.stringify(body).slice(0, 400))
+      debug(`Book response status: ${status}`, JSON.stringify(body).slice(0, 400))
 
       if (body?.bizCode === 10000 && body?.data?.shareCode) {
         const code = body.data.shareCode
@@ -333,13 +340,13 @@ const server = http.createServer(async (req, res) => {
       console.log(`🧠 [Orchestrator] Optimize ${legs.length} legs [${goal?.mode}]…`)
 
       // Step 1: Fetch live data from Bzzoiro for all legs in parallel
-      console.log('📡 Fetching live sports data from Bzzoiro API…')
+      debug('📡 Fetching live sports data from Bzzoiro API…')
       const liveData = await fetchLiveDataForLegs(legs)
       const hasData = Object.values(liveData).some(d => d && (d.detail || d.pred))
       if (hasData) {
-        console.log('✅ Live data fetched successfully')
+        debug('✅ Live data fetched successfully')
       } else {
-        console.log('⚠️  No live data returned — Gemini will use its own research')
+        debug('⚠️  No live data returned — Gemini will use its own research')
       }
 
       // Step 2: Build optimization prompt (data-driven or research mode)
@@ -442,7 +449,7 @@ Be brutally honest. Use emojis. Format beautifully with headers and bullet point
       const API_KEY = process.env.GEMINI_API_KEY
       const CHUNK_SIZE = 12
 
-      console.log(`🧠 [SmartDrop] Evaluating ${legs.length} legs in batches of ${CHUNK_SIZE}…`)
+      debug(`🧠 [SmartDrop] Evaluating ${legs.length} legs in batches of ${CHUNK_SIZE}…`)
 
       // Fetch live data only for first 5 legs (fast, bounded)
       const liveData = await fetchLiveDataForLegs(legs)
@@ -502,7 +509,7 @@ Return ONLY a raw JSON array, no markdown:
       }))
 
       const evals = chunkResults.flat()
-      console.log(`✅ [SmartDrop] Got ${evals.length}/${legs.length} evals across ${chunks.length} batch(es)`)
+      debug(`✅ [SmartDrop] Got ${evals.length}/${legs.length} evals across ${chunks.length} batch(es)`)
 
       res.writeHead(200)
       res.end(JSON.stringify({ success: true, evals, dataSource: hasData ? 'live_api' : 'gemini_research' }))
@@ -528,7 +535,7 @@ Return ONLY a raw JSON array, no markdown:
         throw new Error(`${invalid.length} selection(s) missing eventId / marketId / outcomeId`)
       }
 
-      console.log(`🎯 Booking ${selections.length} selections via Playwright browser…`)
+      debug(`🎯 Booking ${selections.length} selections via Playwright browser…`)
       const page = await getPage()
 
       // POST to SportyBet booking API from inside the real browser context
@@ -545,7 +552,7 @@ Return ONLY a raw JSON array, no markdown:
 
       const status = resp.status()
       const body   = await resp.json()
-      console.log(`📤 Book response status: ${status}`, body?.bizCode)
+      debug(`📤 Book response status: ${status}`, body?.bizCode)
 
       if (body?.bizCode === 10000 && body?.data?.shareCode) {
         res.writeHead(200)
@@ -569,14 +576,15 @@ Return ONLY a raw JSON array, no markdown:
 })
 
 const PORT = 3001
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('')
   console.log('╔══════════════════════════════════════╗')
   console.log('║   Odds Factory — Booking Server      ║')
-  console.log(`║   http://localhost:${PORT}              ║`)
+  console.log(`║   Listening on port ${PORT} (all interfaces)    ║`)
   console.log('╚══════════════════════════════════════╝')
   console.log('')
   console.log('Waiting for requests from the React app…')
+  debug('Listening on all interfaces; use your machine IP to reach the booking server from other devices.')
   console.log('Keep this terminal open while using the app.')
   console.log('')
 })

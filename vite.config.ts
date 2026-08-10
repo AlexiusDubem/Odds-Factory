@@ -39,6 +39,7 @@ export default defineConfig({
     })
   ],
   server: {
+    host: true,
     proxy: {
       // Proxies SportyBet API calls (for loading booking codes via the Vite dev server)
       '/api/sportybet': {

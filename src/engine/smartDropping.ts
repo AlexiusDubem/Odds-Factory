@@ -137,7 +137,7 @@ Return ONLY a raw JSON array:
   }
 ]`
 
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-pro']
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
   let lastErr: any = null
 
   for (const model of models) {
@@ -166,7 +166,22 @@ Return ONLY a raw JSON array:
       const text = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
       const parsed = JSON.parse(text) as GeminiLegEval[]
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
+        // Validate and normalize parsed results to avoid hardcoded/generic rationales
+        const cleaned = parsed.map(p => ({
+          legId: String(p.legId),
+          trueProbability: Number(p.trueProbability) || 0.5,
+          ev: Number(p.ev) || 0,
+          volatility: Number(p.volatility) || 0.5,
+          shouldDrop: Boolean(p.shouldDrop),
+          rationale: String(p.rationale || '').trim()
+        }))
+
+        // If rationales are generic or contain disallowed phrases, reject this response so fallback runs
+        const badPattern = /elevated uncertainty|fixture type|tier (?:\d+)/i
+        const hasBad = cleaned.some(c => !c.rationale || badPattern.test(c.rationale))
+        if (hasBad) throw new Error('Parsed rationales not specific enough')
+
+        return cleaned
       }
     } catch (e) {
       lastErr = e
