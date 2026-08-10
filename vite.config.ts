@@ -10,6 +10,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png'],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+      },
       manifest: {
         name: 'Odds Factory',
         short_name: 'Odds Factory',
