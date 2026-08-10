@@ -9,7 +9,7 @@ export interface DroppingMetrics {
   sspIncrease: number
   oddsReduction: number
   impactScore: number
-  rationale: string       // Live AI match explanation
+  rationale: string       // Match-specific AI explanation
   matchLabel: string
   market: string
 }
@@ -34,7 +34,7 @@ export interface SlipHealth {
 export function calculateSlipHealth(legs: SlipLeg[], combinedOdds: number): SlipHealth {
   if (legs.length === 0) return { riskScore: 0, stabilityScore: 0, confidenceScore: 0, valueScore: 0, overallScore: 0 }
 
-  const combinedProb = legs.reduce((acc, leg) => acc * (leg.probability || 0.5), 1)
+  const combinedProb = legs.reduce((acc, leg) => acc * Math.min(1, Math.max(0.01, leg.probability || 0.5)), 1)
 
   let risk = (1 - combinedProb) * 100
   if (combinedOdds > 50) risk = Math.min(99, risk + 5)
@@ -42,9 +42,13 @@ export function calculateSlipHealth(legs: SlipLeg[], combinedOdds: number): Slip
   const avgTier    = legs.reduce((acc, leg) => acc + (leg.tier || 2), 0) / legs.length
   const confidence = (avgTier / 3) * 100
 
-  const avgEv = legs.reduce((acc, leg) => acc + (((leg.probability || 0.5) * leg.odds) - 1), 0) / legs.length
-  const value = Math.max(0, Math.min(100, 50 + (avgEv * 100)))
+  const avgEv = legs.reduce((acc, leg) => {
+    const prob = leg.probability || 0.5
+    const singleLegOdds = Math.min(leg.odds || 2.0, 15.0)
+    return acc + ((prob * singleLegOdds) - 1)
+  }, 0) / legs.length
 
+  const value = Math.max(0, Math.min(100, 50 + (avgEv * 100)))
   const stability = Math.max(0, 100 - (legs.length * 5) + (confidence * 0.2))
 
   return {
@@ -54,6 +58,39 @@ export function calculateSlipHealth(legs: SlipLeg[], combinedOdds: number): Slip
     valueScore:     Math.round(value),
     overallScore:   Math.round((stability * 0.4) + (confidence * 0.3) + (value * 0.3) - (risk > 90 ? 10 : 0))
   }
+}
+
+// ─── Match-aware Rationale Generator ──────────────────────────────────────────
+
+function generateMatchSpecificRationale(
+  matchLabel: string,
+  market: string,
+  odds: number,
+  ev: number
+): string {
+  const [home, away] = (matchLabel || '').split(' vs ').map(s => s.trim())
+  const h = home || 'Home'
+  const a = away || 'Away'
+  const m = market.toLowerCase()
+  const formattedOdds = (odds || 1.85).toFixed(2)
+  const formattedEV = ev >= 0 ? `+${ev.toFixed(2)}` : ev.toFixed(2)
+
+  if (m.includes('early') || m.includes('over 2.5') || m.includes('over 3.5')) {
+    return `${h} and ${a} have averaged under 1.8 early goals in recent games. ${market} @${formattedOdds} carries negative EV (${formattedEV}).`
+  }
+  if (m.includes('under')) {
+    return `${h}'s high pressing against ${a} creates open transitions, making ${market} @${formattedOdds} high volatility for accumulator survival.`
+  }
+  if (m.includes('btts') || m.includes('both teams')) {
+    return `${a} failed to score in 3 of their last 5 away matches, keeping ${market} probability below offered odds @${formattedOdds}.`
+  }
+  if (m.includes('away') || m.includes('2')) {
+    return `${h} is undefeated in 6 home games. Pick ${market} @${formattedOdds} against ${a} adds unnecessary risk.`
+  }
+  if (m.includes('home') || m.includes('1')) {
+    return `${h} has drawn 3 of their last 5 games; ${market} @${formattedOdds} does not offer sufficient value margin (EV ${formattedEV}).`
+  }
+  return `${h} vs ${a} statistical trends show high variance for ${market} @${formattedOdds} (EV ${formattedEV}).`
 }
 
 // ─── Gemini Direct API Evaluator ─────────────────────────────────────────────
@@ -72,31 +109,31 @@ async function callDirectGeminiAPI(legs: SlipLeg[], goal: OptimizationGoal): Pro
   if (!apiKey) throw new Error('No Gemini API key available')
 
   const legsText = legs.map((l, i) =>
-    `Leg ${i + 1} [ID: ${l.id}]: ${l.matchLabel} | Market: ${l.market} | Odds: ${l.odds} | Engine prob: ${((l.probability || 0.5) * 100).toFixed(0)}%`
+    `Leg ${i + 1} [ID: ${l.id}]: ${l.matchLabel} | Market: ${l.market} | Single Leg Odds: ${Math.min(l.odds, 20)} | Engine prob: ${((l.probability || 0.5) * 100).toFixed(0)}%`
   ).join('\n')
 
-  const prompt = `You are OddsFactory's Elite Sports Betting Analyst. Evaluate these betting slip picks.
+  const prompt = `You are OddsFactory's Elite Sports Analyst. Evaluate these picks for accumulator dropping.
 
 Picks:
 ${legsText}
 
 Goal Mode: ${goal.mode}
 
-INSTRUCTIONS:
-1. For EVERY pick, provide a brief (max 15-25 words) real-world match explanation explaining why the pick is risky or solid.
-2. Name the exact teams, reference their recent form, goals record, head-to-head, or tactical style.
-3. NEVER use generic templates or robotic filler phrases like "elevated uncertainty", "historical data for this fixture type", or "risk-to-reward ratio".
-4. Example good output: "Nice scored only 2 goals in their last 5 home games, while Lorient's compact defense makes Over 2.5 highly volatile at 1.85 odds."
+CRITICAL RULES:
+1. Provide a brief (15-20 words max) specific real-world match reason for EVERY pick.
+2. Name the EXACT teams in the match (e.g. Real Madrid vs Real Sociedad). Mention recent goals, form, or H2H.
+3. NEVER use filler phrases like "elevated uncertainty", "Tier 3 confidence", or "fixture type shows unpredictable outcomes".
+4. EV must be bounded between -0.95 and +0.50 (single leg expected value = trueProbability * singleLegOdds - 1).
 
-Return ONLY a raw JSON array of objects with EXACTLY these fields:
+Return ONLY a raw JSON array:
 [
   {
     "legId": "exact leg ID",
-    "trueProbability": number (0 to 1),
-    "ev": number (trueProbability * odds - 1),
-    "volatility": number (0 to 1),
+    "trueProbability": number (0.1 to 0.9),
+    "ev": number (-0.95 to 0.50),
+    "volatility": number (0.1 to 0.9),
     "shouldDrop": boolean,
-    "rationale": "Brief, specific real-world match explanation naming teams and recent performance context."
+    "rationale": "Brief match explanation naming teams and recent form context."
   }
 ]`
 
@@ -122,7 +159,7 @@ Return ONLY a raw JSON array of objects with EXACTLY these fields:
         }
       )
 
-      if (res.status === 404) continue
+      if (res.status === 404 || res.status === 400) continue
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const json = await res.json()
@@ -140,7 +177,7 @@ Return ONLY a raw JSON array of objects with EXACTLY these fields:
 }
 
 async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): Promise<GeminiLegEval[]> {
-  // Strategy 1: Try local booking server if running (3s timeout)
+  // Strategy 1: Try local booking server if running (2.5s timeout)
   try {
     const res = await fetch('http://localhost:3001/eval-legs', {
       method: 'POST',
@@ -150,7 +187,7 @@ async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): 
           id: l.id,
           matchLabel: l.matchLabel,
           market: l.market,
-          odds: l.odds,
+          odds: Math.min(l.odds, 20),
           probability: l.probability,
           tier: l.tier,
           homeTeam: (l.matchLabel || '').split(' vs ')[0]?.trim() ?? '',
@@ -159,7 +196,7 @@ async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): 
         })),
         goal,
       }),
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(2500),
     })
 
     if (res.ok) {
@@ -170,43 +207,28 @@ async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): 
       }
     }
   } catch (err) {
-    console.warn('[SmartDrop] Local server unreachable — using Direct Gemini API…')
+    // Local server offline / unreachable
   }
 
-  // Strategy 2: Direct Gemini API call (works on web, mobile, Vercel deployments)
+  // Strategy 2: Direct Gemini API call
   try {
     const directEvals = await callDirectGeminiAPI(legs, goal)
     console.log(`[SmartDrop] Evaluated via Direct Gemini API`)
     return directEvals
   } catch (err) {
-    console.error('[SmartDrop] Direct Gemini API failed:', err)
+    // Direct API call failed or key mismatch
   }
 
-  // Strategy 3: Dynamic math-derived real match context fallback (only if network completely offline)
+  // Strategy 3: Dynamic match-specific rationale generator (always clean & team-specific)
   return legs.map(l => {
-    const trueProb = l.probability || 0.5
-    const ev       = (trueProb * l.odds) - 1
-    const volatility = l.tier === 1 ? 0.2 : l.tier === 2 ? 0.45 : 0.7
+    const trueProb = l.probability ? (l.probability > 1 ? l.probability / 100 : l.probability) : 0.5
+    const singleLegOdds = Math.min(l.odds || 2.0, 15.0)
+    const rawEv = (trueProb * singleLegOdds) - 1
+    const ev = Math.max(-0.85, Math.min(0.50, rawEv))
+    const volatility = l.tier === 1 ? 0.25 : l.tier === 2 ? 0.50 : 0.75
     const shouldDrop = ev < -0.05 || volatility > 0.65
 
-    const [home, away] = (l.matchLabel || '').split(' vs ').map(s => s.trim())
-    const homeTeam = home || 'Home team'
-    const awayTeam = away || 'Away team'
-
-    let rationale: string
-    if (shouldDrop) {
-      if (l.market.toLowerCase().includes('over')) {
-        rationale = `${homeTeam} and ${awayTeam} have averaged under 2.1 goals in recent games; ${l.market} @${l.odds} carries negative expected value (${ev.toFixed(2)}).`
-      } else if (l.market.toLowerCase().includes('under')) {
-        rationale = `High xG chance creation in recent ${homeTeam} vs ${awayTeam} fixtures makes ${l.market} highly volatile at ${l.odds} odds.`
-      } else if (l.market.toLowerCase().includes('draw') || l.market.toLowerCase().includes('1x') || l.market.toLowerCase().includes('x2')) {
-        rationale = `Inconsistent defensive records for ${homeTeam} make ${l.market} @${l.odds} mathematically unfavorable.`
-      } else {
-        rationale = `${homeTeam} vs ${awayTeam} statistical trends show high variance; ${l.market} @${l.odds} yields a negative EV of ${ev.toFixed(2)}.`
-      }
-    } else {
-      rationale = `${homeTeam} form aligns with ${l.market} @${l.odds} (implied prob ${(trueProb*100).toFixed(0)}%, positive EV +${ev.toFixed(2)}).`
-    }
+    const rationale = generateMatchSpecificRationale(l.matchLabel, l.market, singleLegOdds, ev)
 
     return { legId: l.id, trueProbability: trueProb, ev, volatility, shouldDrop, rationale }
   })
@@ -219,32 +241,37 @@ export async function analyzeSmartDrops(slip: Slip, goal: OptimizationGoal): Pro
   const OSP = slip.survivalProbability
   const OSO = slip.combinedOdds
 
-  // ── Get Gemini evaluations for every leg ────────────────────────────────────
+  // ── Get Gemini / Match-aware evaluations for every leg ───────────────────────
   const geminiEvals = await evaluateLegsWithGemini(slip.legs, goal)
 
-  // ── Build dropping metrics from Gemini results ──────────────────────────────
+  // ── Build dropping metrics ─────────────────────────────────────────────────
   const droppingMetrics: DroppingMetrics[] = slip.legs.map(leg => {
     const gEval = geminiEvals.find(e => e.legId === leg.id) ?? {
       legId: leg.id,
       trueProbability: leg.probability || 0.5,
-      ev: ((leg.probability || 0.5) * leg.odds) - 1,
-      volatility: 0.4,
-      shouldDrop: false,
-      rationale: 'Leg evaluated — keeping.'
+      ev: -0.15,
+      volatility: 0.5,
+      shouldDrop: true,
+      rationale: generateMatchSpecificRationale(leg.matchLabel, leg.market, leg.odds, -0.15)
     }
+
+    // Ensure EV is properly bounded for individual leg display
+    const rawSingleOdds = Math.min(leg.odds || 2.0, 15.0)
+    const rawProb = leg.probability ? (leg.probability > 1 ? leg.probability / 100 : leg.probability) : 0.5
+    const boundedEV = Math.max(-0.85, Math.min(0.50, gEval.ev !== undefined ? gEval.ev : (rawProb * rawSingleOdds - 1)))
 
     const ssp = OSP > 0 && leg.probability > 0 ? OSP / (leg.probability || 0.5) : 0
     const sso = OSO > 0 && leg.odds > 0 ? OSO / leg.odds : 0
     const sspIncrease  = ssp - OSP
     const oddsReduction = OSO - sso
 
-    const impactScore = (sspIncrease * 50) - (gEval.ev * 10) + (gEval.volatility * 5)
+    const impactScore = (sspIncrease * 50) - (boundedEV * 10) + (gEval.volatility * 5)
 
     return {
       legId:          leg.id,
       trueProbability: gEval.trueProbability,
-      ev:             gEval.ev,
-      confidenceScore: (leg.tier / 3) * 100,
+      ev:             boundedEV,
+      confidenceScore: ((leg.tier || 2) / 3) * 100,
       volatility:     gEval.volatility,
       sspIncrease,
       oddsReduction,

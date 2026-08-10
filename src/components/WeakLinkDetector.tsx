@@ -46,7 +46,7 @@ export function WeakLinkDetector({ smartDropResult, onApplyDrops, onCancel }: Pr
               <div className="flex gap-4 w-full md:w-auto text-center md:text-left bg-slate-50 rounded-lg p-2 md:p-0 md:bg-transparent">
                 <div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">EV</div>
-                  <div className="text-sm font-bold text-red-500">{drop.ev.toFixed(2)}</div>
+                  <div className="text-sm font-bold text-red-500">{drop.ev >= 0 ? `+${drop.ev.toFixed(2)}` : drop.ev.toFixed(2)}</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Volatility</div>
