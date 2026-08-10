@@ -23,7 +23,8 @@ async function bzzoiroFetch(sport, endpoint, searchQuery) {
   const url = `${BZZOIRO_BASE}/${sport.toLowerCase()}${endpoint}${qs}`
   try {
     const r = await fetch(url, {
-      headers: { Authorization: `Token ${BZZOIRO_API_KEY}`, Accept: 'application/json' }
+      headers: { Authorization: `Token ${BZZOIRO_API_KEY}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(2000), // Fast 2s timeout
     })
     if (r.status === 402) return { error: 'subscription_required' }
     if (!r.ok)           return null
@@ -33,15 +34,17 @@ async function bzzoiroFetch(sport, endpoint, searchQuery) {
 
 async function fetchLiveDataForLegs(legs) {
   const results = {}
-  await Promise.all(legs.map(async leg => {
+  // Limit live lookups to first 5 legs for ultra-fast response
+  const targetLegs = (legs || []).slice(0, 5)
+  await Promise.all(targetLegs.map(async leg => {
     const sport = (leg.sport || 'football').toLowerCase()
     const query = `${leg.homeTeam || ''} ${leg.awayTeam || ''}`.trim()
-    const [detail, pred, h2h] = await Promise.all([
+    if (!query) return
+    const [detail, pred] = await Promise.all([
       bzzoiroFetch(sport, '/api/v2/matches/', query),
       bzzoiroFetch(sport, '/api/v2/predictions/', query),
-      bzzoiroFetch(sport, '/api/v2/h2h/',        query),
     ])
-    results[leg.id] = { detail, pred, h2h }
+    results[leg.id] = { detail, pred }
   }))
   return results
 }
@@ -55,16 +58,34 @@ async function callGemini(prompt, geminiKey, jsonMode = false) {
       ...(jsonMode ? { response_mime_type: 'application/json' } : {})
     }
   }
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-  )
-  if (!r.ok) {
-    const t = await r.text()
-    throw new Error(`Gemini ${r.status}: ${t.slice(0, 200)}`)
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-pro']
+  let lastErr = null
+
+  for (const model of models) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(10000),
+        }
+      )
+      if (r.status === 404) continue
+      if (!r.ok) {
+        const t = await r.text()
+        throw new Error(`Gemini ${r.status}: ${t.slice(0, 200)}`)
+      }
+      const j = await r.json()
+      const text = j.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      if (text) return text
+    } catch (e) {
+      lastErr = e
+    }
   }
-  const j = await r.json()
-  return j.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+  throw lastErr || new Error('All Gemini model endpoints failed')
 }
 
 // ── browser singleton (one shared browser for performance) ────────────────────
@@ -112,8 +133,7 @@ async function getPage() {
       })
       _page = await ctx.newPage()
       console.log('🔗 Navigating to SportyBet…')
-      await _page.goto('https://www.sportybet.com/ng/', { waitUntil: 'domcontentloaded', timeout: 30000 })
-      await _page.waitForTimeout(2500)
+      await _page.goto('https://www.sportybet.com/ng/', { waitUntil: 'domcontentloaded', timeout: 15000 })
       console.log('✅ SportyBet page loaded — session ready.')
     }
 
@@ -123,14 +143,12 @@ async function getPage() {
     return _page;
   } catch (err) {
     console.error('Error inside getPage(), resetting browser instance:', err.message)
-    // Clean up browser instance
     if (_browser) {
       try { await _browser.close() } catch(e) {}
     }
     _browser = null
     _page = null
     
-    // Retry once with a clean slate
     console.log('🔄 Retrying page initialization with a clean browser...')
     return await getCleanPage()
   }
@@ -163,8 +181,7 @@ async function getCleanPage() {
   })
   _page = await ctx.newPage()
   console.log('🔗 Navigating to SportyBet…')
-  await _page.goto('https://www.sportybet.com/ng/', { waitUntil: 'domcontentloaded', timeout: 30000 })
-  await _page.waitForTimeout(2500)
+  await _page.goto('https://www.sportybet.com/ng/', { waitUntil: 'domcontentloaded', timeout: 15000 })
   console.log('✅ SportyBet page loaded — session ready.')
   return _page
 }
@@ -201,32 +218,48 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // ── POST /load — load a booking code via real browser ─────────────────────
+  // ── POST /load — load a booking code via real browser session (ultra-fast) ──
   if (req.method === 'POST' && req.url === '/load') {
     try {
       const { code } = await readBody(req)
       if (!code) throw new Error('No booking code provided')
 
       const page = await getPage()
+      const formattedCode = code.trim().toUpperCase()
 
-      console.log(`📥 Navigating browser to booking code: ${code}`)
-      await page.goto(`https://www.sportybet.com/ng/?shareCode=${code.toUpperCase()}`, {
-        waitUntil: 'domcontentloaded',
-        timeout: 30000
-      })
-      await page.waitForTimeout(2000)
-
-      console.log(`📥 Loading booking code data: ${code}`)
+      console.log(`📥 Loading booking code data: ${formattedCode}`)
       const requestContext = page.context().request
-      const resp = await requestContext.get(`https://www.sportybet.com/api/ng/orders/share/${code.toUpperCase()}`, {
+      
+      // Step 1: Direct API request via active session (instant sub-second)
+      let resp = await requestContext.get(`https://www.sportybet.com/api/ng/orders/share/${formattedCode}`, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-        }
+          'Referer': 'https://www.sportybet.com/ng/',
+        },
+        timeout: 5000,
       })
 
+      let body = null
+      if (resp.ok()) {
+        try { body = await resp.json() } catch {}
+      }
+
+      // Step 2: Fallback to full page load ONLY if direct API fetch failed
+      if (!body || body.bizCode === 19000) {
+        console.log(`🔄 Direct API fetch returned empty/invalid, trying fallback page navigation…`)
+        await page.goto(`https://www.sportybet.com/ng/?shareCode=${formattedCode}`, {
+          waitUntil: 'domcontentloaded',
+          timeout: 15000,
+        })
+        resp = await requestContext.get(`https://www.sportybet.com/api/ng/orders/share/${formattedCode}`, {
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          timeout: 5000,
+        })
+        body = await resp.json()
+      }
+
       const status = resp.status()
-      const body = await resp.json()
       console.log(`Load response status: ${status}`)
 
       if (body) {

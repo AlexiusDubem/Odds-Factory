@@ -95,7 +95,8 @@ export async function fetchBzzoiroSportsData(sport: string = 'football', endpoin
       headers: {
         'Authorization': `Token ${BZZOIRO_API_KEY}`,
         'Accept': 'application/json'
-      }
+      },
+      signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
     return await res.json();

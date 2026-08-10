@@ -122,6 +122,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code }),
+          signal: AbortSignal.timeout(6000), // 6 second deadline
         });
         if (localResp.ok) {
           const localJson = await localResp.json();
@@ -149,7 +150,10 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
         for (const proxyUrl of publicProxies) {
           try {
-            const r = await fetch(proxyUrl, { headers: { Accept: 'application/json' } });
+            const r = await fetch(proxyUrl, {
+              headers: { Accept: 'application/json' },
+              signal: AbortSignal.timeout(3500), // 3.5s timeout per proxy
+            });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const text = await r.text();
             if (text.trim().startsWith('<')) throw new Error('Got HTML (Cloudflare block)');

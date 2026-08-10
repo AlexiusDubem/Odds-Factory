@@ -88,6 +88,7 @@ async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): 
         })),
         goal,
       }),
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     })
 
     if (!res.ok) throw new Error(`Booking server returned ${res.status}`)
