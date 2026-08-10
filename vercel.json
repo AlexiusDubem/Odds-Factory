@@ -1,24 +1,30 @@
 {
-"rewrites": [
-{
-"source": "/api/sportybet/:match*",
-"destination": "https://www.sportybet.com/api/ng/:match*"
-},
-{
-"source": "/api/sportmonks/:match*",
-"destination": "https://api.sportmonks.com/:match*"
-},
-{
-"source": "/((?!api/).*)",
-"destination": "/index.html"
-}
-],
-"env": {
-"NODE_OPTIONS": "--no-warnings"
-},
-"build": {
-"env": {
-"NODE_OPTIONS": "--no-warnings"
-}
-}
+  "rewrites": [
+    {
+      "source": "/api/sportybet/:match*",
+      "destination": "https://www.sportybet.com/api/ng/:match*"
+    },
+    {
+      "source": "/api/sportmonks/:match*",
+      "destination": "https://api.sportmonks.com/:match*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/monitor",
+      "schedule": "0 0 * * *"
+    }
+  ],
+  "env": {
+    "NODE_OPTIONS": "--no-warnings"
+  },
+  "build": {
+    "env": {
+      "NODE_OPTIONS": "--no-warnings"
+    }
+  }
 }
