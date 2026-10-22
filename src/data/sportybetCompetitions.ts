@@ -970,8 +970,12 @@ export interface DailySurePick {
   awayTeam: string
   league: string
   country: string
-  category: string
+  category?: string
   kickoff: string
+  kickoffTag?: string
+  estimateStartTime?: number | null
+  hoursFromNow?: number
+  leagueScope?: 'major' | 'small'
   market: string
   marketName: string
   marketId: string

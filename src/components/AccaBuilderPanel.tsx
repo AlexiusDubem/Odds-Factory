@@ -11,6 +11,7 @@ interface Props {
 
 export type LeagueScope = 'major' | 'small' | 'all'
 export type StrategyMode = 'banker' | 'balanced' | 'value'
+export type MatchDuration = 'today' | '3days' | '1week'
 
 export function AccaBuilderPanel({ onSendToAudit }: Props) {
   // Real live picks from SportyBet
@@ -19,12 +20,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false)
 
   // ── User Condition Inputs ──────────────────────────────────────────────────
-  // 1. League Preference
+  // 1. Timeframe / Duration (Today only, Next 3 days, Next 1 week)
+  const [duration, setDuration] = useState<MatchDuration>('today')
+  // 2. League Preference
   const [leagueScope, setLeagueScope] = useState<LeagueScope>('all')
-  // 2. Desired Odds Amount
+  // 3. Desired Odds Amount
   const [targetOdds, setTargetOdds] = useState<number>(5.0)
   const [customOddsInput, setCustomOddsInput] = useState<string>('5.0')
-  // 3. Strategy / Confidence Mode
+  // 4. Strategy / Confidence Mode
   const [strategy, setStrategy] = useState<StrategyMode>('balanced')
   // Stake
   const [stake, setStake] = useState<number>(1000)
@@ -51,14 +54,24 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     })
   }, [])
 
-  // ── Fetch Today's Real Live Matches from SportyBet API ────────────────────
+  // Duration label
+  const durationLabel = useMemo(() => {
+    if (duration === 'today') return 'Today Only (24h)'
+    if (duration === '3days') return 'Next 3 Days (Weekend)'
+    return 'Next 1 Week (Max 7 Days)'
+  }, [duration])
 
-  const fetchLiveSportyBetMatches = useCallback(async () => {
+  // ── Fetch Real Live Matches from SportyBet API ────────────────────────────
+
+  const fetchLiveSportyBetMatches = useCallback(async (selectedDuration: MatchDuration = duration) => {
     setIsLoadingLive(true)
     try {
-      let res = await fetch('/api/local/today-sure-picks').catch(() => null)
+      let res = await fetch(`/api/local/today-sure-picks?duration=${selectedDuration}`).catch(() => null)
       if (!res || !res.ok) {
-        res = await fetch('http://localhost:3001/today-sure-picks').catch(() => null)
+        res = await fetch(`/api/today-sure-picks?duration=${selectedDuration}`).catch(() => null)
+      }
+      if (!res || !res.ok) {
+        res = await fetch(`http://localhost:3001/today-sure-picks?duration=${selectedDuration}`).catch(() => null)
       }
 
       if (res && res.ok) {
@@ -77,11 +90,17 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setAllLivePicks(DAILY_SURE_PICKS)
     setIsLiveConnected(false)
     setIsLoadingLive(false)
-  }, [])
+  }, [duration])
 
   useEffect(() => {
-    fetchLiveSportyBetMatches()
-  }, [fetchLiveSportyBetMatches])
+    fetchLiveSportyBetMatches(duration)
+  }, [duration, fetchLiveSportyBetMatches])
+
+  const handleDurationChange = (newDur: MatchDuration) => {
+    setDuration(newDur)
+    setHasGenerated(false)
+    fetchLiveSportyBetMatches(newDur)
+  }
 
   // ── The AI Analysis & Generation Function ─────────────────────────────────
 
@@ -91,8 +110,17 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setShareUrl(null)
 
     setTimeout(() => {
-      // 1. Filter candidates according to league scope
+      // 1. Filter candidates according to duration and league scope
       let candidates = allLivePicks.filter((p) => {
+        // Enforce strict duration limit:
+        if (p.hoursFromNow !== undefined) {
+          if (duration === 'today' && p.hoursFromNow > 24) return false
+          if (duration === '3days' && p.hoursFromNow > 72) return false
+          // Strictly exclude anything beyond 168h (1 week)
+          if (p.hoursFromNow > 168) return false
+        }
+
+        // Enforce league preference:
         if (leagueScope === 'major' && (p as any).leagueScope && (p as any).leagueScope !== 'major') {
           return false
         }
@@ -309,22 +337,22 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 text-center relative overflow-hidden">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/20 border border-accent/40 text-accent text-xs font-bold tracking-wide mb-3">
           <i className="fa-solid fa-wand-magic-sparkles"></i>
-          <span>{todayDateString} • Real Live Matches Playing Today</span>
+          <span>{todayDateString} • {durationLabel}</span>
         </div>
         <h1 className="text-2xl sm:text-4xl font-black tracking-tight mb-2">
           AI Sure Games Generator
         </h1>
         <p className="text-sm text-slate-300 max-w-2xl mx-auto leading-relaxed">
-          Set your league preference and desired odds amount below. Our models will evaluate all matches played today, select the safest combination, and generate your real SportyBet booking code.
+          Set your match timeframe (today only, next 3 days, or up to 1 week), league preference, and desired odds amount below. Our models will evaluate all matching fixtures, select the safest combination, and generate your real SportyBet booking code.
         </p>
 
         <div className="mt-4 flex items-center justify-center gap-2">
           <span className={`w-2.5 h-2.5 rounded-full ${isLiveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
           <span className="text-xs text-slate-400">
             {isLoadingLive
-              ? "Scanning today's live matches across all leagues..."
+              ? `Scanning real live matches for ${durationLabel}...`
               : isLiveConnected
-              ? `Connected: ${allLivePicks.length} real live markets available today`
+              ? `Connected: ${allLivePicks.length} real live markets available (${durationLabel})`
               : 'Statistical prediction models ready'}
           </span>
         </div>
@@ -338,21 +366,83 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             Step 1: Set Your Conditions
           </h2>
           <p className="text-xs text-slate-500">
-            Choose what type of leagues you want and your target odds.
+            Choose your match duration, preferred leagues, target odds, and model strategy.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Condition 1: League Scope */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* Condition 1: Match Timeframe / Duration */}
           <div className="space-y-2.5">
             <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              1. League Preference
+              1. Match Timeframe
+            </label>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={() => handleDurationChange('today')}
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  duration === 'today'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
+                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
+                }`}
+              >
+                <div>
+                  <div className="text-xs font-black flex items-center gap-1.5">
+                    <span>⚡</span> Today Only (24h)
+                  </div>
+                  <div className="text-[10px] opacity-75">Tonight &amp; games within 24 hours</div>
+                </div>
+                {duration === 'today' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDurationChange('3days')}
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  duration === '3days'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
+                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
+                }`}
+              >
+                <div>
+                  <div className="text-xs font-black flex items-center gap-1.5">
+                    <span>📅</span> Next 3 Days (72h)
+                  </div>
+                  <div className="text-[10px] opacity-75">Weekend slate &amp; next 72 hours</div>
+                </div>
+                {duration === '3days' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDurationChange('1week')}
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                  duration === '1week'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
+                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
+                }`}
+              >
+                <div>
+                  <div className="text-xs font-black flex items-center gap-1.5">
+                    <span>🗓️</span> Next 1 Week (Max 7d)
+                  </div>
+                  <div className="text-[10px] opacity-75">Full week • Strictly capped at 7 days</div>
+                </div>
+                {duration === '1week' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
+              </button>
+            </div>
+          </div>
+
+          {/* Condition 2: League Scope */}
+          <div className="space-y-2.5">
+            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
+              2. League Preference
             </label>
             <div className="grid grid-cols-1 gap-2">
               <button
                 type="button"
                 onClick={() => setLeagueScope('major')}
-                className={`py-3 px-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                   leagueScope === 'major'
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                     : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
@@ -362,7 +452,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   <div className="text-xs font-black flex items-center gap-1.5">
                     <span>🏆</span> Major Leagues
                   </div>
-                  <div className="text-[10px] opacity-75">Premier League, UCL, La Liga, Serie A</div>
+                  <div className="text-[10px] opacity-75">EPL, UCL, La Liga, Serie A</div>
                 </div>
                 {leagueScope === 'major' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
               </button>
@@ -370,7 +460,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               <button
                 type="button"
                 onClick={() => setLeagueScope('small')}
-                className={`py-3 px-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                   leagueScope === 'small'
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                     : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
@@ -380,7 +470,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   <div className="text-xs font-black flex items-center gap-1.5">
                     <span>🌍</span> Small Leagues
                   </div>
-                  <div className="text-[10px] opacity-75">Lower divisions, domestic cups, NPFL</div>
+                  <div className="text-[10px] opacity-75">Lower divisions, cups, NPFL</div>
                 </div>
                 {leagueScope === 'small' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
               </button>
@@ -388,7 +478,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               <button
                 type="button"
                 onClick={() => setLeagueScope('all')}
-                className={`py-3 px-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                   leagueScope === 'all'
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                     : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
@@ -398,17 +488,17 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   <div className="text-xs font-black flex items-center gap-1.5">
                     <span>🌐</span> All Leagues
                   </div>
-                  <div className="text-[10px] opacity-75">All matches playing today</div>
+                  <div className="text-[10px] opacity-75">All eligible fixtures</div>
                 </div>
                 {leagueScope === 'all' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
               </button>
             </div>
           </div>
 
-          {/* Condition 2: Desired Odds Amount */}
+          {/* Condition 3: Desired Odds Amount */}
           <div className="space-y-2.5">
             <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              2. Target Odds Amount
+              3. Target Odds Amount
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[2.0, 5.0, 10.0, 20.0].map((oddVal) => (
@@ -419,14 +509,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                     setTargetOdds(oddVal)
                     setCustomOddsInput(String(oddVal))
                   }}
-                  className={`py-3 px-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                  className={`py-2.5 px-2.5 rounded-2xl border text-center transition-all cursor-pointer ${
                     targetOdds === oddVal
                       ? 'bg-accent text-white border-accent shadow-sm ring-2 ring-accent/30'
                       : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
                   }`}
                 >
-                  <div className="text-base font-black">{oddVal.toFixed(0)}x Odds</div>
-                  <div className="text-[10px] opacity-80">
+                  <div className="text-sm font-black">{oddVal.toFixed(0)}x Odds</div>
+                  <div className="text-[9px] opacity-80">
                     {oddVal === 2.0 ? 'Banker Duo' : oddVal === 5.0 ? 'Safe Acca' : oddVal === 10.0 ? 'Value Multi' : 'High Return'}
                   </div>
                 </button>
@@ -435,7 +525,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
             {/* Custom Input */}
             <div className="pt-1">
-              <label className="text-[11px] font-bold text-slate-500 block mb-1">Or Enter Exact Odds:</label>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">Or Enter Exact Odds:</label>
               <input
                 type="number"
                 min="1.5"
@@ -453,23 +543,23 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
           </div>
 
-          {/* Condition 3: Strategy Mode */}
+          {/* Condition 4: Strategy Mode */}
           <div className="space-y-2.5">
             <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              3. Model Strategy
+              4. Model Strategy
             </label>
             <div className="grid grid-cols-1 gap-2">
               <button
                 type="button"
                 onClick={() => setStrategy('banker')}
-                className={`py-3 px-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                   strategy === 'banker'
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                     : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
                 }`}
               >
                 <div>
-                  <div className="text-xs font-black">🛡️ Safe Lock (Max Survival)</div>
+                  <div className="text-xs font-black">🛡️ Safe Lock</div>
                   <div className="text-[10px] opacity-75">Highest probability picks only</div>
                 </div>
                 {strategy === 'banker' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
@@ -478,7 +568,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               <button
                 type="button"
                 onClick={() => setStrategy('balanced')}
-                className={`py-3 px-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                   strategy === 'balanced'
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                     : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
@@ -494,7 +584,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               <button
                 type="button"
                 onClick={() => setStrategy('value')}
-                className={`py-3 px-4 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
                   strategy === 'value'
                     ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                     : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
@@ -502,7 +592,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               >
                 <div>
                   <div className="text-xs font-black">💰 Maximum Value</div>
-                  <div className="text-[10px] opacity-75">Picks with highest statistical EV</div>
+                  <div className="text-[10px] opacity-75">Highest statistical EV</div>
                 </div>
                 {strategy === 'value' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
               </button>
@@ -520,12 +610,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             {isAnalyzing ? (
               <>
                 <i className="fa-solid fa-circle-notch fa-spin text-accent text-base"></i>
-                <span>Analyzing All Matches for Today…</span>
+                <span>Analyzing Real Matches for {durationLabel}…</span>
               </>
             ) : (
               <>
                 <i className="fa-solid fa-wand-magic-sparkles text-accent text-base"></i>
-                <span>⚡ Analyze Today&apos;s Matches &amp; Generate Sure Games ({targetOdds}x Odds)</span>
+                <span>⚡ Analyze Matches ({durationLabel}) &amp; Generate Sure Games ({targetOdds}x Odds)</span>
               </>
             )}
           </button>
@@ -538,13 +628,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
             <div>
               <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-wider inline-block mb-1">
-                ✓ Analysis Complete • {chosenPicks.length} Games Chosen
+                ✓ Analysis Complete • {chosenPicks.length} Games Chosen ({durationLabel})
               </span>
               <h3 className="text-lg font-black text-slate-900">
-                Today&apos;s Chosen Sure Games ({combinedOdds.toFixed(2)}x Odds)
+                Chosen Sure Games ({combinedOdds.toFixed(2)}x Odds)
               </h3>
               <p className="text-xs text-slate-500">
-                Review the games our model selected below. You can remove any pick you don&apos;t want before generating the booking code.
+                Review the games our model selected for {durationLabel}. You can remove any pick you don&apos;t want before generating the booking code.
               </p>
             </div>
 
@@ -579,16 +669,39 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   className="bg-surface border border-border hover:border-slate-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all"
                 >
                   <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black">
                         {idx + 1}
                       </span>
-                      <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                      <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
                         {pick.league}
                       </span>
-                      <span className="text-[10px] text-slate-400">
-                        {pick.kickoff}
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                        pick.kickoffTag === 'Today' || pick.kickoff?.includes('Today')
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : pick.kickoffTag === 'Tomorrow' || pick.kickoff?.includes('Tomorrow')
+                          ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                          : 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                      }`}>
+                        <i className={
+                          pick.kickoffTag === 'Today' || pick.kickoff?.includes('Today')
+                            ? 'fa-solid fa-bolt text-amber-600'
+                            : pick.kickoffTag === 'Tomorrow' || pick.kickoff?.includes('Tomorrow')
+                            ? 'fa-solid fa-calendar-day text-blue-600'
+                            : 'fa-solid fa-calendar text-indigo-600'
+                        }></i>
+                        <span>{pick.kickoff}</span>
                       </span>
+                      {pick.hoursFromNow !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          (in {pick.hoursFromNow > 24 ? `${Math.round(pick.hoursFromNow / 24)}d` : `${pick.hoursFromNow}h`})
+                        </span>
+                      )}
+                      {pick.badgeLabel && (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                          {pick.badgeLabel}
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-base font-extrabold text-slate-900">

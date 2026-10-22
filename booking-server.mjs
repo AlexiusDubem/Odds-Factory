@@ -225,26 +225,106 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // ── GET /today-sure-picks — Real matches today across all leagues from SportyBet
+  // ── GET /today-sure-picks — Real matches with customizable duration (Today / 3 Days / 1 Week) from SportyBet
   if (req.method === 'GET' && req.url.startsWith('/today-sure-picks')) {
     try {
       const page = await getPage()
       const reqCtx = page.context().request
 
-      console.log('📡 Fetching today real live fixtures from SportyBet...')
-      const resp = await reqCtx.get('https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=sr%3Asport%3A1&marketId=1%2C18%2C10%2C29%2C11%2C26%2C36%2C14%2C60100&pageSize=100&pageNum=1&option=1&_t=' + Date.now(), {
-        headers: {
-          'Accept': 'application/json',
-          'Referer': 'https://www.sportybet.com/ng/',
-        },
-        timeout: 12000,
-      })
+      const urlObj = new URL(req.url, 'http://localhost:3001')
+      const durationParam = (urlObj.searchParams.get('duration') || 'today').toLowerCase()
 
-      const body = await resp.json()
-      const tournaments = body.data?.tournaments || []
-      const majorKeywords = ['premier league', 'champions league', 'europa league', 'la liga', 'serie a', 'bundesliga', 'ligue 1', 'copa del rey', 'fa cup', 'efl cup', 'npfl']
+      let timeline = '24'
+      let maxHours = 24
+      if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
+        timeline = '72'
+        maxHours = 72
+      } else if (durationParam === '1week' || durationParam === '168h' || durationParam === '168' || durationParam === 'week' || durationParam === '7d') {
+        timeline = '168'
+        maxHours = 168
+      }
+
+      console.log(`📡 Fetching real live fixtures from SportyBet for duration: ${durationParam} (timeline=${timeline}, maxHours=${maxHours})...`)
+
+      const fetchTournaments = async (queryTimeline, extraParams = '') => {
+        try {
+          const resp = await reqCtx.get(`https://www.sportybet.com/api/ng/factsCenter/pcUpcomingEvents?sportId=sr%3Asport%3A1&marketId=1%2C18%2C10%2C29%2C11%2C26%2C36%2C14%2C60100&pageSize=100&pageNum=1&timeline=${queryTimeline}${extraParams}&_t=${Date.now()}`, {
+            headers: {
+              'Accept': 'application/json',
+              'Referer': 'https://www.sportybet.com/ng/',
+            },
+            timeout: 12000,
+          })
+          const body = await resp.json()
+          return body.data?.tournaments || []
+        } catch (e) {
+          console.warn(`Query failed for timeline=${queryTimeline}:`, e.message)
+          return []
+        }
+      }
+
+      // Fetch primary timeline
+      let tournaments = await fetchTournaments(timeline)
+
+      // If today requested, also fetch immediate games (timeline 2.7) to ensure tonight's ongoing/imminent games are present
+      if (timeline === '24') {
+        const immediateTournaments = await fetchTournaments('2.7', '&todayGames=true')
+        const existingTournIds = new Set(tournaments.map(t => t.tournamentId || t.name))
+        for (const it of immediateTournaments) {
+          if (!existingTournIds.has(it.tournamentId || it.name)) {
+            tournaments.unshift(it)
+          } else {
+            // Merge events into existing tournament
+            const target = tournaments.find(t => (t.tournamentId || t.name) === (it.tournamentId || it.name))
+            if (target && Array.isArray(it.events)) {
+              const existingEventIds = new Set((target.events || []).map(e => e.eventId))
+              for (const ie of it.events) {
+                if (!existingEventIds.has(ie.eventId)) {
+                  target.events.push(ie)
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const majorKeywords = [
+        'premier league', 'champions league', 'europa league', 'conference league',
+        'la liga', 'serie a', 'bundesliga', 'ligue 1', 'copa del rey', 'fa cup',
+        'efl cup', 'carabao cup', 'npfl', 'eredivisie', 'primeira liga', 'mls',
+        'saudi pro league', 'brasileiro', 'copa libertadores'
+      ]
+
+      function formatKickoff(startTimeMs) {
+        if (!startTimeMs) return { text: 'Today', tag: 'Today', diffHours: 0 }
+        const now = Date.now()
+        const diffHours = (startTimeMs - now) / (3600 * 1000)
+        const date = new Date(startTimeMs)
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        const nowDate = new Date(now)
+        const isSameDay = date.getDate() === nowDate.getDate() && date.getMonth() === nowDate.getMonth() && date.getFullYear() === nowDate.getFullYear()
+        const tomorrow = new Date(now + 86400000)
+        const isTomorrow = date.getDate() === tomorrow.getDate() && date.getMonth() === tomorrow.getMonth() && date.getFullYear() === tomorrow.getFullYear()
+        const weekday = date.toLocaleDateString('en-US', { weekday: 'short' })
+        const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+        let text = ''
+        let tag = ''
+        if (isSameDay || diffHours <= 12) {
+          text = `Today, ${timeStr}`
+          tag = 'Today'
+        } else if (isTomorrow || (diffHours > 12 && diffHours <= 36)) {
+          text = `Tomorrow (${weekday}), ${timeStr}`
+          tag = 'Tomorrow'
+        } else {
+          text = `${weekday}, ${monthDay} • ${timeStr}`
+          tag = weekday
+        }
+        return { text, tag, diffHours: Math.round(diffHours * 10) / 10 }
+      }
 
       const extractedPicks = []
+      const seenEventIds = new Set()
 
       for (const t of tournaments) {
         const tournamentName = t.name || ''
@@ -257,9 +337,18 @@ const server = http.createServer(async (req, res) => {
           const away = e.awayTeamName || ''
           const matchLabel = `${home} vs ${away}`
           const eventId = e.eventId
-          const kickoff = e.estimateStartTime
-            ? new Date(e.estimateStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : 'Today'
+
+          // Calculate precise time difference
+          const now = Date.now()
+          const diffHours = e.estimateStartTime ? (e.estimateStartTime - now) / (3600 * 1000) : 0
+
+          // Strictly filter out matches outside the chosen timeframe or already finished
+          // Strict max: never allow anything past maxHours (and absolute ceiling of 168 hours = 7 days)
+          if (e.estimateStartTime && (diffHours < -2 || diffHours > maxHours || diffHours > 168)) {
+            continue
+          }
+
+          const ko = formatKickoff(e.estimateStartTime)
 
           // 1. Double Chance (id: 10)
           const dcMarket = e.markets?.find(m => String(m.id) === '10')
@@ -278,7 +367,10 @@ const server = http.createServer(async (req, res) => {
                   league: tournamentName,
                   country: categoryName,
                   leagueScope,
-                  kickoff,
+                  kickoff: ko.text,
+                  kickoffTag: ko.tag,
+                  estimateStartTime: e.estimateStartTime || null,
+                  hoursFromNow: ko.diffHours,
                   market: `Double Chance - ${o.desc}`,
                   marketName: 'Double Chance',
                   marketId: String(dcMarket.id),
@@ -291,7 +383,7 @@ const server = http.createServer(async (req, res) => {
                   confidenceTier: 1,
                   modelType: 'double_chance',
                   badgeLabel: isMajor ? '🏆 Major League Lock' : '🌍 Value Anchor',
-                  modelRationale: `High-probability ${o.desc} for ${matchLabel} (${Math.round(prob * 100)}% model probability @${odds.toFixed(2)}).`
+                  modelRationale: `High-probability ${o.desc} for ${matchLabel} (${Math.round(prob * 100)}% model probability @${odds.toFixed(2)} • ${ko.text}).`
                 })
               }
             }
@@ -314,7 +406,10 @@ const server = http.createServer(async (req, res) => {
                   league: tournamentName,
                   country: categoryName,
                   leagueScope,
-                  kickoff,
+                  kickoff: ko.text,
+                  kickoffTag: ko.tag,
+                  estimateStartTime: e.estimateStartTime || null,
+                  hoursFromNow: ko.diffHours,
                   market: 'Over 1.5 Goals',
                   marketName: 'Over/Under 1.5',
                   marketId: String(ouMarket.id),
@@ -327,7 +422,7 @@ const server = http.createServer(async (req, res) => {
                   confidenceTier: 1,
                   modelType: 'goals_lock',
                   badgeLabel: '⚽ Goals Lock',
-                  modelRationale: `Goal expectancy algorithm rates Over 1.5 in ${matchLabel} at ${Math.round(prob * 100)}% probability.`
+                  modelRationale: `Goal expectancy algorithm rates Over 1.5 in ${matchLabel} at ${Math.round(prob * 100)}% probability (${ko.text}).`
                 })
               }
             }
@@ -349,7 +444,10 @@ const server = http.createServer(async (req, res) => {
                   league: tournamentName,
                   country: categoryName,
                   leagueScope,
-                  kickoff,
+                  kickoff: ko.text,
+                  kickoffTag: ko.tag,
+                  estimateStartTime: e.estimateStartTime || null,
+                  hoursFromNow: ko.diffHours,
                   market: `1X2 - ${o.desc}`,
                   marketName: '1X2',
                   marketId: String(matchWinnerMarket.id),
@@ -362,7 +460,7 @@ const server = http.createServer(async (req, res) => {
                   confidenceTier: 1,
                   modelType: 'banker',
                   badgeLabel: isMajor ? '🛡️ Tier 1 Banker' : '💰 Value Pick',
-                  modelRationale: `Strong model rating for ${o.desc} in ${matchLabel} (${Math.round(prob * 100)}% probability @${odds.toFixed(2)}).`
+                  modelRationale: `Strong model rating for ${o.desc} in ${matchLabel} (${Math.round(prob * 100)}% probability @${odds.toFixed(2)} • ${ko.text}).`
                 })
               }
             }
@@ -370,9 +468,15 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      console.log(`✅ Extracted ${extractedPicks.length} real live sure picks across ${tournaments.length} tournaments`)
+      console.log(`✅ Extracted ${extractedPicks.length} real live sure picks for timeframe "${durationParam}" (max ${maxHours}h) across ${tournaments.length} tournaments`)
       res.writeHead(200)
-      res.end(JSON.stringify({ success: true, count: extractedPicks.length, picks: extractedPicks }))
+      res.end(JSON.stringify({
+        success: true,
+        duration: durationParam,
+        maxHours,
+        count: extractedPicks.length,
+        picks: extractedPicks
+      }))
     } catch (err) {
       console.error('Error in /today-sure-picks:', err.message)
       res.writeHead(500)
