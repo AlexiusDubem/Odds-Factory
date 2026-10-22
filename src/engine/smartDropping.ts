@@ -61,6 +61,8 @@ export function calculateSlipHealth(legs: SlipLeg[], combinedOdds: number): Slip
 }
 
 // ─── Match-aware Rationale Generator ──────────────────────────────────────────
+// FALLBACK ONLY — used when Gemini is unavailable. Never fabricates stats.
+// Rationale is derived purely from odds, EV, market type, and volatility.
 
 function generateMatchSpecificRationale(
   matchLabel: string,
@@ -75,22 +77,33 @@ function generateMatchSpecificRationale(
   const formattedOdds = (odds || 1.85).toFixed(2)
   const formattedEV = ev >= 0 ? `+${ev.toFixed(2)}` : ev.toFixed(2)
 
-  if (m.includes('early') || m.includes('over 2.5') || m.includes('over 3.5')) {
-    return `${h} and ${a} have averaged under 1.8 early goals in recent games. ${market} @${formattedOdds} carries negative EV (${formattedEV}).`
+  // Odds-based reasoning (verifiable from the slip itself)
+  if (ev < -0.15) {
+    return `${h} vs ${a}: ${market} @${formattedOdds} has negative expected value (EV ${formattedEV}) — implied probability exceeds likely true probability.`
   }
-  if (m.includes('under')) {
-    return `${h}'s high pressing against ${a} creates open transitions, making ${market} @${formattedOdds} high volatility for accumulator survival.`
+  if (odds > 4.0) {
+    return `${h} vs ${a}: ${market} @${formattedOdds} is a high-odds selection — risky in accumulators as one upset kills the slip.`
+  }
+
+  // Market-type reasoning (general football logic, no fabricated stats)
+  if (m.includes('over 2.5') || m.includes('over 3.5') || m.includes('early goal')) {
+    return `${h} vs ${a}: Goal-heavy markets like ${market} @${formattedOdds} add volatility to accumulators (EV ${formattedEV}).`
   }
   if (m.includes('btts') || m.includes('both teams')) {
-    return `${a} failed to score in 3 of their last 5 away matches, keeping ${market} probability below offered odds @${formattedOdds}.`
+    return `${h} vs ${a}: BTTS depends on both attacks firing — one defensive setup breaks this leg @${formattedOdds} (EV ${formattedEV}).`
   }
-  if (m.includes('away') || m.includes('2')) {
-    return `${h} is undefeated in 6 home games. Pick ${market} @${formattedOdds} against ${a} adds unnecessary risk.`
+  if (m.includes('under')) {
+    return `${h} vs ${a}: Under markets can be undone by a single goal — volatile for accumulators @${formattedOdds} (EV ${formattedEV}).`
   }
-  if (m.includes('home') || m.includes('1')) {
-    return `${h} has drawn 3 of their last 5 games; ${market} @${formattedOdds} does not offer sufficient value margin (EV ${formattedEV}).`
+  if (m.includes('draw') || m.includes(' x ')) {
+    return `${h} vs ${a}: Draw selections are inherently low-probability — risky for accumulator survival @${formattedOdds} (EV ${formattedEV}).`
   }
-  return `${h} vs ${a} statistical trends show high variance for ${market} @${formattedOdds} (EV ${formattedEV}).`
+
+  // Generic honest fallback
+  if (ev >= 0.05) {
+    return `${h} vs ${a}: ${market} @${formattedOdds} offers positive EV (${formattedEV}) — worth keeping based on odds value.`
+  }
+  return `${h} vs ${a}: ${market} @${formattedOdds} has marginal value (EV ${formattedEV}) — borderline for accumulator inclusion.`
 }
 
 // ─── Gemini Direct API Evaluator ─────────────────────────────────────────────
@@ -112,18 +125,23 @@ async function callDirectGeminiAPI(legs: SlipLeg[], goal: OptimizationGoal): Pro
     `Leg ${i + 1} [ID: ${l.id}]: ${l.matchLabel} | Market: ${l.market} | Single Leg Odds: ${Math.min(l.odds, 20)} | Engine prob: ${((l.probability || 0.5) * 100).toFixed(0)}%`
   ).join('\n')
 
-  const prompt = `You are OddsFactory's Elite Sports Analyst. Evaluate these picks for accumulator dropping.
+  const prompt = `You are OddsFactory's Risk Analyst. Evaluate these accumulator picks.
 
 Picks:
 ${legsText}
 
 Goal Mode: ${goal.mode}
 
-CRITICAL RULES:
-1. Provide a brief (15-20 words max) specific real-world match reason for EVERY pick.
-2. Name the EXACT teams in the match (e.g. Real Madrid vs Real Sociedad). Mention recent goals, form, or H2H.
-3. NEVER use filler phrases like "elevated uncertainty", "Tier 3 confidence", or "fixture type shows unpredictable outcomes".
-4. EV must be bounded between -0.95 and +0.50 (single leg expected value = trueProbability * singleLegOdds - 1).
+HONESTY RULES — READ CAREFULLY:
+1. You do NOT have access to live data, current form, or injury news. DO NOT invent statistics.
+2. Base your analysis ONLY on: odds value (EV math), market type risk, general football logic, and match context you can infer (e.g. derby, league position implications).
+3. Name the EXACT teams. Keep rationale under 20 words.
+4. Good rationale examples:
+   - "Man City vs Burnley: Low odds @1.25 offer thin EV margin — one slip and the acca dies."
+   - "BTTS @1.90 in a match between two mid-table sides — volatile market for accumulators."
+   - "Over 3.5 @2.40 is high-variance; needs 4+ goals which is never reliable."
+5. BAD rationale (DO NOT DO THIS): "Arsenal scored 3+ in last 5 home games" — you don't know this.
+6. EV = trueProbability × odds - 1. Bound between -0.95 and +0.50.
 
 Return ONLY a raw JSON array:
 [
@@ -133,7 +151,7 @@ Return ONLY a raw JSON array:
     "ev": number (-0.95 to 0.50),
     "volatility": number (0.1 to 0.9),
     "shouldDrop": boolean,
-    "rationale": "Brief match explanation naming teams and recent form context."
+    "rationale": "Brief honest reason naming teams — no invented stats."
   }
 ]`
 

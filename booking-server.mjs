@@ -457,7 +457,7 @@ Be brutally honest. Use emojis. Format beautifully with headers and bullet point
 
       const dataSection = hasData
         ? `[LIVE MATCH DATA]\n${JSON.stringify(liveData, null, 2)}`
-        : `[RESEARCH MODE] No live API data. Use your knowledge of current team form, H2H, injuries, and match context for each fixture.`
+        : `[NO LIVE DATA] You have no access to current form, injuries, or live stats. Do NOT invent specific statistics. Base analysis on odds value, market type risk, and general football logic only.`
 
       const goalText = {
         balanced:        'Balanced: drop legs with negative EV, high volatility, or poor real-world form.',
@@ -480,7 +480,7 @@ Be brutally honest. Use emojis. Format beautifully with headers and bullet point
           `Leg ${chunkIdx * CHUNK_SIZE + i + 1} [ID: ${l.id}]:\n  Match: ${l.matchLabel}\n  Market: ${l.market}\n  Odds: ${Math.min(l.odds, 20)}\n  Engine probability: ${((l.probability || 0.5) * 100).toFixed(0)}%\n  Tier: ${l.tier ?? 2}`
         ).join('\n\n')
 
-        const prompt = `You are OddsFactory's Elite Betting Risk Analyst. Evaluate each leg precisely.
+        const prompt = `You are OddsFactory's Risk Analyst. Evaluate each leg honestly — never fabricate statistics you don't have.
 
 ${dataSection}
 
@@ -489,15 +489,17 @@ GOAL: ${goalText}
 LEGS TO EVALUATE:
 ${legsText}
 
-CRITICAL RULES:
-1. Name the EXACT teams in every rationale (e.g. "Arsenal vs Chelsea" not "both teams").
-2. Reference real form, H2H, injuries, or match context (derby/cup/dead rubber).
-3. NEVER use phrases like "elevated uncertainty", "fixture type shows", or "Tier confidence".
-4. Keep each rationale under 20 words.
-5. EV must equal trueProbability * singleLegOdds - 1, bounded between -0.9 and +0.5.
+HONESTY RULES:
+1. Name the EXACT teams (e.g. "Arsenal vs Chelsea").
+2. If [LIVE MATCH DATA] is above, use it. Otherwise DO NOT invent statistics.
+3. Base analysis on: odds value (EV math), market type risk, general football logic, match context (derby/cup).
+4. Good: "Man City vs Burnley: Low odds @1.25 — thin EV, one slip kills the acca."
+5. Bad (NEVER): "Arsenal scored 3+ in last 5" — you don't have this data without live feed.
+6. Keep each rationale under 20 words.
+7. EV = trueProbability * odds - 1, bounded -0.9 to +0.5.
 
 Return ONLY a raw JSON array, no markdown:
-[{"legId": "exact ID", "trueProbability": 0.1-0.9, "ev": number, "volatility": 0.1-0.9, "shouldDrop": boolean, "rationale": "specific match reason naming teams"}]`
+[{"legId": "exact ID", "trueProbability": 0.1-0.9, "ev": number, "volatility": 0.1-0.9, "shouldDrop": boolean, "rationale": "honest reason naming teams, no invented stats"}]`
 
         try {
           const jsonStr = await callGemini(prompt, API_KEY, true)
