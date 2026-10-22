@@ -10,7 +10,7 @@ import { DashboardPanel } from './components/DashboardPanel'
 import { ProfilePanel } from './components/ProfilePanel'
 import { ControlPanel } from './components/ControlPanel'
 import { AccaBuilderPanel } from './components/AccaBuilderPanel'
-import { auth, db, messaging } from './config/firebase'
+import { auth, db, messaging, isFirebaseConfigured } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
 import { getToken } from 'firebase/messaging'
@@ -37,6 +37,17 @@ function App() {
   }
 
   useEffect(() => {
+    // If Firebase credentials are not set, auto-login as preview guest
+    if (!isFirebaseConfigured) {
+      setUser({
+        uid: 'guest-local-user',
+        email: 'preview@oddsfactory.local',
+        displayName: 'Guest Previewer',
+      } as any)
+      setLoading(false)
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser)
       setLoading(false)
@@ -78,7 +89,7 @@ function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <LoginPanel />
+        <LoginPanel onContinueAsGuest={() => setUser({ uid: 'guest-user', email: 'guest@oddsfactory.local', displayName: 'Guest' } as any)} />
       </div>
     )
   }
@@ -105,7 +116,7 @@ function App() {
               </span>
               <NotificationCenter />
               <button 
-                onClick={() => signOut(auth)} 
+                onClick={() => { if (isFirebaseConfigured) { signOut(auth) } else { setUser(null) } }} 
                 className="hover:text-red-500 transition-colors flex items-center gap-1.5 font-medium"
               >
                 <i className="fa-solid fa-arrow-right-from-bracket"></i>

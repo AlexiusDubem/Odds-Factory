@@ -10,7 +10,7 @@ export const DashboardPanel = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!auth.currentUser) return;
+      if (!auth.currentUser) { setLoading(false); return; }
       try {
         // Fetch saved slips for stats
         const slipsRef = collection(db, 'users', auth.currentUser.uid, 'slips')

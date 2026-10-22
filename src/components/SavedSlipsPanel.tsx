@@ -8,7 +8,7 @@ export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => vo
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!auth.currentUser) return
+    if (!auth.currentUser) { setLoading(false); return }
 
     const slipsRef = collection(db, 'users', auth.currentUser.uid, 'slips')
     const q = query(slipsRef, orderBy('createdAt', 'desc'))

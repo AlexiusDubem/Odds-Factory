@@ -2,7 +2,11 @@ import React, { useState } from 'react'
 import { auth, googleProvider } from '../config/firebase'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth'
 
-export const LoginPanel: React.FC = () => {
+interface LoginPanelProps {
+  onContinueAsGuest?: () => void
+}
+
+export const LoginPanel: React.FC<LoginPanelProps> = ({ onContinueAsGuest }) => {
   const [isRegistering, setIsRegistering] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -130,6 +134,19 @@ export const LoginPanel: React.FC = () => {
             {isRegistering ? 'Already have an account? Sign in' : "Don't have an account? Register"}
           </button>
         </div>
+
+        {onContinueAsGuest && (
+          <div className="pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onContinueAsGuest}
+              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+            >
+              <i className="fa-solid fa-eye text-accent" />
+              Continue as Guest (Instant Preview)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

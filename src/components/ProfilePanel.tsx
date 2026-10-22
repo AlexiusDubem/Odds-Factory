@@ -7,7 +7,7 @@ export const ProfilePanel = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!auth.currentUser) return;
+      if (!auth.currentUser) { setLoading(false); return; }
       try {
         const userRef = doc(db, 'users', auth.currentUser.uid)
         const snap = await getDoc(userRef)
