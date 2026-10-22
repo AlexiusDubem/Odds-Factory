@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import type { Slip } from './types'
 import { sampleMatches } from './data/sampleMatches'
 import { LoginPanel } from './components/LoginPanel'
@@ -9,6 +9,7 @@ import { SavedSlipsPanel } from './components/SavedSlipsPanel'
 import { DashboardPanel } from './components/DashboardPanel'
 import { ProfilePanel } from './components/ProfilePanel'
 import { ControlPanel } from './components/ControlPanel'
+import { AccaBuilderPanel } from './components/AccaBuilderPanel'
 import { auth, db, messaging } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
@@ -18,15 +19,22 @@ import { UpdatePrompt } from './components/UpdatePrompt'
 
 const NAV_LINKS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-solid fa-chart-line' },
+  { path: '/builder', label: 'Acca Builder', icon: 'fa-solid fa-layer-group' },
   { path: '/audit', label: 'Audit Slip', icon: 'fa-solid fa-wand-magic-sparkles' },
   { path: '/history', label: 'History', icon: 'fa-solid fa-clock-rotate-left' },
   { path: '/profile', label: 'Profile', icon: 'fa-solid fa-user' },
 ]
 
 function App() {
+  const navigate = useNavigate()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [slips, setSlips] = useState<Slip[]>([])
+
+  const handleSendToAudit = (newSlip: Slip) => {
+    setSlips((prev) => [newSlip, ...prev.filter((s) => s.id !== newSlip.id)])
+    navigate('/audit')
+  }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -133,6 +141,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPanel />} />
+          <Route path="/builder" element={<AccaBuilderPanel onSendToAudit={handleSendToAudit} />} />
           <Route path="/audit" element={
             <SlipEditorPanel
               matches={sampleMatches}
