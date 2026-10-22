@@ -19,7 +19,7 @@ import { UpdatePrompt } from './components/UpdatePrompt'
 
 const NAV_LINKS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'fa-solid fa-chart-line' },
-  { path: '/builder', label: 'Acca Builder', icon: 'fa-solid fa-layer-group' },
+  { path: '/builder', label: 'Sure Picks', icon: 'fa-solid fa-star' },
   { path: '/audit', label: 'Audit Slip', icon: 'fa-solid fa-wand-magic-sparkles' },
   { path: '/history', label: 'History', icon: 'fa-solid fa-clock-rotate-left' },
   { path: '/profile', label: 'Profile', icon: 'fa-solid fa-user' },

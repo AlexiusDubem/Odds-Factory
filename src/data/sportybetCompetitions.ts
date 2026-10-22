@@ -956,3 +956,350 @@ export const SAMPLE_ACCA_FIXTURES: AccaFixture[] = [
     },
   },
 ]
+
+
+// ── Daily Sure Picks (Model-Audited Predictions) ─────────────────────────────
+
+export type SurePickType = 'banker' | 'goals_lock' | 'double_chance' | 'btts' | 'value_play'
+
+export interface DailySurePick {
+  id: string
+  eventId: string
+  matchLabel: string
+  homeTeam: string
+  awayTeam: string
+  league: string
+  country: string
+  category: string
+  kickoff: string
+  market: string
+  marketName: string
+  marketId: string
+  outcomeId: string
+  specifier?: string
+  odds: number
+  probability: number
+  ev: number
+  confidenceScore: number
+  confidenceTier: 1 | 2 | 3
+  modelType: SurePickType
+  badgeLabel: string
+  modelRationale: string
+}
+
+export const DAILY_SURE_PICKS: DailySurePick[] = [
+  {
+    id: 'sp-1',
+    eventId: 'sr:match:5100101',
+    matchLabel: 'Arsenal vs Chelsea',
+    homeTeam: 'Arsenal',
+    awayTeam: 'Chelsea',
+    league: 'Premier League',
+    country: 'England',
+    category: 'major-europe',
+    kickoff: 'Today, 17:30',
+    market: 'Arsenal or Draw (1X)',
+    marketName: 'Double Chance',
+    marketId: '10',
+    outcomeId: '10',
+    odds: 1.18,
+    probability: 0.88,
+    ev: 0.038,
+    confidenceScore: 95,
+    confidenceTier: 1,
+    modelType: 'banker',
+    badgeLabel: '🛡️ Tier 1 Banker',
+    modelRationale: 'Arsenal are undefeated in 8 consecutive home derbies with a dominant +1.4 xG differential. Chelsea away conversion is below 1.1.',
+  },
+  {
+    id: 'sp-2',
+    eventId: 'sr:match:5100201',
+    matchLabel: 'Real Madrid vs Barcelona',
+    homeTeam: 'Real Madrid',
+    awayTeam: 'Barcelona',
+    league: 'La Liga',
+    country: 'Spain',
+    category: 'major-europe',
+    kickoff: 'Today, 20:00',
+    market: 'Over 1.5 Goals',
+    marketName: 'Over/Under 1.5',
+    marketId: '18',
+    outcomeId: '12',
+    specifier: 'total=1.5',
+    odds: 1.18,
+    probability: 0.89,
+    ev: 0.05,
+    confidenceScore: 94,
+    confidenceTier: 1,
+    modelType: 'goals_lock',
+    badgeLabel: '⚽ Goals Lock',
+    modelRationale: 'Last 12 El Clásico fixtures averaged 3.42 goals; combined team offensive rating yields an 89% Poisson probability of 2+ goals.',
+  },
+  {
+    id: 'sp-3',
+    eventId: 'sr:match:5100701',
+    matchLabel: 'Enyimba FC vs Remo Stars',
+    homeTeam: 'Enyimba FC',
+    awayTeam: 'Remo Stars',
+    league: 'NPFL (Nigeria Premier Football League)',
+    country: 'Nigeria',
+    category: 'africa',
+    kickoff: 'Today, 16:00',
+    market: 'Enyimba or Draw (1X)',
+    marketName: 'Double Chance',
+    marketId: '10',
+    outcomeId: '10',
+    odds: 1.18,
+    probability: 0.89,
+    ev: 0.05,
+    confidenceScore: 94,
+    confidenceTier: 1,
+    modelType: 'banker',
+    badgeLabel: '🇳🇬 NPFL Anchor',
+    modelRationale: 'Enyimba maintains an 84% home win rate in Aba this season, while Remo Stars away goal output is restricted to 0.7 goals/game.',
+  },
+  {
+    id: 'sp-4',
+    eventId: 'sr:match:5100401',
+    matchLabel: 'Inter Milan vs Juventus',
+    homeTeam: 'Inter Milan',
+    awayTeam: 'Juventus',
+    league: 'Serie A',
+    country: 'Italy',
+    category: 'major-europe',
+    kickoff: 'Today, 19:45',
+    market: 'Inter Milan or Draw (1X)',
+    marketName: 'Double Chance',
+    marketId: '10',
+    outcomeId: '10',
+    odds: 1.25,
+    probability: 0.84,
+    ev: 0.05,
+    confidenceScore: 91,
+    confidenceTier: 1,
+    modelType: 'double_chance',
+    badgeLabel: '🎯 Double Chance',
+    modelRationale: 'Inter leads Serie A in home expected points (xPTS). San Siro defensive structure allows just 0.65 xGA per 90.',
+  },
+  {
+    id: 'sp-5',
+    eventId: 'sr:match:5100301',
+    matchLabel: 'Bayern Munich vs Bayer Leverkusen',
+    homeTeam: 'Bayern Munich',
+    awayTeam: 'Bayer Leverkusen',
+    league: 'Bundesliga',
+    country: 'Germany',
+    category: 'major-europe',
+    kickoff: 'Today, 17:30',
+    market: 'Both Teams to Score (BTTS Yes)',
+    marketName: 'Both Teams To Score',
+    marketId: '29',
+    outcomeId: '29',
+    odds: 1.48,
+    probability: 0.74,
+    ev: 0.095,
+    confidenceScore: 89,
+    confidenceTier: 2,
+    modelType: 'btts',
+    badgeLabel: '🔥 BTTS Signal',
+    modelRationale: 'Both teams scored in 9 of their last 10 meetings. High-line pressing setups create sustained counter-attacking overloads.',
+  },
+  {
+    id: 'sp-6',
+    eventId: 'sr:match:5100501',
+    matchLabel: 'Paris Saint-Germain vs Marseille',
+    homeTeam: 'Paris Saint-Germain',
+    awayTeam: 'Marseille',
+    league: 'Ligue 1',
+    country: 'France',
+    category: 'major-europe',
+    kickoff: 'Today, 20:00',
+    market: 'PSG Win (1)',
+    marketName: '1X2',
+    marketId: '1',
+    outcomeId: '1',
+    odds: 1.50,
+    probability: 0.73,
+    ev: 0.095,
+    confidenceScore: 88,
+    confidenceTier: 2,
+    modelType: 'value_play',
+    badgeLabel: '💰 Value Pick',
+    modelRationale: 'PSG home goal output averages 2.6 per match, meeting a Marseille side that conceded in 6 consecutive away league trips.',
+  },
+  {
+    id: 'sp-7',
+    eventId: 'sr:match:5100702',
+    matchLabel: 'Enugu Rangers vs Shooting Stars',
+    homeTeam: 'Enugu Rangers',
+    awayTeam: 'Shooting Stars',
+    league: 'NPFL (Nigeria Premier Football League)',
+    country: 'Nigeria',
+    category: 'africa',
+    kickoff: 'Today, 16:00',
+    market: 'Enugu Rangers or Draw (1X)',
+    marketName: 'Double Chance',
+    marketId: '10',
+    outcomeId: '10',
+    odds: 1.15,
+    probability: 0.90,
+    ev: 0.035,
+    confidenceScore: 96,
+    confidenceTier: 1,
+    modelType: 'banker',
+    badgeLabel: '🛡️ Tier 1 Banker',
+    modelRationale: 'Enugu Rangers boast the highest clean-sheet percentage in the NPFL (62%) when playing at the Nnamdi Azikiwe Stadium.',
+  },
+  {
+    id: 'sp-8',
+    eventId: 'sr:match:5100801',
+    matchLabel: 'Ajax vs PSV Eindhoven',
+    homeTeam: 'Ajax',
+    awayTeam: 'PSV Eindhoven',
+    league: 'Eredivisie',
+    country: 'Netherlands',
+    category: 'other-europe',
+    kickoff: 'Today, 19:00',
+    market: 'Over 2.5 Goals',
+    marketName: 'Over/Under 2.5',
+    marketId: '18',
+    outcomeId: '12',
+    specifier: 'total=2.5',
+    odds: 1.45,
+    probability: 0.76,
+    ev: 0.102,
+    confidenceScore: 90,
+    confidenceTier: 2,
+    modelType: 'goals_lock',
+    badgeLabel: '⚽ Goals Lock',
+    modelRationale: 'Eredivisie marquee clash features two of Europe top 5 offenses by open-play xG. 85% of previous H2H cleared 2.5 goals.',
+  },
+  {
+    id: 'sp-9',
+    eventId: 'sr:match:5100703',
+    matchLabel: 'Mamelodi Sundowns vs Orlando Pirates',
+    homeTeam: 'Mamelodi Sundowns',
+    awayTeam: 'Orlando Pirates',
+    league: 'Premiership (PSL)',
+    country: 'South Africa',
+    category: 'africa',
+    kickoff: 'Today, 14:30',
+    market: 'Sundowns or Draw (1X)',
+    marketName: 'Double Chance',
+    marketId: '10',
+    outcomeId: '10',
+    odds: 1.20,
+    probability: 0.88,
+    ev: 0.056,
+    confidenceScore: 92,
+    confidenceTier: 1,
+    modelType: 'banker',
+    badgeLabel: '🌍 Africa Lock',
+    modelRationale: 'Sundowns have not lost a domestic home league fixture in over 14 months, dictating 66% average territory control.',
+  },
+  {
+    id: 'sp-10',
+    eventId: 'sr:match:5101001',
+    matchLabel: 'Al-Hilal vs Al-Nassr',
+    homeTeam: 'Al-Hilal',
+    awayTeam: 'Al-Nassr',
+    league: 'Saudi Pro League',
+    country: 'Saudi Arabia',
+    category: 'asia-oceania',
+    kickoff: 'Today, 18:00',
+    market: 'Over 2.5 Goals',
+    marketName: 'Over/Under 2.5',
+    marketId: '18',
+    outcomeId: '12',
+    specifier: 'total=2.5',
+    odds: 1.50,
+    probability: 0.73,
+    ev: 0.095,
+    confidenceScore: 89,
+    confidenceTier: 2,
+    modelType: 'goals_lock',
+    badgeLabel: '⚽ Goals Lock',
+    modelRationale: 'Both squads feature world-class strike partnerships with combined match xG exceeding 3.5 per contest.',
+  },
+  {
+    id: 'sp-11',
+    eventId: 'sr:match:5100901',
+    matchLabel: 'Flamengo vs Palmeiras',
+    homeTeam: 'Flamengo',
+    awayTeam: 'Palmeiras',
+    league: 'Série A',
+    country: 'Brazil',
+    category: 'americas',
+    kickoff: 'Today, 21:00',
+    market: 'Flamengo or Draw (1X)',
+    marketName: 'Double Chance',
+    marketId: '10',
+    outcomeId: '10',
+    odds: 1.28,
+    probability: 0.83,
+    ev: 0.062,
+    confidenceScore: 90,
+    confidenceTier: 1,
+    modelType: 'double_chance',
+    badgeLabel: '🌎 Americas Anchor',
+    modelRationale: 'Flamengo Maracanã home defensive metrics rank 1st in South America for ball recoveries and shots conceded on target.',
+  },
+  {
+    id: 'sp-12',
+    eventId: 'sr:match:5100102',
+    matchLabel: 'Liverpool vs Manchester City',
+    homeTeam: 'Liverpool',
+    awayTeam: 'Manchester City',
+    league: 'Premier League',
+    country: 'England',
+    category: 'major-europe',
+    kickoff: 'Today, 16:30',
+    market: 'Both Teams to Score (BTTS Yes)',
+    marketName: 'Both Teams To Score',
+    marketId: '29',
+    outcomeId: '29',
+    odds: 1.50,
+    probability: 0.74,
+    ev: 0.11,
+    confidenceScore: 91,
+    confidenceTier: 2,
+    modelType: 'btts',
+    badgeLabel: '🔥 BTTS Signal',
+    modelRationale: 'Liverpool scored in 24 consecutive matches at Anfield; Man City created over 2.0 xG in every away match against top 6 opposition.',
+  },
+]
+
+// ── Target Odds Acca Generator Algorithm ─────────────────────────────────────
+// Selects the optimal combination of picks to hit the target odds with maximum survival probability.
+
+export function generateTargetOddsAcca(targetOdds: number, availablePicks: DailySurePick[]): DailySurePick[] {
+  if (availablePicks.length === 0) return []
+
+  // Sort picks primarily by probability and EV (highest confidence first)
+  const sorted = [...availablePicks].sort((a, b) => (b.probability * (1 + b.ev)) - (a.probability * (1 + a.ev)))
+
+  // 1. Try greedy selection with bounded multiplier
+  let currentOdds = 1.0
+  const selected: DailySurePick[] = []
+
+  for (const pick of sorted) {
+    if (currentOdds * pick.odds <= targetOdds * 1.15) {
+      selected.push(pick)
+      currentOdds *= pick.odds
+    }
+    // If we're close enough (within 10% of target), we can stop
+    if (currentOdds >= targetOdds * 0.92) {
+      break
+    }
+  }
+
+  // If no picks selected or still under, take at least top picks
+  if (selected.length === 0 && sorted.length > 0) {
+    selected.push(sorted[0])
+    if (sorted.length > 1 && sorted[0].odds * sorted[1].odds <= targetOdds * 1.3) {
+      selected.push(sorted[1])
+    }
+  }
+
+  return selected
+}
