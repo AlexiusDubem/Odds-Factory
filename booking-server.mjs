@@ -343,125 +343,129 @@ const server = http.createServer(async (req, res) => {
           const diffHours = e.estimateStartTime ? (e.estimateStartTime - now) / (3600 * 1000) : 0
 
           // Strictly filter out matches outside the chosen timeframe or already finished
-          // Strict max: never allow anything past maxHours (and absolute ceiling of 168 hours = 7 days)
           if (e.estimateStartTime && (diffHours < -2 || diffHours > maxHours || diffHours > 168)) {
             continue
           }
 
           const ko = formatKickoff(e.estimateStartTime)
 
-          // 1. Double Chance (id: 10)
+          // Helper to push a pick
+          const pushPick = (market, marketName, marketId, outcomeId, specifier, odds, prob, modelType, badgeLabel, riskTier) => {
+            extractedPicks.push({
+              id: `live-${eventId}-${marketId}-${outcomeId}`,
+              eventId,
+              matchLabel,
+              homeTeam: home,
+              awayTeam: away,
+              league: tournamentName,
+              country: categoryName,
+              leagueScope,
+              kickoff: ko.text,
+              kickoffTag: ko.tag,
+              estimateStartTime: e.estimateStartTime || null,
+              hoursFromNow: ko.diffHours,
+              market,
+              marketName,
+              marketId: String(marketId),
+              outcomeId: String(outcomeId),
+              specifier: specifier || '',
+              odds,
+              probability: prob,
+              ev: Number((prob * odds - 1).toFixed(3)),
+              confidenceScore: Math.round(prob * 100),
+              confidenceTier: riskTier,   // 1=safe, 2=medium, 3=high risk
+              modelType,
+              badgeLabel,
+              modelRationale: `${marketName} for ${matchLabel} — model probability ${Math.round(prob * 100)}% @${odds.toFixed(2)} odds (${ko.text}).`
+            })
+          }
+
+          // ── 1. Double Chance (id: 10) — safe pool (low odds) ──
           const dcMarket = e.markets?.find(m => String(m.id) === '10')
           if (dcMarket && dcMarket.outcomes) {
             for (const o of dcMarket.outcomes) {
               const odds = parseFloat(o.odds) || 1.8
               const prob = parseFloat(o.probability) || (1 / odds)
-              // Pick safe double chances with high probability
-              if (odds >= 1.08 && odds <= 1.55 && prob >= 0.68) {
-                extractedPicks.push({
-                  id: `live-${eventId}-${dcMarket.id}-${o.id}`,
-                  eventId,
-                  matchLabel,
-                  homeTeam: home,
-                  awayTeam: away,
-                  league: tournamentName,
-                  country: categoryName,
-                  leagueScope,
-                  kickoff: ko.text,
-                  kickoffTag: ko.tag,
-                  estimateStartTime: e.estimateStartTime || null,
-                  hoursFromNow: ko.diffHours,
-                  market: `Double Chance - ${o.desc}`,
-                  marketName: 'Double Chance',
-                  marketId: String(dcMarket.id),
-                  outcomeId: String(o.id),
-                  specifier: dcMarket.specifier || '',
-                  odds,
-                  probability: prob,
-                  ev: Number((prob * odds - 1).toFixed(3)),
-                  confidenceScore: Math.round(prob * 100),
-                  confidenceTier: 1,
-                  modelType: 'double_chance',
-                  badgeLabel: isMajor ? '🏆 Major League Lock' : '🌍 Value Anchor',
-                  modelRationale: `High-probability ${o.desc} for ${matchLabel} (${Math.round(prob * 100)}% model probability @${odds.toFixed(2)} • ${ko.text}).`
-                })
+              if (odds >= 1.08 && odds <= 1.30 && prob >= 0.75) {
+                pushPick(`Double Chance - ${o.desc}`, 'Double Chance', dcMarket.id, o.id, dcMarket.specifier, odds, prob, 'double_chance', isMajor ? '🏆 Super Safe' : '🌍 Safe Anchor', 1)
+              } else if (odds > 1.30 && odds <= 1.55 && prob >= 0.64) {
+                pushPick(`Double Chance - ${o.desc}`, 'Double Chance', dcMarket.id, o.id, dcMarket.specifier, odds, prob, 'double_chance', isMajor ? '🏆 Major Lock' : '🌍 Value Anchor', 2)
+              } else if (odds > 1.55 && odds <= 1.75 && prob >= 0.55) {
+                pushPick(`Double Chance - ${o.desc}`, 'Double Chance', dcMarket.id, o.id, dcMarket.specifier, odds, prob, 'double_chance', '⚡ Bold Pick', 3)
               }
             }
           }
 
-          // 2. Over 1.5 Goals (id: 18)
-          const ouMarket = e.markets?.find(m => String(m.id) === '18' && (m.specifier === 'total=1.5' || m.desc?.includes('1.5')))
-          if (ouMarket && ouMarket.outcomes) {
-            const overOutcome = ouMarket.outcomes.find(o => o.desc?.toLowerCase().includes('over'))
-            if (overOutcome) {
-              const odds = parseFloat(overOutcome.odds) || 1.8
-              const prob = parseFloat(overOutcome.probability) || (1 / odds)
-              if (odds >= 1.10 && odds <= 1.45 && prob >= 0.70) {
-                extractedPicks.push({
-                  id: `live-${eventId}-${ouMarket.id}-${overOutcome.id}`,
-                  eventId,
-                  matchLabel,
-                  homeTeam: home,
-                  awayTeam: away,
-                  league: tournamentName,
-                  country: categoryName,
-                  leagueScope,
-                  kickoff: ko.text,
-                  kickoffTag: ko.tag,
-                  estimateStartTime: e.estimateStartTime || null,
-                  hoursFromNow: ko.diffHours,
-                  market: 'Over 1.5 Goals',
-                  marketName: 'Over/Under 1.5',
-                  marketId: String(ouMarket.id),
-                  outcomeId: String(overOutcome.id),
-                  specifier: ouMarket.specifier || 'total=1.5',
-                  odds,
-                  probability: prob,
-                  ev: Number((prob * odds - 1).toFixed(3)),
-                  confidenceScore: Math.round(prob * 100),
-                  confidenceTier: 1,
-                  modelType: 'goals_lock',
-                  badgeLabel: '⚽ Goals Lock',
-                  modelRationale: `Goal expectancy algorithm rates Over 1.5 in ${matchLabel} at ${Math.round(prob * 100)}% probability (${ko.text}).`
-                })
+          // ── 2. Over 1.5 Goals (id: 18, specifier=total=1.5) — safe ──
+          const ou15Market = e.markets?.find(m => String(m.id) === '18' && (m.specifier === 'total=1.5' || m.desc?.includes('1.5')))
+          if (ou15Market && ou15Market.outcomes) {
+            const overO = ou15Market.outcomes.find(o => o.desc?.toLowerCase().includes('over'))
+            if (overO) {
+              const odds = parseFloat(overO.odds) || 1.8
+              const prob = parseFloat(overO.probability) || (1 / odds)
+              if (odds >= 1.08 && odds <= 1.25 && prob >= 0.78) {
+                pushPick('Over 1.5 Goals', 'Over/Under 1.5', ou15Market.id, overO.id, 'total=1.5', odds, prob, 'goals_lock', '⚽ Goals Lock (Ultra-Safe)', 1)
+              } else if (odds > 1.25 && odds <= 1.50 && prob >= 0.66) {
+                pushPick('Over 1.5 Goals', 'Over/Under 1.5', ou15Market.id, overO.id, 'total=1.5', odds, prob, 'goals_lock', '⚽ Goals Lock', 2)
               }
             }
           }
 
-          // 3. 1X2 Strong Favorites (id: 1)
-          const matchWinnerMarket = e.markets?.find(m => String(m.id) === '1')
-          if (matchWinnerMarket && matchWinnerMarket.outcomes) {
-            for (const o of matchWinnerMarket.outcomes) {
+          // ── 3. Over 2.5 Goals (id: 18, specifier=total=2.5) — medium risk ──
+          const ou25Market = e.markets?.find(m => String(m.id) === '18' && (m.specifier === 'total=2.5' || m.desc?.includes('2.5')))
+          if (ou25Market && ou25Market.outcomes) {
+            const overO = ou25Market.outcomes.find(o => o.desc?.toLowerCase().includes('over'))
+            if (overO) {
+              const odds = parseFloat(overO.odds) || 1.8
+              const prob = parseFloat(overO.probability) || (1 / odds)
+              if (odds >= 1.40 && odds <= 1.75 && prob >= 0.55) {
+                pushPick('Over 2.5 Goals', 'Over/Under 2.5', ou25Market.id, overO.id, 'total=2.5', odds, prob, 'goals_lock', '🔥 Goals (2.5)', 2)
+              } else if (odds > 1.75 && odds <= 1.95 && prob >= 0.50) {
+                pushPick('Over 2.5 Goals', 'Over/Under 2.5', ou25Market.id, overO.id, 'total=2.5', odds, prob, 'goals_lock', '🔥 Bold Goals', 3)
+              }
+            }
+          }
+
+          // ── 4. Under 3.5 Goals (id: 18, specifier=total=3.5) — safe/medium ──
+          const ou35Market = e.markets?.find(m => String(m.id) === '18' && (m.specifier === 'total=3.5' || m.desc?.includes('3.5')))
+          if (ou35Market && ou35Market.outcomes) {
+            const underO = ou35Market.outcomes.find(o => o.desc?.toLowerCase().includes('under'))
+            if (underO) {
+              const odds = parseFloat(underO.odds) || 1.8
+              const prob = parseFloat(underO.probability) || (1 / odds)
+              if (odds >= 1.15 && odds <= 1.40 && prob >= 0.70) {
+                pushPick('Under 3.5 Goals', 'Over/Under 3.5', ou35Market.id, underO.id, 'total=3.5', odds, prob, 'goals_lock', '🛡️ Clean Sheet', 1)
+              }
+            }
+          }
+
+          // ── 5. 1X2 — strong favorites (medium-high risk) ──
+          const mwMarket = e.markets?.find(m => String(m.id) === '1')
+          if (mwMarket && mwMarket.outcomes) {
+            for (const o of mwMarket.outcomes) {
               const odds = parseFloat(o.odds) || 2.0
               const prob = parseFloat(o.probability) || (1 / odds)
-              if (odds >= 1.18 && odds <= 1.52 && prob >= 0.68) {
-                extractedPicks.push({
-                  id: `live-${eventId}-${matchWinnerMarket.id}-${o.id}`,
-                  eventId,
-                  matchLabel,
-                  homeTeam: home,
-                  awayTeam: away,
-                  league: tournamentName,
-                  country: categoryName,
-                  leagueScope,
-                  kickoff: ko.text,
-                  kickoffTag: ko.tag,
-                  estimateStartTime: e.estimateStartTime || null,
-                  hoursFromNow: ko.diffHours,
-                  market: `1X2 - ${o.desc}`,
-                  marketName: '1X2',
-                  marketId: String(matchWinnerMarket.id),
-                  outcomeId: String(o.id),
-                  specifier: matchWinnerMarket.specifier || '',
-                  odds,
-                  probability: prob,
-                  ev: Number((prob * odds - 1).toFixed(3)),
-                  confidenceScore: Math.round(prob * 100),
-                  confidenceTier: 1,
-                  modelType: 'banker',
-                  badgeLabel: isMajor ? '🛡️ Tier 1 Banker' : '💰 Value Pick',
-                  modelRationale: `Strong model rating for ${o.desc} in ${matchLabel} (${Math.round(prob * 100)}% probability @${odds.toFixed(2)} • ${ko.text}).`
-                })
+              if (odds >= 1.18 && odds <= 1.40 && prob >= 0.70) {
+                pushPick(`1X2 - ${o.desc}`, '1X2', mwMarket.id, o.id, mwMarket.specifier, odds, prob, 'banker', isMajor ? '🛡️ Tier 1 Banker' : '💰 Solid Fav', 1)
+              } else if (odds > 1.40 && odds <= 1.65 && prob >= 0.60) {
+                pushPick(`1X2 - ${o.desc}`, '1X2', mwMarket.id, o.id, mwMarket.specifier, odds, prob, 'banker', isMajor ? '🏆 Strong Fav' : '💰 Value Pick', 2)
+              } else if (odds > 1.65 && odds <= 1.90 && prob >= 0.52) {
+                pushPick(`1X2 - ${o.desc}`, '1X2', mwMarket.id, o.id, mwMarket.specifier, odds, prob, 'value_play', '⚡ Value Bet', 3)
+              }
+            }
+          }
+
+          // ── 6. BTTS Yes (id: 29) — medium-high risk ──
+          const bttsMarket = e.markets?.find(m => String(m.id) === '29')
+          if (bttsMarket && bttsMarket.outcomes) {
+            const yesO = bttsMarket.outcomes.find(o => o.desc?.toLowerCase().includes('yes'))
+            if (yesO) {
+              const odds = parseFloat(yesO.odds) || 1.8
+              const prob = parseFloat(yesO.probability) || (1 / odds)
+              if (odds >= 1.45 && odds <= 1.70 && prob >= 0.57) {
+                pushPick('BTTS - Yes', 'Both Teams To Score', bttsMarket.id, yesO.id, '', odds, prob, 'btts', '⚽⚽ BTTS', 2)
+              } else if (odds > 1.70 && odds <= 1.90 && prob >= 0.52) {
+                pushPick('BTTS - Yes', 'Both Teams To Score', bttsMarket.id, yesO.id, '', odds, prob, 'btts', '⚽⚽ Bold BTTS', 3)
               }
             }
           }

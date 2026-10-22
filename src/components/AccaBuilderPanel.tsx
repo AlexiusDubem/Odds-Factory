@@ -12,6 +12,16 @@ interface Props {
 export type LeagueScope = 'major' | 'small' | 'all'
 export type StrategyMode = 'banker' | 'balanced' | 'value'
 export type MatchDuration = 'today' | '3days' | '1week'
+// Risk level: 1=Ultra Safe, 2=Safe, 3=Balanced, 4=Daring, 5=High Risk
+export type RiskLevel = 1 | 2 | 3 | 4 | 5
+
+const RISK_CONFIG: Record<RiskLevel, { label: string; emoji: string; color: string; bgColor: string; borderColor: string; tiers: number[]; minOdds: number; maxOdds: number; minProb: number; desc: string }> = {
+  1: { label: 'Ultra Safe',  emoji: '🛡️', color: 'text-emerald-700', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-400', tiers: [1],       minOdds: 1.08, maxOdds: 1.25, minProb: 0.78, desc: 'Very small odds, very high probability. Low reward, maximum safety.' },
+  2: { label: 'Safe',        emoji: '✅', color: 'text-teal-700',    bgColor: 'bg-teal-50',    borderColor: 'border-teal-400',    tiers: [1, 2],    minOdds: 1.20, maxOdds: 1.45, minProb: 0.68, desc: 'Safe odds, strong probability. Solid accumulators with decent returns.' },
+  3: { label: 'Balanced',    emoji: '⚖️', color: 'text-blue-700',   bgColor: 'bg-blue-50',    borderColor: 'border-blue-400',    tiers: [1, 2, 3], minOdds: 1.35, maxOdds: 1.65, minProb: 0.58, desc: 'Mix of safe and medium-risk picks. Good balance of reward and survival.' },
+  4: { label: 'Daring',      emoji: '🔥', color: 'text-orange-700', bgColor: 'bg-orange-50',  borderColor: 'border-orange-400',  tiers: [2, 3],    minOdds: 1.50, maxOdds: 1.85, minProb: 0.52, desc: 'Higher odds per game. Fewer games needed to hit targets. More risk.' },
+  5: { label: 'High Risk',   emoji: '⚡', color: 'text-red-700',    bgColor: 'bg-red-50',     borderColor: 'border-red-400',     tiers: [3],       minOdds: 1.65, maxOdds: 1.95, minProb: 0.48, desc: 'Bold high-odd picks. Max potential return, but low survival probability.' },
+}
 
 export function AccaBuilderPanel({ onSendToAudit }: Props) {
   // Real live picks from SportyBet
@@ -24,11 +34,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   const [duration, setDuration] = useState<MatchDuration>('today')
   // 2. League Preference
   const [leagueScope, setLeagueScope] = useState<LeagueScope>('all')
-  // 3. Desired Odds Amount
+  // 3. Number of games (legs) — slider 2..20
+  const [numGames, setNumGames] = useState<number>(6)
+  // 4. Risk Level — slider 1..5
+  const [riskLevel, setRiskLevel] = useState<RiskLevel>(2)
+  // 5. Target odds (derived hint OR manual override)
   const [targetOdds, setTargetOdds] = useState<number>(5.0)
   const [customOddsInput, setCustomOddsInput] = useState<string>('5.0')
-  // 4. Strategy / Confidence Mode
-  const [strategy, setStrategy] = useState<StrategyMode>('balanced')
+  const [useTargetOdds, setUseTargetOdds] = useState<boolean>(false)
   // Stake
   const [stake, setStake] = useState<number>(1000)
 
@@ -60,6 +73,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     if (duration === '3days') return 'Next 3 Days (Weekend)'
     return 'Next 1 Week (Max 7 Days)'
   }, [duration])
+
+  // Risk config for current level
+  const currentRisk = RISK_CONFIG[riskLevel]
+
+  // Estimated ticket odds preview (ideal)
+  const estimatedOdds = useMemo(() => {
+    const midOdd = (currentRisk.minOdds + currentRisk.maxOdds) / 2
+    return Math.pow(midOdd, numGames)
+  }, [numGames, currentRisk])
 
   // ── Fetch Real Live Matches from SportyBet API ────────────────────────────
 
@@ -110,69 +132,82 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setShareUrl(null)
 
     setTimeout(() => {
-      // 1. Filter candidates according to duration and league scope
+      const risk = RISK_CONFIG[riskLevel]
+
+      // 1. Filter candidates by duration, league scope, and risk tier
       let candidates = allLivePicks.filter((p) => {
-        // Enforce strict duration limit:
+        // Enforce strict duration limit
         if (p.hoursFromNow !== undefined) {
           if (duration === 'today' && p.hoursFromNow > 24) return false
           if (duration === '3days' && p.hoursFromNow > 72) return false
-          // Strictly exclude anything beyond 168h (1 week)
           if (p.hoursFromNow > 168) return false
         }
-
-        // Enforce league preference:
-        if (leagueScope === 'major' && (p as any).leagueScope && (p as any).leagueScope !== 'major') {
-          return false
-        }
-        if (leagueScope === 'small' && (p as any).leagueScope && (p as any).leagueScope !== 'small') {
-          return false
-        }
+        // Enforce league preference
+        if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
+        if (leagueScope === 'small' && p.leagueScope && p.leagueScope !== 'small') return false
+        // Filter by risk tier
+        if (!risk.tiers.includes(p.confidenceTier)) return false
+        // Filter by odds band for this risk level
+        if (p.odds < risk.minOdds || p.odds > risk.maxOdds) return false
+        // Minimum probability
+        if (p.probability < risk.minProb) return false
         return true
       })
 
-      if (candidates.length === 0) candidates = allLivePicks
+      // Fallback: if too few candidates, relax tier filter
+      if (candidates.length < numGames) {
+        candidates = allLivePicks.filter((p) => {
+          if (p.hoursFromNow !== undefined) {
+            if (duration === 'today' && p.hoursFromNow > 24) return false
+            if (duration === '3days' && p.hoursFromNow > 72) return false
+            if (p.hoursFromNow > 168) return false
+          }
+          if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
+          if (leagueScope === 'small' && p.leagueScope && p.leagueScope !== 'small') return false
+          // Only relax the odds band slightly
+          if (p.odds < risk.minOdds * 0.85 || p.odds > risk.maxOdds * 1.25) return false
+          return true
+        })
+      }
 
-      // 2. Sort according to strategy
+      // 2. Sort by optimal odds distance from ideal (per leg), then by probability
+      //    "ideal per leg" = target total odds root if useTargetOdds, else midpoint of risk band
+      const idealLegOdds = useTargetOdds
+        ? Math.pow(targetOdds, 1 / numGames)
+        : (risk.minOdds + risk.maxOdds) / 2
+
       candidates.sort((a, b) => {
-        if (strategy === 'banker') {
-          // Pure probability
-          return b.probability - a.probability
-        } else if (strategy === 'value') {
-          // Positive expected value
-          return b.ev - a.ev
-        } else {
-          // Balanced: probability * EV
-          return (b.probability * (1 + b.ev)) - (a.probability * (1 + a.ev))
-        }
+        const distA = Math.abs(a.odds - idealLegOdds)
+        const distB = Math.abs(b.odds - idealLegOdds)
+        // Primary: odds closest to ideal leg odd
+        if (Math.abs(distA - distB) > 0.03) return distA - distB
+        // Secondary: highest probability
+        return b.probability - a.probability
       })
 
-      // 3. Select optimal combination to hit targetOdds
+      // 3. Pick exactly numGames, one per unique match event
       const usedEvents = new Set<string>()
       const selected: DailySurePick[] = []
-      let currentOdds = 1.0
 
       for (const pick of candidates) {
         if (usedEvents.has(pick.eventId)) continue
-
-        if (currentOdds * pick.odds <= targetOdds * 1.15) {
-          selected.push(pick)
-          usedEvents.add(pick.eventId)
-          currentOdds *= pick.odds
-        }
-
-        if (currentOdds >= targetOdds * 0.90) {
-          break
-        }
+        selected.push(pick)
+        usedEvents.add(pick.eventId)
+        if (selected.length >= numGames) break
       }
 
-      // Ensure at least 2 picks
-      if (selected.length < 2 && candidates.length >= 2) {
-        for (const pick of candidates) {
-          if (!usedEvents.has(pick.eventId)) {
+      // 4. If using target odds mode and we have enough games, top up or trim
+      //    to better hit the target total
+      if (useTargetOdds && selected.length >= 2) {
+        let currentOdds = selected.reduce((acc, p) => acc * p.odds, 1.0)
+        // If we're short of target, try adding more picks
+        if (currentOdds < targetOdds * 0.80 && candidates.length > selected.length) {
+          for (const pick of candidates) {
+            if (usedEvents.has(pick.eventId)) continue
             selected.push(pick)
             usedEvents.add(pick.eventId)
             currentOdds *= pick.odds
-            if (selected.length >= 2) break
+            if (currentOdds >= targetOdds * 0.90 || selected.length >= numGames + 4) break
           }
         }
       }
@@ -358,289 +393,199 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         </div>
       </div>
 
-      {/* ── Generator Inputs Card (Clean Condition Inputs) ────────────────── */}
-      <div className="bg-surface-elevated border border-border rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+      {/* ── Generator Inputs Card ────────────────── */}
+      <div className="bg-surface-elevated border border-border rounded-3xl p-6 sm:p-8 shadow-sm space-y-7">
         <div className="border-b border-border/80 pb-4">
           <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
             <i className="fa-solid fa-sliders text-accent"></i>
             Step 1: Set Your Conditions
           </h2>
           <p className="text-xs text-slate-500">
-            Choose your match duration, preferred leagues, target odds, and model strategy.
+            Choose timeframe, number of games, risk level, and preferred leagues. The model builds a ticket matching your exact settings.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {/* Condition 1: Match Timeframe / Duration */}
-          <div className="space-y-2.5">
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              1. Match Timeframe
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDurationChange('today')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  duration === 'today'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black flex items-center gap-1.5">
-                    <span>⚡</span> Today Only (24h)
-                  </div>
-                  <div className="text-[10px] opacity-75">Tonight &amp; games within 24 hours</div>
-                </div>
-                {duration === 'today' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDurationChange('3days')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  duration === '3days'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black flex items-center gap-1.5">
-                    <span>📅</span> Next 3 Days (72h)
-                  </div>
-                  <div className="text-[10px] opacity-75">Weekend slate &amp; next 72 hours</div>
-                </div>
-                {duration === '3days' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDurationChange('1week')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  duration === '1week'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black flex items-center gap-1.5">
-                    <span>🗓️</span> Next 1 Week (Max 7d)
-                  </div>
-                  <div className="text-[10px] opacity-75">Full week • Strictly capped at 7 days</div>
-                </div>
-                {duration === '1week' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-            </div>
-          </div>
-
-          {/* Condition 2: League Scope */}
-          <div className="space-y-2.5">
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              2. League Preference
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => setLeagueScope('major')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  leagueScope === 'major'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black flex items-center gap-1.5">
-                    <span>🏆</span> Major Leagues
-                  </div>
-                  <div className="text-[10px] opacity-75">EPL, UCL, La Liga, Serie A</div>
-                </div>
-                {leagueScope === 'major' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setLeagueScope('small')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  leagueScope === 'small'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black flex items-center gap-1.5">
-                    <span>🌍</span> Small Leagues
-                  </div>
-                  <div className="text-[10px] opacity-75">Lower divisions, cups, NPFL</div>
-                </div>
-                {leagueScope === 'small' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setLeagueScope('all')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  leagueScope === 'all'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black flex items-center gap-1.5">
-                    <span>🌐</span> All Leagues
-                  </div>
-                  <div className="text-[10px] opacity-75">All eligible fixtures</div>
-                </div>
-                {leagueScope === 'all' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-            </div>
-          </div>
-
-          {/* Condition 3: Desired Odds Amount */}
-          <div className="space-y-2.5">
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              3. Target Odds Amount
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {[2.0, 5.0, 10.0, 20.0].map((oddVal) => (
-                <button
-                  key={oddVal}
-                  type="button"
-                  onClick={() => {
-                    setTargetOdds(oddVal)
-                    setCustomOddsInput(String(oddVal))
-                  }}
-                  className={`py-2.5 px-2.5 rounded-2xl border text-center transition-all cursor-pointer ${
-                    targetOdds === oddVal
-                      ? 'bg-accent text-white border-accent shadow-sm ring-2 ring-accent/30'
-                      : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                  }`}
+        {/* Row A: Timeframe + League */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">1. Match Timeframe</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([['today', '⚡', 'Today', 'Within 24h'], ['3days', '📅', 'Weekend', '3 Days / 72h'], ['1week', '🗓️', '1 Week', 'Max 7 days']] as const).map(([val, emoji, label, sub]) => (
+                <button key={val} type="button" onClick={() => handleDurationChange(val)}
+                  className={`py-3 px-2 rounded-2xl border text-center flex flex-col items-center gap-0.5 transition-all cursor-pointer ${duration === val ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/20 shadow-sm' : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'}`}
                 >
-                  <div className="text-sm font-black">{oddVal.toFixed(0)}x Odds</div>
-                  <div className="text-[9px] opacity-80">
-                    {oddVal === 2.0 ? 'Banker Duo' : oddVal === 5.0 ? 'Safe Acca' : oddVal === 10.0 ? 'Value Multi' : 'High Return'}
-                  </div>
+                  <span className="text-xl leading-none">{emoji}</span>
+                  <span className="text-[10px] font-black leading-tight mt-1">{label}</span>
+                  <span className="text-[9px] opacity-60">{sub}</span>
                 </button>
               ))}
             </div>
+          </div>
 
-            {/* Custom Input */}
-            <div className="pt-1">
-              <label className="text-[10px] font-bold text-slate-500 block mb-1">Or Enter Exact Odds:</label>
+          <div className="space-y-2">
+            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">2. League Preference</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([['major', '🏆', 'Major', 'EPL, UCL…'], ['small', '🌍', 'Small', 'Lower divs'], ['all', '🌐', 'All', 'Everything']] as const).map(([val, emoji, label, sub]) => (
+                <button key={val} type="button" onClick={() => setLeagueScope(val)}
+                  className={`py-3 px-2 rounded-2xl border text-center flex flex-col items-center gap-0.5 transition-all cursor-pointer ${leagueScope === val ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-900/20 shadow-sm' : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'}`}
+                >
+                  <span className="text-xl leading-none">{emoji}</span>
+                  <span className="text-[10px] font-black leading-tight mt-1">{label}</span>
+                  <span className="text-[9px] opacity-60">{sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Row B: Number of Games Slider */}
+        <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-xs font-black text-slate-900 uppercase tracking-wider">3. Number of Games</label>
+              <p className="text-[10px] text-slate-500 mt-0.5">More games = smaller odds each. Fewer games = bigger odds each, more risk.</p>
+            </div>
+            <div className="text-right">
+              <div className="text-4xl font-black text-slate-900 leading-none">{numGames}</div>
+              <div className="text-[10px] text-slate-500 font-semibold">games/legs</div>
+            </div>
+          </div>
+          <input
+            type="range" min={2} max={20} step={1} value={numGames}
+            onChange={(e) => setNumGames(Number(e.target.value))}
+            className="w-full h-3 rounded-full cursor-pointer appearance-none bg-slate-200"
+            style={{ background: `linear-gradient(to right, #0f172a ${((numGames - 2) / 18) * 100}%, #e2e8f0 ${((numGames - 2) / 18) * 100}%)` }}
+          />
+          <div className="flex justify-between text-[9px] font-bold text-slate-400 px-0.5">
+            <span>2 ← Fewer, bigger odds/game</span>
+            <span>More games, safer per leg → 20</span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {[3, 5, 8, 10, 12, 15].map((n) => (
+              <button key={n} type="button" onClick={() => setNumGames(n)}
+                className={`px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${numGames === n ? 'bg-slate-900 text-white border-slate-900' : 'bg-white hover:bg-slate-100 text-slate-600 border-border'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row C: Risk Level Slider */}
+        <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <label className="text-xs font-black text-slate-900 uppercase tracking-wider">4. Risk Level (Odds Per Game)</label>
+              <p className="text-[10px] text-slate-500 mt-0.5">Controls how high the odds per individual game will be.</p>
+            </div>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-sm ${currentRisk.bgColor} ${currentRisk.borderColor} ${currentRisk.color}`}>
+              <span>{currentRisk.emoji}</span>
+              <span>{currentRisk.label}</span>
+              <span className="text-[10px] font-semibold opacity-80">~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)}/game</span>
+            </div>
+          </div>
+          <input
+            type="range" min={1} max={5} step={1} value={riskLevel}
+            onChange={(e) => setRiskLevel(Number(e.target.value) as RiskLevel)}
+            className="w-full h-3 rounded-full cursor-pointer appearance-none"
+            style={{ background: `linear-gradient(to right, ${riskLevel <= 1 ? '#059669' : riskLevel <= 2 ? '#0d9488' : riskLevel <= 3 ? '#2563eb' : riskLevel <= 4 ? '#ea580c' : '#dc2626'} ${((riskLevel - 1) / 4) * 100}%, #e2e8f0 ${((riskLevel - 1) / 4) * 100}%)` }}
+          />
+          <div className="flex justify-between text-[9px] font-bold px-0.5">
+            <span className="text-emerald-600">🛡️ Ultra Safe</span>
+            <span className="text-teal-600">✅ Safe</span>
+            <span className="text-blue-600">⚖️ Balanced</span>
+            <span className="text-orange-600">🔥 Daring</span>
+            <span className="text-red-600">⚡ High Risk</span>
+          </div>
+          <div className={`text-[11px] px-3 py-2 rounded-xl border font-medium ${currentRisk.bgColor} ${currentRisk.borderColor} ${currentRisk.color}`}>
+            {currentRisk.desc}
+          </div>
+        </div>
+
+        {/* Row D: Target Odds (optional) + Estimated Preview */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Estimated ticket odds */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 text-center">
+            <div className="text-[10px] font-bold uppercase text-slate-400 mb-1">Estimated Ticket Odds</div>
+            <div className="text-4xl font-black">
+              {estimatedOdds >= 1000000 ? `${(estimatedOdds / 1000000).toFixed(1)}M` : estimatedOdds >= 1000 ? `${(estimatedOdds / 1000).toFixed(1)}K` : estimatedOdds >= 100 ? estimatedOdds.toFixed(0) : estimatedOdds.toFixed(1)}x
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1">{numGames} games × {currentRisk.emoji} {currentRisk.label} risk</div>
+            <div className="text-[9px] text-slate-500 mt-0.5">~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)} odds/leg avg</div>
+          </div>
+
+          {/* Target odds override */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-black text-slate-900 uppercase tracking-wider">5. Lock Target Odds (Optional)</label>
+              <input type="checkbox" checked={useTargetOdds} onChange={(e) => setUseTargetOdds(e.target.checked)}
+                className="w-4 h-4 rounded accent-accent cursor-pointer" />
+            </div>
+            <div className={`space-y-2 transition-opacity ${useTargetOdds ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[5, 10, 20, 50].map((v) => (
+                  <button key={v} type="button" onClick={() => { setTargetOdds(v); setCustomOddsInput(String(v)) }}
+                    className={`py-2 text-[11px] font-black rounded-xl border transition-all cursor-pointer ${targetOdds === v && useTargetOdds ? 'bg-accent text-white border-accent' : 'bg-white text-slate-700 border-border hover:bg-slate-50'}`}
+                  >
+                    {v}x
+                  </button>
+                ))}
+              </div>
               <input
-                type="number"
-                min="1.5"
-                max="100"
-                step="0.5"
-                placeholder="e.g. 7.5"
+                type="number" min="1.5" max="500" step="0.5" placeholder="Custom target odds…"
                 value={customOddsInput}
-                onChange={(e) => {
-                  setCustomOddsInput(e.target.value)
-                  const v = parseFloat(e.target.value)
-                  if (v > 1) setTargetOdds(v)
-                }}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-xl text-xs font-bold text-slate-800 text-center focus:outline-hidden focus:border-accent"
+                onChange={(e) => { setCustomOddsInput(e.target.value); const v = parseFloat(e.target.value); if (v > 1) setTargetOdds(v) }}
+                className="w-full px-3 py-2 bg-white border border-border rounded-xl text-xs font-bold text-slate-800 text-center focus:outline-hidden focus:border-accent"
               />
-            </div>
-          </div>
-
-          {/* Condition 4: Strategy Mode */}
-          <div className="space-y-2.5">
-            <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
-              4. Model Strategy
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => setStrategy('banker')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  strategy === 'banker'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black">🛡️ Safe Lock</div>
-                  <div className="text-[10px] opacity-75">Highest probability picks only</div>
-                </div>
-                {strategy === 'banker' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStrategy('balanced')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  strategy === 'balanced'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black">⚖️ Balanced Multi</div>
-                  <div className="text-[10px] opacity-75">Optimizes probability × EV</div>
-                </div>
-                {strategy === 'balanced' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStrategy('value')}
-                className={`py-3 px-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                  strategy === 'value'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
-                    : 'bg-surface hover:bg-slate-100 text-slate-700 border-border'
-                }`}
-              >
-                <div>
-                  <div className="text-xs font-black">💰 Maximum Value</div>
-                  <div className="text-[10px] opacity-75">Highest statistical EV</div>
-                </div>
-                {strategy === 'value' && <i className="fa-solid fa-circle-check text-accent text-sm"></i>}
-              </button>
+              <p className="text-[10px] text-slate-500">Model will try to reach this total while keeping exactly {numGames} legs.</p>
             </div>
           </div>
         </div>
 
-        {/* Big Action Button: Hit Generate */}
-        <div className="pt-2">
-          <button
-            onClick={handleRunAnalysisAndGenerate}
-            disabled={isAnalyzing}
-            className="w-full py-4 px-6 bg-slate-900 hover:bg-slate-800 text-white font-black text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {isAnalyzing ? (
-              <>
-                <i className="fa-solid fa-circle-notch fa-spin text-accent text-base"></i>
-                <span>Analyzing Real Matches for {durationLabel}…</span>
-              </>
-            ) : (
-              <>
-                <i className="fa-solid fa-wand-magic-sparkles text-accent text-base"></i>
-                <span>⚡ Analyze Matches ({durationLabel}) &amp; Generate Sure Games ({targetOdds}x Odds)</span>
-              </>
-            )}
-          </button>
-        </div>
+        {/* Big Action Button */}
+        <button
+          onClick={handleRunAnalysisAndGenerate}
+          disabled={isAnalyzing}
+          className={`w-full py-4 px-6 font-black text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 text-white ${
+            riskLevel <= 2 ? 'bg-emerald-700 hover:bg-emerald-800' : riskLevel === 3 ? 'bg-blue-700 hover:bg-blue-800' : riskLevel === 4 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {isAnalyzing ? (
+            <>
+              <i className="fa-solid fa-circle-notch fa-spin text-base"></i>
+              <span>Analyzing matches for {durationLabel}…</span>
+            </>
+          ) : (
+            <>
+              <i className="fa-solid fa-wand-magic-sparkles text-base"></i>
+              <span>
+                ⚡ Generate {numGames} Games {currentRisk.emoji} {currentRisk.label}
+                {useTargetOdds
+                  ? ` → Lock to ${targetOdds}x`
+                  : ` → ~${estimatedOdds >= 1000000 ? `${(estimatedOdds/1000000).toFixed(1)}M` : estimatedOdds >= 1000 ? `${(estimatedOdds/1000).toFixed(1)}K` : estimatedOdds >= 100 ? estimatedOdds.toFixed(0) : estimatedOdds.toFixed(1)}x Estimated`}
+              </span>
+            </>
+          )}
+        </button>
       </div>
 
-      {/* ── Generated Output Section (Appears after hitting Generate) ──────── */}
+      {/* ── Generated Output Section ──────── */}
       {hasGenerated && (
         <div className="bg-surface-elevated border border-border rounded-3xl p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-300">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
             <div>
-              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-wider inline-block mb-1">
-                ✓ Analysis Complete • {chosenPicks.length} Games Chosen ({durationLabel})
+              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider inline-flex items-center gap-1.5 mb-1 border ${currentRisk.bgColor} ${currentRisk.color} ${currentRisk.borderColor}`}>
+                {currentRisk.emoji} {currentRisk.label} • {chosenPicks.length} Games • {combinedOdds.toFixed(2)}x Total ({durationLabel})
               </span>
               <h3 className="text-lg font-black text-slate-900">
-                Chosen Sure Games ({combinedOdds.toFixed(2)}x Odds)
+                AI Selected Sure Games
               </h3>
               <p className="text-xs text-slate-500">
-                Review the games our model selected for {durationLabel}. You can remove any pick you don&apos;t want before generating the booking code.
+                Remove any game you don&apos;t want, then generate your real SportyBet booking code.
               </p>
             </div>
-
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleRunAnalysisAndGenerate}
+              <button onClick={handleRunAnalysisAndGenerate}
                 className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <i className="fa-solid fa-arrows-rotate text-accent"></i>
@@ -649,17 +594,11 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
           </div>
 
-          {/* List of Chosen Games */}
           {chosenPicks.length === 0 ? (
             <div className="py-8 text-center text-slate-400 space-y-2">
               <i className="fa-solid fa-ticket text-3xl text-slate-300"></i>
               <p className="text-sm font-bold text-slate-700">You removed all picks</p>
-              <button
-                onClick={handleRunAnalysisAndGenerate}
-                className="px-4 py-2 bg-accent text-white text-xs font-bold rounded-xl"
-              >
-                Re-Generate Games
-              </button>
+              <button onClick={handleRunAnalysisAndGenerate} className="px-4 py-2 bg-accent text-white text-xs font-bold rounded-xl">Re-Generate Games</button>
             </div>
           ) : (
             <div className="space-y-3">
