@@ -12,6 +12,7 @@ import {
   generateEvidenceRationale,
   type ChallengeResult,
 } from '../engine/aiSelectionChallenger'
+import { batchGenerateEvidenceRationales } from '../engine/geminiService'
 
 interface Props {
   onSendToAudit?: (slip: Slip) => void
@@ -296,6 +297,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       setChosenPicks(enriched)
       setHasGenerated(true)
       setIsAnalyzing(false)
+
+      // Query Gemini in background to enhance all selected legs with live sports proof
+      batchGenerateEvidenceRationales(enriched).then((geminiMap) => {
+        if (geminiMap && Object.keys(geminiMap).length > 0) {
+          setChosenPicks((prev) =>
+            prev.map((p) => (geminiMap[p.id] ? { ...p, modelRationale: geminiMap[p.id] } : p))
+          )
+        }
+      })
     }, 450)
   }
 
