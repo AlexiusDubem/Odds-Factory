@@ -95,31 +95,36 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border bg-surface-elevated/90 backdrop-blur sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+    <div className="min-h-screen flex flex-col bg-[#FAFAFA]">
+      <header className="border-b border-zinc-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center overflow-hidden">
-                <img src="/logo.png" alt="Odds Factory" className="w-10 h-10 object-contain" />
+              <div className="w-9 h-9 rounded-2xl bg-zinc-950 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                OF
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">Odds Factory</h1>
-                <p className="text-xs text-slate-500">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base font-black text-zinc-950 tracking-tight">Odds Factory</h1>
+                  <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full hidden sm:inline-block">
+                    ● Live Engine
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 font-medium leading-none mt-0.5">
                   AI Betting Intelligence Platform
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-sm text-slate-500">
-              <span className="font-medium text-slate-700 bg-slate-100 px-3 py-1 rounded-full text-xs hidden sm:inline-block">
+            <div className="flex items-center gap-3 text-sm text-zinc-500">
+              <span className="font-semibold text-zinc-700 bg-zinc-100 border border-zinc-200/60 px-3 py-1 rounded-full text-xs hidden sm:inline-block">
                 {user.email}
               </span>
               <NotificationCenter />
               <button 
                 onClick={() => { if (isFirebaseConfigured) { signOut(auth) } else { setUser(null) } }} 
-                className="hover:text-red-500 transition-colors flex items-center gap-1.5 font-medium"
+                className="hover:text-rose-600 transition-colors flex items-center gap-1.5 font-bold text-xs bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 px-3 py-1.5 rounded-xl cursor-pointer"
               >
-                <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
                 <span className="hidden sm:inline">Log Out</span>
               </button>
             </div>
@@ -127,20 +132,20 @@ function App() {
         </div>
       </header>
 
-      <nav className="hidden sm:block border-b border-border bg-surface sticky top-[73px] z-40">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1 overflow-x-auto py-2">
+      <nav className="hidden sm:block border-b border-zinc-200/80 bg-[#FAFAFA] sticky top-[61px] z-40">
+        <div className="max-w-7xl mx-auto px-4 py-2">
+          <div className="bg-zinc-200/60 p-1 rounded-2xl inline-flex gap-1 overflow-x-auto">
             {NAV_LINKS.map((link) => (
               <NavLink
                 key={link.path}
                 to={link.path}
-                className={({ isActive }) => `flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                className={({ isActive }) => `flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                   isActive
-                    ? 'bg-accent/15 text-accent'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-surface-hover'
+                    ? 'bg-white text-zinc-950 shadow-xs font-black'
+                    : 'text-zinc-500 hover:text-zinc-950 hover:bg-white/50'
                 }`}
               >
-                <i className={link.icon}></i>
+                <i className={`${link.icon} text-xs`}></i>
                 {link.label}
               </NavLink>
             ))}
@@ -174,19 +179,19 @@ function App() {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 px-2 py-2 z-50 flex justify-around items-center" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+      <nav className="sm:hidden fixed bottom-3 inset-x-3 bg-white/95 backdrop-blur-md border border-zinc-200/90 rounded-2xl shadow-lg px-2 py-1.5 z-50 flex justify-around items-center" style={{ marginBottom: 'env(safe-area-inset-bottom)' }}>
         {NAV_LINKS.map((link) => (
           <NavLink
             key={link.path}
             to={link.path}
-            className={({ isActive }) => `flex flex-col items-center justify-center w-full py-1.5 rounded-xl transition-colors ${
+            className={({ isActive }) => `flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
               isActive
-                ? 'text-accent'
-                : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'
+                ? 'text-zinc-950 font-black'
+                : 'text-zinc-400 hover:text-zinc-700'
             }`}
           >
-            <i className={`${link.icon} text-xl mb-1`}></i>
-            <span className="text-[10px] font-bold tracking-wide">{link.label}</span>
+            <i className={`${link.icon} text-base mb-0.5`}></i>
+            <span className="text-[9px] font-bold tracking-tight">{link.label}</span>
           </NavLink>
         ))}
       </nav>

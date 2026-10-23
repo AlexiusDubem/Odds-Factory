@@ -579,7 +579,11 @@ const server = http.createServer(async (req, res) => {
         const code = body.data.shareCode
         console.log(`✅ Booking code generated: ${code}`)
         res.writeHead(200)
-        res.end(JSON.stringify({ success: true, shareCode: code }))
+        res.end(JSON.stringify({
+          success: true,
+          shareCode: code,
+          shareURL: body.data.shareURL || `https://www.sportybet.com/ng/?shareCode=${code}`
+        }))
       } else {
         const msg = body?.message || body?.msg || JSON.stringify(body)
         console.warn('❌ SportyBet rejected:', msg)

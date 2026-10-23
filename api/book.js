@@ -37,7 +37,23 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    return res.status(response.status).json(data);
+    const shareCode = data?.data?.shareCode || data?.shareCode;
+    const shareURL = data?.data?.shareURL || (shareCode ? `https://www.sportybet.com/ng/?shareCode=${shareCode}` : null);
+
+    if (shareCode) {
+      return res.status(200).json({
+        success: true,
+        shareCode,
+        shareURL,
+        raw: data
+      });
+    }
+
+    return res.status(response.status || 400).json({
+      success: false,
+      error: data?.message || data?.msg || 'SportyBet could not book these selections',
+      raw: data
+    });
   } catch (error) {
     console.error('Book error:', error);
     return res.status(500).json({ error: 'Failed to fetch from SportyBet' });
