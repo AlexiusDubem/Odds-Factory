@@ -106,8 +106,9 @@ function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-base font-black text-zinc-950 tracking-tight">Odds Factory</h1>
-                  <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full hidden sm:inline-block">
-                    ● Live Engine
+                  <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1.5">
+                    <i className="fa-solid fa-circle text-[6px] text-emerald-500 animate-pulse"></i>
+                    <span>Live Engine</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 font-medium leading-none mt-0.5">

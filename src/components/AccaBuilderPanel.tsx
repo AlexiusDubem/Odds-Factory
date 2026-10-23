@@ -16,7 +16,7 @@ export type RiskLevel = 1 | 2 | 3 | 4 | 5
 interface RiskConfig {
   label: string
   tag: string
-  emoji: string
+  icon: string
   color: string
   badgeBg: string
   badgeBorder: string
@@ -32,7 +32,7 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   1: {
     label: 'Ultra Safe',
     tag: 'BANKER LOCKS',
-    emoji: '🛡️',
+    icon: 'fa-solid fa-shield-halved',
     color: 'text-emerald-700',
     badgeBg: 'bg-emerald-50',
     badgeBorder: 'border-emerald-200',
@@ -46,7 +46,7 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   2: {
     label: 'Safe',
     tag: 'STEADY ACCA',
-    emoji: '✅',
+    icon: 'fa-solid fa-circle-check',
     color: 'text-teal-700',
     badgeBg: 'bg-teal-50',
     badgeBorder: 'border-teal-200',
@@ -60,7 +60,7 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   3: {
     label: 'Balanced',
     tag: 'BALANCED MULTI',
-    emoji: '⚖️',
+    icon: 'fa-solid fa-scale-balanced',
     color: 'text-blue-700',
     badgeBg: 'bg-blue-50',
     badgeBorder: 'border-blue-200',
@@ -74,7 +74,7 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   4: {
     label: 'Daring',
     tag: 'PUNCHY PICKS',
-    emoji: '🔥',
+    icon: 'fa-solid fa-fire',
     color: 'text-amber-700',
     badgeBg: 'bg-amber-50',
     badgeBorder: 'border-amber-200',
@@ -88,7 +88,7 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   5: {
     label: 'High Risk',
     tag: 'MAX MULTIPLIER',
-    emoji: '⚡',
+    icon: 'fa-solid fa-bolt',
     color: 'text-rose-700',
     badgeBg: 'bg-rose-50',
     badgeBorder: 'border-rose-200',
@@ -382,13 +382,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   const handleCopySummary = () => {
     if (chosenPicks.length === 0) return
     const text = [
-      `🎯 ODDS FACTORY SURE PICKS (${todayDateString.toUpperCase()})`,
+      `ODDS FACTORY SURE PICKS (${todayDateString.toUpperCase()})`,
       `Total Odds: ${combinedOdds.toFixed(2)}x • Model Survival: ${survivalProbability}%`,
       `Stake: ₦${stake.toLocaleString()} • Return: ₦${potentialPayout.toLocaleString()}`,
       ...(bookingCode ? [`SportyBet Booking Code: ${bookingCode}`] : []),
       '',
       ...chosenPicks.map(
-        (p, i) => `${i + 1}. ${p.matchLabel} (${p.league})\n   👉 ${p.market} @${p.odds.toFixed(2)} (${p.kickoff})`
+        (p, i) => `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${p.market} @${p.odds.toFixed(2)} (${p.kickoff})`
       ),
       '',
       `Generated with Odds Factory AI`,
@@ -502,21 +502,24 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
             <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-3 gap-1 border border-zinc-200/60">
               {([
-                ['today', '⚡ Today', 'Next 24h'],
-                ['3days', '📅 3 Days', 'Weekend'],
-                ['1week', '🗓️ 1 Week', 'Max 7d'],
-              ] as const).map(([val, label, sub]) => (
+                ['today', 'fa-solid fa-bolt', 'Today', 'Next 24h'],
+                ['3days', 'fa-solid fa-calendar-days', '3 Days', 'Weekend'],
+                ['1week', 'fa-solid fa-calendar-week', '1 Week', 'Max 7d'],
+              ] as const).map(([val, icon, label, sub]) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => handleDurationChange(val)}
-                  className={`py-2.5 px-2 rounded-xl text-center transition-all cursor-pointer ${
+                  className={`py-2 px-2 rounded-xl text-center transition-all cursor-pointer ${
                     duration === val
                       ? 'bg-white text-zinc-950 shadow-xs font-black'
                       : 'text-zinc-600 hover:text-zinc-950 font-bold hover:bg-white/50'
                   }`}
                 >
-                  <div className="text-xs leading-none">{label}</div>
+                  <div className="text-xs flex items-center justify-center gap-1.5 leading-none">
+                    <i className={`${icon} text-[11px]`}></i>
+                    <span>{label}</span>
+                  </div>
                   <div className="text-[9px] text-zinc-400 mt-1 font-semibold">{sub}</div>
                 </button>
               ))}
@@ -535,21 +538,24 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
             <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-3 gap-1 border border-zinc-200/60">
               {([
-                ['major', '🏆 Major', 'EPL, UCL…'],
-                ['small', '🌍 Small', 'NPFL, Cups'],
-                ['all', '🌐 All', 'Complete'],
-              ] as const).map(([val, label, sub]) => (
+                ['major', 'fa-solid fa-trophy', 'Major', 'EPL, UCL…'],
+                ['small', 'fa-solid fa-earth-africa', 'Small', 'NPFL, Cups'],
+                ['all', 'fa-solid fa-globe', 'All', 'Complete'],
+              ] as const).map(([val, icon, label, sub]) => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => setLeagueScope(val)}
-                  className={`py-2.5 px-2 rounded-xl text-center transition-all cursor-pointer ${
+                  className={`py-2 px-2 rounded-xl text-center transition-all cursor-pointer ${
                     leagueScope === val
                       ? 'bg-white text-zinc-950 shadow-xs font-black'
                       : 'text-zinc-600 hover:text-zinc-950 font-bold hover:bg-white/50'
                   }`}
                 >
-                  <div className="text-xs leading-none">{label}</div>
+                  <div className="text-xs flex items-center justify-center gap-1.5 leading-none">
+                    <i className={`${icon} text-[11px]`}></i>
+                    <span>{label}</span>
+                  </div>
                   <div className="text-[9px] text-zinc-400 mt-1 font-semibold">{sub}</div>
                 </button>
               ))}
@@ -632,7 +638,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             <div
               className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-black ${currentRisk.badgeBg} ${currentRisk.badgeBorder} ${currentRisk.color}`}
             >
-              <span>{currentRisk.emoji}</span>
+              <i className={`${currentRisk.icon} text-xs`}></i>
               <span>{currentRisk.label}</span>
               <span className="text-[10px] opacity-75 font-semibold">
                 (~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)}x /leg)
@@ -656,11 +662,21 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               }}
             />
             <div className="flex justify-between text-[10px] font-bold px-0.5">
-              <span className="text-emerald-700">🛡️ Ultra Safe</span>
-              <span className="text-teal-700">✅ Safe</span>
-              <span className="text-blue-700">⚖️ Balanced</span>
-              <span className="text-amber-700">🔥 Daring</span>
-              <span className="text-rose-700">⚡ High Risk</span>
+              <span className="text-emerald-700 flex items-center gap-1">
+                <i className="fa-solid fa-shield-halved text-[9px]"></i> Ultra Safe
+              </span>
+              <span className="text-teal-700 flex items-center gap-1">
+                <i className="fa-solid fa-circle-check text-[9px]"></i> Safe
+              </span>
+              <span className="text-blue-700 flex items-center gap-1">
+                <i className="fa-solid fa-scale-balanced text-[9px]"></i> Balanced
+              </span>
+              <span className="text-amber-700 flex items-center gap-1">
+                <i className="fa-solid fa-fire text-[9px]"></i> Daring
+              </span>
+              <span className="text-rose-700 flex items-center gap-1">
+                <i className="fa-solid fa-bolt text-[9px]"></i> High Risk
+              </span>
             </div>
           </div>
 
