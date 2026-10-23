@@ -677,7 +677,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
               </button>
             </div>
             <h3 className="text-base font-bold text-violet-900 flex items-center gap-2">
-              <i className="fa-solid fa-brain text-violet-600 animate-pulse" /> Gemini AI Match Deep Research
+              <i className="fa-solid fa-brain text-emerald-600 animate-pulse" /> Neural Match Deep Research
             </h3>
             <div className="text-slate-700 text-sm leading-relaxed font-sans">
               <ReactMarkdown
