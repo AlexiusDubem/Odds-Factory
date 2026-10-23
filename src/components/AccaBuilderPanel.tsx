@@ -6,6 +6,8 @@ import {
   type MarketFamily,
 } from '../data/sportybetCompetitions'
 import type { Slip, SlipLeg } from '../types'
+import { MatchIntelligenceModal } from './MatchIntelligenceModal'
+import { challengeSelection, type ChallengeResult } from '../engine/aiSelectionChallenger'
 
 interface Props {
   onSendToAudit?: (slip: Slip) => void
@@ -125,6 +127,11 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   const [hasGenerated, setHasGenerated] = useState<boolean>(false)
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false)
   const [chosenPicks, setChosenPicks] = useState<DailySurePick[]>([])
+
+  // ── Match Intelligence & AI Challenger State ────────────────────────────────
+  const [inspectingPick, setInspectingPick] = useState<DailySurePick | null>(null)
+  const [isChallenging, setIsChallenging] = useState<boolean>(false)
+  const [challengeResults, setChallengeResults] = useState<Record<string, ChallengeResult>>({})
 
   // ── Booking Code State ─────────────────────────────────────────────────────
   const [isBooking, setIsBooking] = useState(false)
@@ -301,6 +308,51 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
   const handleRemovePick = (pickId: string) => {
     setChosenPicks((prev) => prev.filter((p) => p.id !== pickId))
+    setBookingCode(null)
+    setBookingError(null)
+    setShareUrl(null)
+    setChallengeResults((prev) => {
+      const next = { ...prev }
+      delete next[pickId]
+      return next
+    })
+  }
+
+  // ── AI Selection Challenger & Market Swapper ──────────────────────────────
+  const handleRunAIChallenger = () => {
+    setIsChallenging(true)
+    setTimeout(() => {
+      const results: Record<string, ChallengeResult> = {}
+      for (const pick of chosenPicks) {
+        results[pick.id] = challengeSelection(pick, allLivePicks)
+      }
+      setChallengeResults(results)
+      setIsChallenging(false)
+    }, 350)
+  }
+
+  const handleApplySwap = (originalPickId: string, newPick: DailySurePick) => {
+    setChosenPicks((prev) =>
+      prev.map((p) => (p.id === originalPickId ? newPick : p))
+    )
+    setBookingCode(null)
+    setBookingError(null)
+    setShareUrl(null)
+    setChallengeResults((prev) => {
+      const next = { ...prev }
+      delete next[originalPickId]
+      return next
+    })
+  }
+
+  const handleSelectOutcomeFromModal = (newPick: DailySurePick) => {
+    setChosenPicks((prev) => {
+      const exists = prev.some((p) => p.eventId === newPick.eventId)
+      if (exists) {
+        return prev.map((p) => (p.eventId === newPick.eventId ? newPick : p))
+      }
+      return [...prev, newPick]
+    })
     setBookingCode(null)
     setBookingError(null)
     setShareUrl(null)
@@ -886,7 +938,24 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleRunAIChallenger}
+                disabled={isChallenging}
+                className="px-4 py-2 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {isChallenging ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin text-emerald-400 text-xs"></i>
+                    <span>Challenging Markets…</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-wand-magic-sparkles text-emerald-400 text-xs"></i>
+                    <span>AI Challenge Markets</span>
+                  </>
+                )}
+              </button>
               <button
                 onClick={handleRunAnalysisAndGenerate}
                 className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -917,69 +986,140 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {chosenPicks.map((pick, idx) => (
-                <div
-                  key={pick.id}
-                  className="bg-zinc-50/70 border border-zinc-200/70 hover:border-zinc-300/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all"
-                >
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="w-6 h-6 rounded-full bg-zinc-950 text-white flex items-center justify-center text-[10px] font-black">
-                        {idx + 1}
-                      </span>
-                      <span className="text-[11px] font-bold text-zinc-700 bg-white border border-zinc-200 px-2.5 py-0.5 rounded-full">
-                        {pick.league}
-                      </span>
-                      {pick.badgeLabel && (
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                          {pick.badgeLabel}
-                        </span>
-                      )}
-                      <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                        <i className="fa-solid fa-clock text-[9px]"></i>
-                        {pick.kickoff}
-                      </span>
-                      {pick.hoursFromNow !== undefined && (
-                        <span className="text-[10px] text-zinc-400 font-semibold">
-                          (in {pick.hoursFromNow > 24 ? `${Math.round(pick.hoursFromNow / 24)}d` : `${pick.hoursFromNow}h`})
-                        </span>
-                      )}
+            <div className="space-y-4">
+              {chosenPicks.map((pick, idx) => {
+                const challenge = challengeResults[pick.id]
+                return (
+                  <div
+                    key={pick.id}
+                    className="bg-zinc-50/70 border border-zinc-200/70 hover:border-zinc-300/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-4 transition-all"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-6 h-6 rounded-full bg-zinc-950 text-white flex items-center justify-center text-[10px] font-black">
+                            {idx + 1}
+                          </span>
+                          <span className="text-[11px] font-bold text-zinc-700 bg-white border border-zinc-200 px-2.5 py-0.5 rounded-full">
+                            {pick.league}
+                          </span>
+                          {pick.badgeLabel && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              {pick.badgeLabel}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                            <i className="fa-solid fa-clock text-[9px]"></i>
+                            {pick.kickoff}
+                          </span>
+                          {pick.hoursFromNow !== undefined && (
+                            <span className="text-[10px] text-zinc-400 font-semibold">
+                              (in {pick.hoursFromNow > 24 ? `${Math.round(pick.hoursFromNow / 24)}d` : `${pick.hoursFromNow}h`})
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-base font-extrabold text-zinc-950 tracking-tight">
+                          {pick.matchLabel}
+                        </div>
+
+                        <p className="text-xs text-zinc-500 leading-relaxed font-normal">
+                          {pick.modelRationale}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="bg-white border border-zinc-200 px-4 py-2.5 rounded-2xl text-center shadow-xs">
+                          <div className="text-[9px] uppercase font-black text-zinc-400">
+                            {pick.marketName}
+                          </div>
+                          <div className="text-sm font-black text-zinc-950 flex items-center gap-1.5 justify-center">
+                            <span>{pick.market}</span>
+                            <span className="text-emerald-600 font-black">@{pick.odds.toFixed(2)}</span>
+                          </div>
+                          <div className="text-[10px] font-bold text-emerald-600">
+                            {Math.round(pick.probability * 100)}% Win Probability
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            onClick={() => setInspectingPick(pick)}
+                            className="px-3 py-2 rounded-xl bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                            title="Inspect statistics & edit market"
+                          >
+                            <i className="fa-solid fa-chart-pie text-zinc-500 text-[11px]"></i>
+                            <span className="hidden sm:inline">Inspect & Edit</span>
+                          </button>
+                          <button
+                            onClick={() => handleRemovePick(pick.id)}
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 text-zinc-400 hover:text-rose-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                            title="Remove this pick"
+                          >
+                            <i className="fa-solid fa-trash-can text-[11px]"></i>
+                            <span className="hidden sm:inline">Drop</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="text-base font-extrabold text-zinc-950 tracking-tight">
-                      {pick.matchLabel}
-                    </div>
+                    {/* AI Challenger Verdict Banner */}
+                    {challenge && (
+                      <div
+                        className={`rounded-2xl p-4 border space-y-2.5 transition-all animate-in fade-in duration-200 ${challenge.actionBg} ${challenge.actionBorder}`}
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white border shadow-xs ${challenge.actionColor}`}
+                            >
+                              <i className={`${challenge.icon} text-[10px]`}></i>
+                              {challenge.actionLabel}
+                            </span>
+                            <span className="text-xs font-extrabold text-zinc-900">
+                              {challenge.title}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-bold text-zinc-600">
+                            Calculated EV: <span className="font-mono text-zinc-950 font-black">{challenge.evPercentage}</span> • True Prob: <span className="font-mono text-zinc-950 font-black">{Math.round(challenge.trueProbability * 100)}%</span>
+                          </div>
+                        </div>
 
-                    <p className="text-xs text-zinc-500 leading-relaxed font-normal">
-                      {pick.modelRationale}
-                    </p>
+                        <p className="text-xs text-zinc-600 leading-relaxed font-normal">
+                          {challenge.explanation}
+                        </p>
+
+                        {/* Interactive Swap Button */}
+                        {challenge.action === 'REPLACE' && challenge.recommendedAlternative && (
+                          <div className="pt-1 flex items-center justify-between flex-wrap gap-2 border-t border-amber-200/70">
+                            <div className="text-xs font-bold text-amber-950">
+                              Proposed Market: <span className="underline decoration-amber-400">{challenge.recommendedAlternative.market}</span> (@{challenge.recommendedAlternative.odds.toFixed(2)})
+                            </div>
+                            <button
+                              onClick={() => handleApplySwap(pick.id, challenge.recommendedAlternative!)}
+                              className="py-1.5 px-4 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                            >
+                              <i className="fa-solid fa-shuffle text-amber-400 text-xs"></i>
+                              <span>Apply AI Swap</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {challenge.action === 'REMOVE' && (
+                          <div className="pt-1 flex justify-end border-t border-rose-200/70">
+                            <button
+                              onClick={() => handleRemovePick(pick.id)}
+                              className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl cursor-pointer"
+                            >
+                              Drop Negative EV Leg
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="bg-white border border-zinc-200 px-4 py-2.5 rounded-2xl text-center shadow-xs">
-                      <div className="text-[9px] uppercase font-black text-zinc-400">
-                        {pick.marketName}
-                      </div>
-                      <div className="text-sm font-black text-zinc-950 flex items-center gap-1.5 justify-center">
-                        <span>{pick.market}</span>
-                        <span className="text-emerald-600 font-black">@{pick.odds.toFixed(2)}</span>
-                      </div>
-                      <div className="text-[10px] font-bold text-emerald-600">
-                        {Math.round(pick.probability * 100)}% Win Probability
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleRemovePick(pick.id)}
-                      className="w-10 h-10 rounded-2xl bg-white hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 text-zinc-400 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
-                      title="Remove this pick"
-                    >
-                      <i className="fa-solid fa-trash-can text-sm"></i>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -1154,6 +1294,16 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             )}
           </div>
         </div>
+      )}
+
+      {/* ── Match Intelligence & Market Inspection Modal ──────────────────── */}
+      {inspectingPick && (
+        <MatchIntelligenceModal
+          matchPick={inspectingPick}
+          allEventPicks={allLivePicks}
+          onSelectOutcome={handleSelectOutcomeFromModal}
+          onClose={() => setInspectingPick(null)}
+        />
       )}
     </div>
   )
