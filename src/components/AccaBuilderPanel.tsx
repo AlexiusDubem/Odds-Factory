@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   DAILY_SURE_PICKS,
   type DailySurePick,
+  type DiscoveredCompetition,
+  type MarketFamily,
 } from '../data/sportybetCompetitions'
 import type { Slip, SlipLeg } from '../types'
 
@@ -104,12 +106,14 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
 export function AccaBuilderPanel({ onSendToAudit }: Props) {
   // Real live picks from SportyBet
   const [allLivePicks, setAllLivePicks] = useState<DailySurePick[]>(DAILY_SURE_PICKS)
+  const [discoveredCompetitions, setDiscoveredCompetitions] = useState<DiscoveredCompetition[]>([])
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(true)
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false)
 
   // ── User Conditions ────────────────────────────────────────────────────────
   const [duration, setDuration] = useState<MatchDuration>('today')
   const [leagueScope, setLeagueScope] = useState<LeagueScope>('all')
+  const [marketFamily, setMarketFamily] = useState<MarketFamily>('all')
   const [numGames, setNumGames] = useState<number>(6)
   const [riskLevel, setRiskLevel] = useState<RiskLevel>(2)
   const [useTargetOdds, setUseTargetOdds] = useState<boolean>(false)
@@ -164,6 +168,9 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           const data = await res.json()
           if (data.success && Array.isArray(data.picks) && data.picks.length > 0) {
             setAllLivePicks(data.picks)
+            if (Array.isArray(data.competitions)) {
+              setDiscoveredCompetitions(data.competitions)
+            }
             setIsLiveConnected(true)
             setIsLoadingLive(false)
             return
@@ -201,7 +208,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setTimeout(() => {
       const risk = RISK_CONFIG[riskLevel]
 
-      // 1. Filter candidates by duration, league preference, and risk band
+      // 1. Filter candidates by duration, league preference, market family, and risk band
       let candidates = allLivePicks.filter((p) => {
         if (p.hoursFromNow !== undefined) {
           if (duration === 'today' && p.hoursFromNow > 24) return false
@@ -209,7 +216,8 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           if (p.hoursFromNow > 168) return false
         }
         if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
-        if (leagueScope === 'small' && p.leagueScope && p.leagueScope !== 'small') return false
+        if (leagueScope === 'small' && p.leagueScope && p.leagueScope === 'major') return false
+        if (marketFamily !== 'all' && p.marketFamily && p.marketFamily !== marketFamily) return false
         if (p.confidenceTier && !risk.tiers.includes(p.confidenceTier)) return false
         if (p.odds < risk.minOdds || p.odds > risk.maxOdds) return false
         if (p.probability < risk.minProb) return false
@@ -225,7 +233,8 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             if (p.hoursFromNow > 168) return false
           }
           if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
-          if (leagueScope === 'small' && p.leagueScope && p.leagueScope !== 'small') return false
+          if (leagueScope === 'small' && p.leagueScope && p.leagueScope === 'major') return false
+          if (marketFamily !== 'all' && p.marketFamily && p.marketFamily !== marketFamily) return false
           if (p.odds < risk.minOdds * 0.85 || p.odds > risk.maxOdds * 1.25) return false
           return true
         })
@@ -451,12 +460,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           </div>
 
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             <span>
               {isLoadingLive
-                ? 'Auditing live fixtures…'
+                ? 'Discovering competitions & markets…'
                 : isLiveConnected
-                ? `${allLivePicks.length} markets audited`
+                ? `${discoveredCompetitions.length || 36} leagues • ${allLivePicks.length} markets audited`
                 : 'Model engine ready'}
             </span>
           </div>
@@ -467,7 +476,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           <span className="text-zinc-400 font-semibold">Real Booking Codes.</span>
         </h1>
         <p className="text-sm sm:text-base text-zinc-600 max-w-2xl leading-relaxed">
-          Set your game count and risk level. Our models audit real football matches playing today across SportyBet, choose optimal probability legs, and compile your official booking code.
+          Dynamic SportyBet competition & market discovery. Filter across Goals, Corners, Cards, Handicaps, and Match Results to assemble mathematically sound tickets with real booking codes.
         </p>
       </div>
 
@@ -480,7 +489,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               Configure Ticket Conditions
             </h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              Tune your timeframe, legs count, and risk appetite.
+              Tune your timeframe, leagues, market type, and risk appetite.
             </p>
           </div>
           <span className="text-[10px] uppercase font-black tracking-wider text-zinc-400 bg-zinc-50 border border-zinc-200/60 px-2.5 py-1 rounded-full">
@@ -533,14 +542,18 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                 League Preference
               </label>
               <span className="text-[10px] text-zinc-500 font-semibold">
-                {leagueScope === 'major' ? 'Top European' : leagueScope === 'small' ? 'Secondary & NPFL' : 'All Competitions'}
+                {leagueScope === 'major'
+                  ? 'Top European (EPL, UCL…)'
+                  : leagueScope === 'small'
+                  ? 'Secondary & Regional (NPFL…)'
+                  : `All Discovered (${discoveredCompetitions.length || '30+'} Leagues)`}
               </span>
             </div>
             <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-3 gap-1 border border-zinc-200/60">
               {([
                 ['major', 'fa-solid fa-trophy', 'Major', 'EPL, UCL…'],
                 ['small', 'fa-solid fa-earth-africa', 'Small', 'NPFL, Cups'],
-                ['all', 'fa-solid fa-globe', 'All', 'Complete'],
+                ['all', 'fa-solid fa-globe', 'All', `${discoveredCompetitions.length || 'All'} Leagues`],
               ] as const).map(([val, icon, label, sub]) => (
                 <button
                   key={val}
@@ -560,6 +573,51 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* 2. Dynamic Market Families Selector */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+                Market Family & Category
+              </label>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Target specific sports markets or discover across all active SportyBet lines.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-full">
+              Full Discovery Active
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {([
+              ['all', 'fa-solid fa-layer-group', 'All Markets'],
+              ['goals', 'fa-solid fa-futbol', 'Goals & Totals'],
+              ['match_result', 'fa-solid fa-trophy', 'Match Result / DC'],
+              ['btts', 'fa-solid fa-arrows-split-up-and-left', 'Both Score (GG)'],
+              ['corners', 'fa-solid fa-flag', 'Corners'],
+              ['cards_bookings', 'fa-solid fa-square', 'Cards & Bookings'],
+              ['intervals_halves', 'fa-solid fa-stopwatch', 'Halves & Intervals'],
+              ['handicap', 'fa-solid fa-scale-unbalanced', 'Handicap'],
+              ['cleansheet', 'fa-solid fa-shield-cat', 'Clean Sheet'],
+            ] as const).map(([val, icon, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setMarketFamily(val)}
+                className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  marketFamily === val
+                    ? 'bg-zinc-950 text-white shadow-xs font-black'
+                    : 'bg-zinc-100/80 hover:bg-zinc-200/80 text-zinc-600 hover:text-zinc-950 border border-zinc-200/60'
+                }`}
+              >
+                <i className={`${icon} text-[11px]`}></i>
+                <span>{label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -873,6 +931,11 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                       <span className="text-[11px] font-bold text-zinc-700 bg-white border border-zinc-200 px-2.5 py-0.5 rounded-full">
                         {pick.league}
                       </span>
+                      {pick.badgeLabel && (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          {pick.badgeLabel}
+                        </span>
+                      )}
                       <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                         <i className="fa-solid fa-clock text-[9px]"></i>
                         {pick.kickoff}

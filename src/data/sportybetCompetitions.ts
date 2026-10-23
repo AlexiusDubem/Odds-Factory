@@ -960,11 +960,40 @@ export const SAMPLE_ACCA_FIXTURES: AccaFixture[] = [
 
 // ── Daily Sure Picks (Model-Audited Predictions) ─────────────────────────────
 
-export type SurePickType = 'banker' | 'goals_lock' | 'double_chance' | 'btts' | 'value_play'
+export type SurePickType =
+  | 'banker'
+  | 'goals_lock'
+  | 'double_chance'
+  | 'btts'
+  | 'value_play'
+  | 'corner_lock'
+  | 'booking_lock'
+  | 'handicap_play'
+  | 'interval_lock'
+
+export type MarketFamily =
+  | 'all'
+  | 'match_result'
+  | 'goals'
+  | 'btts'
+  | 'handicap'
+  | 'corners'
+  | 'cards_bookings'
+  | 'intervals_halves'
+  | 'cleansheet'
+
+export interface DiscoveredCompetition {
+  id: string
+  name: string
+  categoryName: string
+  eventCount: number
+  tier: 'major' | 'secondary' | 'other'
+}
 
 export interface DailySurePick {
   id: string
   eventId: string
+  tournamentId?: string
   matchLabel: string
   homeTeam: string
   awayTeam: string
@@ -975,9 +1004,10 @@ export interface DailySurePick {
   kickoffTag?: string
   estimateStartTime?: number | null
   hoursFromNow?: number
-  leagueScope?: 'major' | 'small'
+  leagueScope?: 'major' | 'small' | 'other'
   market: string
   marketName: string
+  marketFamily?: MarketFamily
   marketId: string
   outcomeId: string
   specifier?: string
