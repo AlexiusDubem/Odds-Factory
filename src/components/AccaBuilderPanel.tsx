@@ -7,7 +7,11 @@ import {
 } from '../data/sportybetCompetitions'
 import type { Slip, SlipLeg } from '../types'
 import { MatchIntelligenceModal } from './MatchIntelligenceModal'
-import { challengeSelection, type ChallengeResult } from '../engine/aiSelectionChallenger'
+import {
+  challengeSelection,
+  generateEvidenceRationale,
+  type ChallengeResult,
+} from '../engine/aiSelectionChallenger'
 
 interface Props {
   onSendToAudit?: (slip: Slip) => void
@@ -283,7 +287,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         }
       }
 
-      setChosenPicks(selected)
+      // Enrich every selected pick with real evidence-backed rationale
+      const enriched = selected.map((p) => ({
+        ...p,
+        modelRationale: generateEvidenceRationale(p, allLivePicks),
+      }))
+
+      setChosenPicks(enriched)
       setHasGenerated(true)
       setIsAnalyzing(false)
     }, 450)
@@ -332,8 +342,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   }
 
   const handleApplySwap = (originalPickId: string, newPick: DailySurePick) => {
+    const enriched = {
+      ...newPick,
+      modelRationale: generateEvidenceRationale(newPick, allLivePicks),
+    }
     setChosenPicks((prev) =>
-      prev.map((p) => (p.id === originalPickId ? newPick : p))
+      prev.map((p) => (p.id === originalPickId ? enriched : p))
     )
     setBookingCode(null)
     setBookingError(null)
@@ -346,12 +360,16 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   }
 
   const handleSelectOutcomeFromModal = (newPick: DailySurePick) => {
+    const enriched = {
+      ...newPick,
+      modelRationale: generateEvidenceRationale(newPick, allLivePicks),
+    }
     setChosenPicks((prev) => {
       const exists = prev.some((p) => p.eventId === newPick.eventId)
       if (exists) {
-        return prev.map((p) => (p.eventId === newPick.eventId ? newPick : p))
+        return prev.map((p) => (p.eventId === newPick.eventId ? enriched : p))
       }
-      return [...prev, newPick]
+      return [...prev, enriched]
     })
     setBookingCode(null)
     setBookingError(null)
