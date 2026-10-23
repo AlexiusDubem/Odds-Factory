@@ -267,18 +267,31 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       })
 
       // 3. Select exactly numGames (strictly unique eventIds)
+      // Enforce balanced variety: cap Under markets so tickets are not excessively flooded with Under bets
       const usedEvents = new Set<string>()
       const selected: DailySurePick[] = []
+      let underPicksCount = 0
+      const maxAllowedUnder = numGames >= 7 ? 2 : 1
 
       for (const pick of candidates) {
         if (usedEvents.has(pick.eventId)) continue
+
+        const isUnder =
+          pick.market.toLowerCase().includes('under') ||
+          (pick.marketName && pick.marketName.toLowerCase().includes('under'))
+
+        if (isUnder && underPicksCount >= maxAllowedUnder) {
+          continue
+        }
+
         selected.push(pick)
         usedEvents.add(pick.eventId)
+        if (isUnder) underPicksCount++
         if (selected.length >= numGames) break
       }
 
       // 4. Fill up if we are short
-      if (selected.length < numGames && candidates.length >= numGames) {
+      if (selected.length < numGames) {
         for (const pick of candidates) {
           if (!usedEvents.has(pick.eventId)) {
             selected.push(pick)

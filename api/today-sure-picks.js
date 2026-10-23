@@ -266,10 +266,16 @@ export default async function handler(req, res) {
             const prob = parseFloat(o.probability) || 1 / odds
             const oDesc = o.desc || ''
 
-            // Filter out anti-action "Under" markets (punters hate sweating Under bets on accumulators)
-            // Prioritize positive pro-action markets: Over 1.5, Double Chance, DNB, Corners Over, 2-Up, BTTS
+            // Filter out stressful/excessive Under markets (Under 0.5, 1.5, 2.5) that bust accumulators
+            // Allow high-cushion safety lines (Under 3.5, Under 4.5, Under 5.5) with high confidence (>=75%)
             const isUnderMarket = oDesc.toLowerCase().includes('under') || mDesc.toLowerCase().includes('under')
-            if (isUnderMarket) continue
+            if (isUnderMarket) {
+              const fullDesc = `${mDesc} ${oDesc} ${specifier}`.toLowerCase()
+              const isRiskyTightUnder = fullDesc.includes('0.5') || fullDesc.includes('1.5') || fullDesc.includes('2.5')
+              if (isRiskyTightUnder || prob < 0.75) {
+                continue
+              }
+            }
 
             // ── Normalization & Tier Classification ──────────────────────────
             let riskTier = 3

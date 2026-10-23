@@ -63,6 +63,17 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/local/, ''),
       },
+      // Proxies Gemini Match Intelligence & Rationales in local dev
+      '/api/match-intelligence': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/match-intelligence/, '/match-intelligence'),
+      },
+      '/api/batch-rationales': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/batch-rationales/, '/batch-rationales'),
+      },
     },
   },
 })
