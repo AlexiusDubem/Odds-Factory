@@ -57,7 +57,8 @@ async function fetchLiveDataForLegs(legs) {
 }
 
 async function callGemini(prompt, geminiKey, jsonMode = false) {
-  const activeKey = geminiKey || process.env.GEMINI_API_KEY || 'AIzaSyAcv5hTuJ7J0C-vgp78z25dzFcGGm90ECg'
+  const activeKey = geminiKey || process.env.GEMINI_API_KEY || ''
+  if (!activeKey) throw new Error('GEMINI_API_KEY is not set')
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
@@ -476,6 +477,11 @@ const server = http.createServer(async (req, res) => {
 
               const prob = parseFloat(o.probability) || 1 / odds
               const oDesc = o.desc || ''
+
+              // Filter out anti-action "Under" markets (punters hate sweating Under bets on accumulators)
+              // Prioritize positive pro-action markets: Over 1.5, Double Chance, DNB, Corners Over, 2-Up, BTTS
+              const isUnderMarket = oDesc.toLowerCase().includes('under') || mDesc.toLowerCase().includes('under')
+              if (isUnderMarket) continue
 
               let riskTier = 3
               if (prob >= 0.75 && odds <= 1.30) {

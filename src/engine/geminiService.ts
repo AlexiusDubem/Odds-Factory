@@ -10,7 +10,8 @@ import type { DailySurePick } from '../data/sportybetCompetitions'
 
 const GEMINI_KEY =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) ||
-  'AIzaSyAcv5hTuJ7J0C-vgp78z25dzFcGGm90ECg'
+  (typeof globalThis !== 'undefined' && (globalThis as any).process?.env?.GEMINI_API_KEY) ||
+  ''
 
 const MODELS = [
   'gemini-3.5-flash',
