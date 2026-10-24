@@ -65,25 +65,6 @@ export function MatchIntelligenceModal({
   }, [liveIntel, matchPick, allEventPicks])
 
   // Effective statistics (combining AI research + live SportyBet market physics)
-  const homeFav = physics.homeWinProb >= 52
-  const effectiveHomeForm =
-    liveIntel?.homeForm && liveIntel.homeForm.length > 0
-      ? liveIntel.homeForm
-      : homeFav
-      ? ['W', 'W', 'D', 'W', 'W']
-      : physics.homeWinProb >= 40
-      ? ['W', 'D', 'W', 'L', 'W']
-      : ['D', 'L', 'W', 'D', 'L']
-
-  const effectiveAwayForm =
-    liveIntel?.awayForm && liveIntel.awayForm.length > 0
-      ? liveIntel.awayForm
-      : !homeFav
-      ? ['W', 'W', 'D', 'W', 'L']
-      : physics.awayWinProb <= 25
-      ? ['L', 'L', 'D', 'L', 'W']
-      : ['L', 'D', 'L', 'W', 'D']
-
   const effectiveXG = liveIntel?.expectedGoals ?? physics.expectedGoals
   const effectiveCorners = liveIntel?.cornersPerGame ?? physics.expectedCorners
   const effectiveBtts = liveIntel?.bttsRate ?? `${physics.bttsProbability}%`
@@ -175,70 +156,46 @@ export function MatchIntelligenceModal({
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {activeTab === 'intelligence' ? (
             <div className="space-y-6">
-              {/* Form & Dynamic Trends Bento */}
+              {/* Team Tactical Profiles & Win Expectancy Bento */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Home Form */}
+                {/* Home Profile */}
                 <div className="bg-zinc-50/80 border border-zinc-200/80 rounded-2xl p-4.5 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-zinc-900 flex items-center gap-1.5">
                       <i className="fa-solid fa-shield-halved text-emerald-600 text-[11px]"></i>
-                      {matchPick.homeTeam} (Home Form)
+                      {matchPick.homeTeam} (Home Territory)
                     </span>
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
                       {physics.homeWinProb}% Win Rate
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {effectiveHomeForm.map((res, i) => (
-                      <span
-                        key={i}
-                        className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black ${
-                          res === 'W'
-                            ? 'bg-emerald-500 text-white'
-                            : res === 'D'
-                            ? 'bg-amber-400 text-zinc-900'
-                            : 'bg-rose-500 text-white'
-                        }`}
-                      >
-                        {res}
-                      </span>
-                    ))}
-                  </div>
                   <p className="text-xs text-zinc-700 leading-relaxed font-medium">
                     {effectiveHomeSummary}
                   </p>
+                  <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <i className="fa-solid fa-chart-simple text-[9px] text-emerald-500"></i>
+                    <span>Primary Home Dynamic: {physics.primaryGameDynamic}</span>
+                  </div>
                 </div>
 
-                {/* Away Form */}
+                {/* Away Profile */}
                 <div className="bg-zinc-50/80 border border-zinc-200/80 rounded-2xl p-4.5 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-zinc-900 flex items-center gap-1.5">
                       <i className="fa-solid fa-plane-departure text-zinc-500 text-[11px]"></i>
-                      {matchPick.awayTeam} (Away Form)
+                      {matchPick.awayTeam} (Away Record)
                     </span>
                     <span className="text-[10px] font-bold text-zinc-600 bg-zinc-200/60 px-2 py-0.5 rounded-full">
                       {physics.awayWinProb}% Away Win Rate
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {effectiveAwayForm.map((res, i) => (
-                      <span
-                        key={i}
-                        className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black ${
-                          res === 'W'
-                            ? 'bg-emerald-500 text-white'
-                            : res === 'D'
-                            ? 'bg-amber-400 text-zinc-900'
-                            : 'bg-rose-500 text-white'
-                        }`}
-                      >
-                        {res}
-                      </span>
-                    ))}
-                  </div>
                   <p className="text-xs text-zinc-700 leading-relaxed font-medium">
                     {effectiveAwaySummary}
                   </p>
+                  <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <i className="fa-solid fa-arrows-split-up-and-left text-[9px] text-blue-500"></i>
+                    <span>Expected Concession: {physics.expectedGoals > 2.5 ? '1.5+ Goals' : 'Under 1.5 Goals'}</span>
+                  </div>
                 </div>
               </div>
 

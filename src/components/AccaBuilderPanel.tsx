@@ -19,7 +19,7 @@ interface Props {
 }
 
 export type LeagueScope = 'major' | 'small' | 'all'
-export type MatchDuration = 'today' | '3days' | '1week'
+export type MatchDuration = 'today' | 'midnight' | '3days' | '1week'
 export type RiskLevel = 1 | 2 | 3 | 4 | 5
 
 interface RiskConfig {
@@ -225,6 +225,19 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         if (p.hoursFromNow !== undefined) {
           if (duration === 'today' && p.hoursFromNow > 24) return false
           if (duration === '3days' && p.hoursFromNow > 72) return false
+          if (duration === 'midnight') {
+            if (p.estimateStartTime) {
+              const d = new Date(p.estimateStartTime)
+              const watHour = (d.getUTCHours() + 1) % 24
+              const isNightHour = watHour >= 22 || watHour < 6
+              if (!isNightHour) return false
+            } else {
+              const lowerKo = (p.kickoff || '').toLowerCase()
+              const isNightText = ['22:', '23:', '00:', '01:', '02:', '03:', '04:', '05:'].some(h => lowerKo.includes(h))
+              if (!isNightText) return false
+            }
+            if (p.hoursFromNow > 28 || p.hoursFromNow < -2) return false
+          }
           if (p.hoursFromNow > 168) return false
         }
         if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
@@ -599,12 +612,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                 Match Timeframe
               </label>
               <span className="text-[10px] text-zinc-500 font-semibold">
-                {duration === 'today' ? 'Kickoff in <24h' : duration === '3days' ? 'Weekend slate' : 'Max 7 days'}
+                {duration === 'today' ? 'Kickoff in <24h' : duration === 'midnight' ? '10:00 PM – 6:00 AM Night Slate' : duration === '3days' ? 'Weekend slate' : 'Max 7 days'}
               </span>
             </div>
-            <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-3 gap-1 border border-zinc-200/60">
+            <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-1 border border-zinc-200/60">
               {([
                 ['today', 'fa-solid fa-bolt', 'Today', 'Next 24h'],
+                ['midnight', 'fa-solid fa-moon text-indigo-500', 'Midnight', '10 PM - 6 AM'],
                 ['3days', 'fa-solid fa-calendar-days', '3 Days', 'Weekend'],
                 ['1week', 'fa-solid fa-calendar-week', '1 Week', 'Max 7d'],
               ] as const).map(([val, icon, label, sub]) => (
@@ -1276,6 +1290,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   >
                     <i className={`fa-solid ${copiedCode ? 'fa-check text-emerald-400' : 'fa-copy'}`}></i>
                     <span>{copiedCode ? 'Copied Code to Clipboard!' : 'Copy Real Booking Code'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleSendToAudit}
+                    className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <i className="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                    <span>Open in Slip Auditor & Editor</span>
                   </button>
 
                   {shareUrl && (

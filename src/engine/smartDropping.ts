@@ -117,142 +117,46 @@ interface GeminiLegEval {
   rationale: string         // Brief, real-world match explanation
 }
 
-async function callDirectGeminiAPI(legs: SlipLeg[], goal: OptimizationGoal): Promise<GeminiLegEval[]> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
-  if (!apiKey) throw new Error('No Gemini API key available')
-
-  const legsText = legs.map((l, i) =>
-    `Leg ${i + 1} [ID: ${l.id}]: ${l.matchLabel} | Market: ${l.market} | Single Leg Odds: ${Math.min(l.odds, 20)} | Engine prob: ${((l.probability || 0.5) * 100).toFixed(0)}%`
-  ).join('\n')
-
-  const prompt = `You are OddsFactory's Risk Analyst. Evaluate these accumulator picks.
-
-Picks:
-${legsText}
-
-Goal Mode: ${goal.mode}
-
-HONESTY RULES — READ CAREFULLY:
-1. You do NOT have access to live data, current form, or injury news. DO NOT invent statistics.
-2. Base your analysis ONLY on: odds value (EV math), market type risk, general football logic, and match context you can infer (e.g. derby, league position implications).
-3. Name the EXACT teams. Keep rationale under 20 words.
-4. Good rationale examples:
-   - "Man City vs Burnley: Low odds @1.25 offer thin EV margin — one slip and the acca dies."
-   - "BTTS @1.90 in a match between two mid-table sides — volatile market for accumulators."
-   - "Over 3.5 @2.40 is high-variance; needs 4+ goals which is never reliable."
-5. BAD rationale (DO NOT DO THIS): "Arsenal scored 3+ in last 5 home games" — you don't know this.
-6. EV = trueProbability × odds - 1. Bound between -0.95 and +0.50.
-
-Return ONLY a raw JSON array:
-[
-  {
-    "legId": "exact leg ID",
-    "trueProbability": number (0.1 to 0.9),
-    "ev": number (-0.95 to 0.50),
-    "volatility": number (0.1 to 0.9),
-    "shouldDrop": boolean,
-    "rationale": "Brief honest reason naming teams — no invented stats."
-  }
-]`
-
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
-  let lastErr: any = null
-
-  for (const model of models) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 2048,
-              response_mime_type: 'application/json',
-            },
-          }),
-          // No timeout — let Gemini always finish, even for large slips
-        }
-      )
-
-      if (res.status === 404 || res.status === 400) continue
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-      const json = await res.json()
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text ?? '[]'
-      const parsed = JSON.parse(text) as GeminiLegEval[]
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Validate and normalize parsed results to avoid hardcoded/generic rationales
-        const cleaned = parsed.map(p => ({
-          legId: String(p.legId),
-          trueProbability: Number(p.trueProbability) || 0.5,
-          ev: Number(p.ev) || 0,
-          volatility: Number(p.volatility) || 0.5,
-          shouldDrop: Boolean(p.shouldDrop),
-          rationale: String(p.rationale || '').trim()
-        }))
-
-        // If rationales are generic or contain disallowed phrases, reject this response so fallback runs
-        const badPattern = /elevated uncertainty|fixture type|tier (?:\d+)/i
-        const hasBad = cleaned.some(c => !c.rationale || badPattern.test(c.rationale))
-        if (hasBad) throw new Error('Parsed rationales not specific enough')
-
-        return cleaned
-      }
-    } catch (e) {
-      lastErr = e
-    }
-  }
-
-  throw lastErr || new Error('Direct Gemini API call failed')
-}
-
 async function evaluateLegsWithGemini(legs: SlipLeg[], goal: OptimizationGoal): Promise<GeminiLegEval[]> {
-  // Strategy 1: Try local booking server if running (2.5s timeout)
-  try {
-    const res = await fetch('http://localhost:3001/eval-legs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        legs: legs.map(l => ({
-          id: l.id,
-          matchLabel: l.matchLabel,
-          market: l.market,
-          odds: Math.min(l.odds, 20),
-          probability: l.probability,
-          tier: l.tier,
-          homeTeam: (l.matchLabel || '').split(' vs ')[0]?.trim() ?? '',
-          awayTeam: (l.matchLabel || '').split(' vs ')[1]?.trim() ?? '',
-          sport: 'football',
-        })),
-        goal,
-      }),
-      // No timeout — let the server finish all batches regardless of slip size
-    })
+  const payload = {
+    legs: legs.map(l => ({
+      id: l.id,
+      matchLabel: l.matchLabel,
+      market: l.market,
+      odds: Math.min(l.odds, 20),
+      probability: l.probability,
+      tier: l.tier,
+      homeTeam: (l.matchLabel || '').split(' vs ')[0]?.trim() ?? '',
+      awayTeam: (l.matchLabel || '').split(' vs ')[1]?.trim() ?? '',
+      sport: 'football',
+    })),
+    goal,
+  };
 
-    if (res.ok) {
-      const data = await res.json()
-      if (data.success && Array.isArray(data.evals) && data.evals.length > 0) {
-        console.log(`[SmartDrop] Evaluated via local booking server`)
-        return data.evals as GeminiLegEval[]
+  // Strategy 1: Serverless & local endpoints
+  const endpoints = ['/api/eval-legs', '/api/local/eval-legs', 'http://localhost:3001/eval-legs'];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.evals) && data.evals.length > 0) {
+          console.log('[SmartDrop] Evaluated via ' + ep);
+          return data.evals;
+        }
       }
+    } catch {
+      // Try next endpoint
     }
-  } catch (err) {
-    // Local server offline / unreachable
   }
 
-  // Strategy 2: Direct Gemini API call
-  try {
-    const directEvals = await callDirectGeminiAPI(legs, goal)
-    console.log(`[SmartDrop] Evaluated via Direct Gemini API`)
-    return directEvals
-  } catch (err) {
-    // Direct API call failed or key mismatch
-  }
-
-  // Strategy 3: Dynamic match-specific rationale generator (always clean & team-specific)
+  // Strategy 2: Dynamic match-specific rationale generator (always clean & team-specific)
   return legs.map(l => {
     const trueProb = l.probability ? (l.probability > 1 ? l.probability / 100 : l.probability) : 0.5
     const singleLegOdds = Math.min(l.odds || 2.0, 15.0)

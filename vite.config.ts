@@ -74,6 +74,21 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/batch-rationales/, '/batch-rationales'),
       },
+      '/api/load': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/load/, '/load'),
+      },
+      '/api/eval-legs': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/eval-legs/, '/eval-legs'),
+      },
+      '/api/book': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/book/, '/book'),
+      },
     },
   },
 })

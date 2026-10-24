@@ -15,9 +15,10 @@ export default async function handler(req, res) {
 
   const { duration = 'today' } = req.query || {}
   const durationParam = String(duration).toLowerCase()
+  const isMidnightMode = durationParam === 'midnight'
 
   let timeline = '24'
-  let maxHours = 24
+  let maxHours = isMidnightMode ? 28 : 24
   if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
     timeline = '72'
     maxHours = 72
@@ -205,6 +206,13 @@ export default async function handler(req, res) {
           continue
         }
 
+        if (isMidnightMode && e.estimateStartTime) {
+          const d = new Date(e.estimateStartTime)
+          const watHour = (d.getUTCHours() + 1) % 24
+          const isNight = watHour >= 22 || watHour < 6
+          if (!isNight) continue
+        }
+
         const ko = formatKickoff(e.estimateStartTime)
 
         // Helper to push a normalized pick
@@ -279,7 +287,11 @@ export default async function handler(req, res) {
 
             // ── Normalization & Tier Classification ──────────────────────────
             let riskTier = 3
-            if (prob >= 0.75 && odds <= 1.30) {
+            if (mId === '1' && String(o.id) === '3' && odds < 1.70) {
+              // Away favorites often draw away from home — don't classify straight away win as Tier 1 banker
+              riskTier = 3;
+            }
+            if (prob >= 0.75 && odds <= 1.30 && !(mId === '1' && String(o.id) === '3')) {
               riskTier = 1 // Ultra Safe / Banker
             } else if (prob >= 0.60 && odds <= 1.65) {
               riskTier = 2 // Safe / Value

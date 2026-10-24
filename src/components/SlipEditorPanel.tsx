@@ -113,64 +113,74 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     eventMarketsCache.current.clear()
 
     try {
-      // ── Step 1: Always try the local booking server first (Playwright real browser) ──
+      // ── Multi-tier SportyBet Loading Waterfall (Vercel Serverless + Local Playwright) ──
       let json = null;
       const code = bookingCode.trim().toUpperCase();
 
+      // Tier 1: Vercel Serverless / Local Dev Proxy (/api/load)
       try {
-        const localResp = await fetch(`http://localhost:3001/load`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-          // No signal/timeout — let the local server finish loading all picks
+        const resp = await fetch(`/api/load?code=${code}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
         });
-        if (localResp.ok) {
-          const localJson = await localResp.json();
-          // Booking server returns the raw SportyBet response body
-          if (localJson && !localJson.error) {
-            json = localJson;
-            console.log('✅ Loaded via local booking server (real browser session)');
-          } else if (localJson?.error) {
-            console.warn('Local server returned error:', localJson.error);
+        if (resp.ok) {
+          const resData = await resp.json();
+          if (resData && !resData.error && resData.bizCode !== 19000) {
+            json = resData;
+            console.log('✅ Loaded via /api/load');
           }
         }
-      } catch (localErr: any) {
-        console.warn('Local booking server unreachable:', localErr.message);
+      } catch (e: any) {
+        console.warn('/api/load failed:', e?.message || e);
       }
 
-      // ── Step 2: If local server failed, try public CORS proxies ──
+      // Tier 2: Local Playwright Booking Server (/api/local/load or localhost:3001/load)
       if (!json) {
-        console.log('⚠️  Local server unavailable — trying CORS proxies…');
-        const targetUrl = encodeURIComponent(`https://www.sportybet.com/api/ng/orders/share/${code}`);
-        const publicProxies = [
-          `https://api.codetabs.com/v1/proxy/?quest=${targetUrl}`,
-          `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
-          `https://corsproxy.io/?${targetUrl}`,
-        ];
-
-        for (const proxyUrl of publicProxies) {
-          try {
-            const r = await fetch(proxyUrl, {
-              headers: { Accept: 'application/json' },
-              signal: AbortSignal.timeout(3500), // 3.5s per proxy attempt
-            });
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const text = await r.text();
-            if (text.trim().startsWith('<')) throw new Error('Got HTML (Cloudflare block)');
-            json = JSON.parse(text);
-            console.log('✅ Loaded via CORS proxy:', proxyUrl);
-            break;
-          } catch (e: any) {
-            console.warn('Proxy failed:', e.message);
+        try {
+          const localUrls = ['/api/local/load', 'http://localhost:3001/load'];
+          for (const url of localUrls) {
+            try {
+              const localResp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+              });
+              if (localResp.ok) {
+                const localJson = await localResp.json();
+                if (localJson && !localJson.error) {
+                  json = localJson;
+                  console.log('✅ Loaded via local booking server:', url);
+                  break;
+                }
+              }
+            } catch {}
           }
+        } catch (localErr: any) {
+          console.warn('Local booking server unreachable:', localErr?.message || localErr);
         }
+      }
+
+      // Tier 3: Vite Dev Proxy (/api/sportybet/orders/share/)
+      if (!json) {
+        try {
+          const directResp = await fetch(`/api/sportybet/orders/share/${code}`, {
+            headers: { 'Accept': 'application/json' }
+          });
+          if (directResp.ok) {
+            const directJson = await directResp.json();
+            if (directJson && directJson.bizCode !== 19000) {
+              json = directJson;
+              console.log('✅ Loaded via dev proxy');
+            }
+          }
+        } catch {}
       }
 
       if (!json) {
         throw new Error(
-          'Could not load booking code.\n\n' +
-          '• Make sure the local booking server is running (node booking-server.mjs)\n' +
-          '• Or check that the booking code is correct and valid on SportyBet'
+          'Could not load booking code: ' + code + '.\n\n' +
+          '• Check that the booking code is correct and still active on SportyBet.\n' +
+          '• If on localhost, verify "node booking-server.mjs" is running.'
         );
       }
 
@@ -422,15 +432,26 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     }
 
     try {
-      // Always use the local Playwright booking server — it uses the real browser session
-      const res = await fetch('http://localhost:3001/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selections }),
-      })
+      // Waterfall booking: Local Playwright -> Vercel Serverless /api/book -> Localhost:3001
+      let res = null;
+      const endpoints = ['/api/local/book', '/api/book', 'http://localhost:3001/book'];
 
-      if (!res.ok) {
-        throw new Error(`Booking server returned HTTP ${res.status}. Make sure the server is running.`)
+      for (const ep of endpoints) {
+        try {
+          const r = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selections }),
+          });
+          if (r.ok) {
+            res = r;
+            break;
+          }
+        } catch {}
+      }
+
+      if (!res) {
+        throw new Error('All booking endpoints failed. Ensure the server or Vercel function is active.');
       }
 
       const data = await res.json()

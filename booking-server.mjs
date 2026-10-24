@@ -655,10 +655,17 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // ── POST /load — load a booking code via real browser session (ultra-fast) ──
-  if (req.method === 'POST' && req.url === '/load') {
+  // ── POST or GET /load — load a booking code via real browser session (ultra-fast) ──
+  if ((req.method === 'POST' || req.method === 'GET') && (req.url.startsWith('/load') || req.url.startsWith('/api/load'))) {
     try {
-      const { code } = await readBody(req)
+      let code = ''
+      if (req.method === 'GET') {
+        const u = new URL(req.url, 'http://localhost:3001')
+        code = u.searchParams.get('code') || ''
+      } else {
+        const body = await readBody(req)
+        code = body?.code || ''
+      }
       if (!code) throw new Error('No booking code provided')
 
       const page = await getPage()
@@ -873,9 +880,9 @@ Be brutally honest. Use emojis. Format beautifully with headers and bullet point
   }
 
 
-  // ── POST /eval-legs — Gemini per-leg evaluator for SmartDrop ─────────────────
-  // Batches large slips into chunks of 12 legs per Gemini call to avoid timeouts.
-  if (req.method === 'POST' && req.url === '/eval-legs') {
+  // ── POST /eval-legs — AI per-leg evaluator for SmartDrop ─────────────────
+  // Batches large slips into chunks of 12 legs per AI call to avoid timeouts.
+  if (req.method === 'POST' && (req.url === '/eval-legs' || req.url === '/api/eval-legs')) {
     try {
       const { legs, goal } = await readBody(req)
       if (!Array.isArray(legs) || legs.length === 0) throw new Error('No legs provided')
@@ -936,7 +943,7 @@ Return ONLY a raw JSON array, no markdown:
 [{"legId": "exact ID", "trueProbability": 0.1-0.9, "ev": number, "volatility": 0.1-0.9, "shouldDrop": boolean, "rationale": "honest reason naming teams, no invented stats"}]`
 
         try {
-          const jsonStr = await callGemini(prompt, API_KEY, true)
+          const jsonStr = await callUnifiedAI(prompt, true)
           return JSON.parse(jsonStr || '[]')
         } catch (e) {
           console.error(`[SmartDrop] Chunk ${chunkIdx + 1} failed:`, e.message)
