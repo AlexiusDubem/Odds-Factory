@@ -1,119 +1,159 @@
-import { useEffect, useState } from 'react'
-import { doc, getDoc } from 'firebase/firestore'
-import { auth, db } from '../config/firebase'
+import { Link } from 'react-router-dom'
+import { auth, isFirebaseConfigured } from '../config/firebase'
+import { signOut } from 'firebase/auth'
 
 export const ProfilePanel = () => {
-  const [loading, setLoading] = useState(true)
+  const user = auth.currentUser
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!auth.currentUser) { setLoading(false); return; }
-      try {
-        const userRef = doc(db, 'users', auth.currentUser.uid)
-        const snap = await getDoc(userRef)
-        if (snap.exists()) {
-          // fetch any user fields if needed
-        }
-      } catch (err) {
-        console.error('Failed to fetch profile:', err)
-      } finally {
-        setLoading(false)
+  const handleLogout = () => {
+    if (confirm('Are you sure you want to log out of Odds Factory?')) {
+      if (isFirebaseConfigured) {
+        signOut(auth)
+      } else {
+        window.location.reload()
       }
     }
-    
-    fetchProfile()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <i className="fa-solid fa-circle-notch fa-spin text-3xl text-accent"></i>
-      </div>
-    )
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
-      <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm text-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white pointer-events-none"></div>
-        <div className="relative z-10">
-          <div className="w-24 h-24 bg-slate-900 rounded-full mx-auto flex items-center justify-center mb-6 shadow-xl border-4 border-white">
-            <i className="fa-solid fa-user-astronaut text-4xl text-white"></i>
+    <div className="space-y-6 max-w-4xl mx-auto pb-16 font-sans animate-in fade-in duration-300">
+      {/* ── User Identity Card ─────────────────────────────────────────── */}
+      <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 sm:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-zinc-950 text-white font-black text-xl sm:text-2xl flex items-center justify-center shadow-md shrink-0">
+              {user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'P'}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <i className="fa-solid fa-crown text-[9px] text-amber-500"></i>
+                  Pro Member
+                </span>
+                <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">
+                  Verified Punter
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-zinc-950 truncate">
+                {user?.displayName || (user?.email ? user.email.split('@')[0] : 'Odds Factory Punter')}
+              </h2>
+              <p className="text-xs text-zinc-400 font-mono mt-0.5 truncate">
+                {user?.email || 'guest@oddsfactory.local'}
+              </p>
+            </div>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 break-all px-2">{auth.currentUser?.email}</h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">OddsFactory Member</p>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleLogout}
+              className="py-2.5 px-4 bg-zinc-100 hover:bg-rose-50 hover:text-rose-600 text-zinc-700 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-zinc-200/60"
+            >
+              <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+              <span>Log Out</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Freemium Banner */}
-      <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-6 shadow-md text-white flex flex-col md:flex-row items-center justify-between gap-4">
-        <div>
-          <h3 className="font-black text-lg flex items-center gap-2">
-            <i className="fa-solid fa-crown text-amber-400"></i> Freemium Access Activated
+      {/* ── Admin Command Card ─────────────────────────────────────────── */}
+      <div className="bg-zinc-950 border border-zinc-800 rounded-[32px] p-6 sm:p-7 shadow-sm text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <i className="fa-solid fa-shield-halved text-[9px]"></i>
+              Administrator Privileges
+            </span>
+          </div>
+          <h3 className="text-lg font-black text-white tracking-tight">
+            Superadmin Command Center
           </h3>
-          <p className="text-sm text-violet-100 mt-1 max-w-xl">
-            OddsFactory is currently in Freemium mode! Premium plans are coming soon, but for now, enjoy full unlimited Pro access on the house.
+          <p className="text-xs text-zinc-400 font-medium">
+            Monitor real-time visitors, user signups, dropped picks, and system infrastructure.
           </p>
         </div>
-        <button className="px-5 py-2.5 bg-white text-indigo-600 font-bold text-sm rounded-xl hover:bg-slate-50 transition-colors shrink-0">
-          You're a Pro!
-        </button>
+
+        <Link
+          to="/control"
+          className="py-3 px-5 bg-white hover:bg-zinc-100 text-zinc-950 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
+        >
+          <i className="fa-solid fa-sliders text-xs"></i>
+          <span>Open Control Center</span>
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <i className="fa-solid fa-dna text-accent"></i> Betting DNA
+      {/* ── Two-Column Stats Bento ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Betting DNA */}
+        <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 shadow-[0_2px_16px_rgba(0,0,0,0.02)] space-y-4">
+          <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+            <i className="fa-solid fa-dna text-emerald-600"></i>
+            Betting Style & DNA
           </h3>
-          <div className="space-y-4">
+
+          <div className="space-y-3.5">
             <div>
-              <div className="flex justify-between text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">
+              <div className="flex justify-between text-xs font-bold text-zinc-600 mb-1">
                 <span>Risk Tolerance</span>
-                <span className="text-amber-500">Medium</span>
+                <span className="text-emerald-600 font-black">Balanced (Level 3)</span>
               </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-400 w-[60%] rounded-full"></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">
-                <span>Favorite Sport</span>
-                <span className="text-blue-500">Football</span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 w-[85%] rounded-full"></div>
+              <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 w-[60%] rounded-full"></div>
               </div>
             </div>
+
             <div>
-              <div className="flex justify-between text-xs font-bold text-slate-500 mb-1 uppercase tracking-widest">
-                <span>Market Preference</span>
-                <span className="text-emerald-500">1X2 & Goals</span>
+              <div className="flex justify-between text-xs font-bold text-zinc-600 mb-1">
+                <span>Primary Sport</span>
+                <span className="text-blue-600 font-black">Football (SportyBet)</span>
               </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 w-[70%] rounded-full"></div>
+              <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 w-[95%] rounded-full"></div>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-xs font-bold text-zinc-600 mb-1">
+                <span>Favorite Market</span>
+                <span className="text-indigo-600 font-black">Double Chance & Corners</span>
+              </div>
+              <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 w-[78%] rounded-full"></div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm text-white">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-            <i className="fa-solid fa-shield-halved text-blue-400"></i> Account Status
+        {/* Subscription & Capabilities */}
+        <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 shadow-[0_2px_16px_rgba(0,0,0,0.02)] space-y-4">
+          <h3 className="text-xs font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+            <i className="fa-solid fa-layer-group text-blue-600"></i>
+            Membership Features
           </h3>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b border-slate-800">
-              <span className="text-slate-400">Subscription</span>
-              <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                <i className="fa-solid fa-crown text-xs"></i> Pro Plan <span className="text-[10px] text-slate-400 uppercase">(Early Access Free)</span>
+
+          <div className="space-y-2 text-xs font-semibold">
+            <div className="flex items-center justify-between p-2.5 bg-zinc-50 rounded-xl border border-zinc-200/60">
+              <span className="text-zinc-700">SportyBet Live Booking</span>
+              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                <i className="fa-solid fa-check text-[10px]"></i> Unlimited
               </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-slate-800">
-              <span className="text-slate-400">API Calls Used</span>
-              <span className="font-bold">142 / 1000</span>
+            <div className="flex items-center justify-between p-2.5 bg-zinc-50 rounded-xl border border-zinc-200/60">
+              <span className="text-zinc-700">AI Neural Challenger</span>
+              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                <i className="fa-solid fa-check text-[10px]"></i> Active
+              </span>
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-400">Joined</span>
-              <span className="font-bold">June 2026</span>
+            <div className="flex items-center justify-between p-2.5 bg-zinc-50 rounded-xl border border-zinc-200/60">
+              <span className="text-zinc-700">Midnight Odds Access</span>
+              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                <i className="fa-solid fa-check text-[10px]"></i> Enabled
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 bg-zinc-50 rounded-xl border border-zinc-200/60">
+              <span className="text-zinc-700">Multi-Market Discovery</span>
+              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                <i className="fa-solid fa-check text-[10px]"></i> 12 Families
+              </span>
             </div>
           </div>
         </div>

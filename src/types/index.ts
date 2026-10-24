@@ -182,6 +182,7 @@ export interface Slip {
   survivalProbability: number
   createdAt: string
   stakePercent: number
+  droppedPicks?: any[]
 }
 
 export interface BacktestRecord {

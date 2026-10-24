@@ -23,6 +23,7 @@ const NAV_LINKS = [
   { path: '/audit', label: 'Audit Slip', icon: 'fa-solid fa-wand-magic-sparkles' },
   { path: '/history', label: 'History', icon: 'fa-solid fa-clock-rotate-left' },
   { path: '/profile', label: 'Profile', icon: 'fa-solid fa-user' },
+  { path: '/control', label: 'Admin', icon: 'fa-solid fa-shield-halved' },
 ]
 
 function App() {
@@ -53,6 +54,22 @@ function App() {
       setLoading(false)
 
       if (currentUser) {
+        // Record user session telemetry in Firestore
+        try {
+          setDoc(doc(db, 'users', currentUser.uid), {
+            uid: currentUser.uid,
+            email: currentUser.email || 'guest@oddsfactory.local',
+            displayName: currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Punter'),
+            lastSeenAt: serverTimestamp(),
+            device: navigator.userAgent.includes('Mobile') ? 'Mobile Device' : 'Desktop Browser',
+            isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent),
+            isGuest: !currentUser.email || currentUser.email.includes('@oddsfactory.local'),
+            createdAt: serverTimestamp(),
+          }, { merge: true }).catch(() => {})
+        } catch (e) {
+          console.warn('Telemetry error:', e)
+        }
+
         // Request Web Push token and save to DB
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
