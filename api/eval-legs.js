@@ -2,6 +2,7 @@
  * Vercel Serverless Function: POST /api/eval-legs
  * Evaluates accumulator slip legs to identify weak links, calculate EV,
  * and provide rigorous punter-level audit rationales.
+ * Implements ODDS FACTORY — MASTER SYSTEM INSTRUCTION (Alternative-Market Challenge).
  */
 
 export default async function handler(req, res) {
@@ -15,30 +16,26 @@ export default async function handler(req, res) {
   }
 
   const legsDescription = legs.map((l, i) =>
-    `${i + 1}. [ID: ${l.id}] ${l.matchLabel || `${l.homeTeam} vs ${l.awayTeam}`} | Market: ${l.market} | Odds: ${l.odds} | Single Prob: ${l.probability || Math.round((1 / (l.odds || 1.5)) * 100)}%`
+    `${i + 1}. [ID: ${l.id}] ${l.matchLabel || `${l.homeTeam} vs ${l.awayTeam}`} | Market: ${l.market} | Odds: ${l.odds} | Implied Prob: ${Math.round((1 / (l.odds || 1.5)) * 100)}%`
   ).join('\n')
 
-  const prompt = `You are Odds Factory's Elite Risk & Slip Audit Engine.
-Audit the following accumulator selections. Your job is to protect the punter's accumulator from dropping out by identifying toxic, high-variance, or trap selections.
+  const prompt = `You are the senior football risk analyst and accumulator evaluation engine powering Odds Factory.
+
+ODDS FACTORY MASTER SYSTEM INSTRUCTION:
+- Audit each selection independently against the user's objective (Goal Mode: ${goal?.mode || 'max_safety'}).
+- FAIR MARKET CHALLENGE: Does another market (e.g. Over 7.5/8.5 Corners, Double Chance, Draw No Bet, or Team Goals) offer stronger evidence and less variance than the current selection?
+- Mark 'shouldDrop: true' for:
+  * Negative EV lines where the price is squeezed.
+  * Away straight wins on low odds (notorious accumulator traps).
+  * High-variance lines (Over 3.5 Goals, exact score, volatile card markets).
+- Mark 'shouldDrop: false' for:
+  * High-probability, evidence-supported selections (Double Chance 1X/X2, Over 1.5 Goals on active pacers, DNB, Corners Over lines).
+- Citing exact teams, explain the risk or strength in 1 concise sentence.
 
 Selections:
 ${legsDescription}
 
-Audit Goal Mode: ${goal?.mode || 'max_safety'}
-
-STRICT PUNTER AUDIT RULES:
-1. Mark 'shouldDrop: true' for:
-   - High-variance lines (e.g. Over 3.5, exact goals, underdog straight wins).
-   - Away straight wins on low odds (away teams are volatile in accumulators).
-   - Negative EV selections where bookmaker margin squeezes the line too tight.
-2. Mark 'shouldDrop: false' for:
-   - Double Chance (1X/X2) on strong home/away sides.
-   - Over 1.5 Goals on high-pace matches (very safe 2-goal threshold).
-   - Draw No Bet (DNB) with safety void cushions.
-   - Corners Over lines (7.5, 8.5) which are high-volume and non-goal dependent.
-3. Rationale MUST name the exact teams and concisely explain the risk in 1 clear sentence.
-
-Return ONLY a raw JSON array of objects with this structure:
+Return ONLY a raw JSON array of objects with this exact structure:
 [
   {
     "legId": "exact leg ID from prompt",
@@ -141,7 +138,7 @@ Return ONLY a raw JSON array of objects with this structure:
     const [home = 'Home', away = 'Away'] = (l.matchLabel || '').split(' vs ')
     let rationale = `${home} vs ${away}: ${l.market} @${odds.toFixed(2)} maintains a calibrated ${Math.round(prob * 100)}% model survival rating.`
     if (shouldDrop) {
-      rationale = `${home} vs ${away}: ${l.market} @${odds.toFixed(2)} carries elevated variance (EV ${ev >= 0 ? `+${ev}` : ev}) — consider swapping to Double Chance or Over 1.5.`
+      rationale = `${home} vs ${away}: ${l.market} @${odds.toFixed(2)} carries elevated variance (EV ${ev >= 0 ? `+${ev}` : ev}) — consider swapping to Double Chance or Corners.`
     }
 
     return {

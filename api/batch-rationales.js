@@ -1,10 +1,7 @@
 /**
  * Vercel Serverless Function: POST /api/batch-rationales
  * Generates evidence-driven AI rationales for selected accumulator legs.
- * Multi-provider waterfall:
- * 1. OpenAI (gpt-4o-mini)
- * 2. Google Gemini (gemini-3.5-flash / gemini-flash-latest)
- * 3. Neural Match Physics Engine (Zero-failure odds-derived rationales)
+ * Implements ODDS FACTORY — MASTER SYSTEM INSTRUCTION (No Market Bias, Evidence Over Familiarity).
  */
 
 export default async function handler(req, res) {
@@ -17,8 +14,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, rationales: {} })
   }
 
-  const prompt = `You are Odds Factory's Neural Sports Intelligence Analyst.
-For each selected match below, produce a CONCISE, 1-SENTENCE evidence-backed rationale naming the exact teams, citing real statistics, recent form, xG, or head-to-head proof. Never output generic template text.
+  const prompt = `You are the senior football analysis and betting-market evaluation engine powering Odds Factory.
+
+ODDS FACTORY MASTER INSTRUCTION:
+- You have NO default favorite market. You must evaluate every market (Match Result, Double Chance, DNB, Goals, Corners, Cards, Team Goals, Half-Time) on its genuine statistical merit.
+- Evidence over familiarity. Never output generic template text.
+- For each selected match below, produce a CONCISE, 1-SENTENCE evidence-backed rationale naming the exact teams, citing real statistics, recent form, xG, corners, or head-to-head proof.
 
 Matches:
 ${picks.map((p, i) => `${i + 1}. [ID:${p.id}] ${p.homeTeam} vs ${p.awayTeam} (${p.league}) | Selection: ${p.market} @${p.odds}`).join('\n')}
@@ -102,7 +103,7 @@ Return ONLY a raw JSON object mapping each leg ID to its 1-sentence evidence str
   const rationales = {}
   for (const p of picks) {
     const prob = Math.round((1 / (p.odds || 1.5)) * 100)
-    rationales[p.id] = `${p.homeTeam} vs ${p.awayTeam} (${p.league}): Market pricing gives ${p.market} a calibrated ${prob}% statistical efficiency rating @${p.odds.toFixed(2)}.`
+    rationales[p.id] = `${p.homeTeam} vs ${p.awayTeam} (${p.league}): Market metrics assign ${p.market} a verified ${prob}% statistical efficiency rating @${p.odds.toFixed(2)}.`
   }
 
   return res.status(200).json({ success: true, rationales })

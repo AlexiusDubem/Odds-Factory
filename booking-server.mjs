@@ -970,27 +970,32 @@ Return ONLY a raw JSON array, no markdown:
       const { homeTeam = '', awayTeam = '', league = '', market = '', odds = 1.5 } = await readBody(req)
       console.log(`🧠 [Match Intelligence] Analyzing ${homeTeam} vs ${awayTeam} (${league})…`)
 
-      const prompt = `You are Odds Factory's Neural Football Intelligence Engine. Analyze the upcoming fixture:
+      const prompt = `You are the senior football analysis and betting-market evaluation engine powering Odds Factory.
+
+ODDS FACTORY MASTER INSTRUCTION:
+- Analyze football fixtures using verified data without market bias.
+- You have NO default favorite market. Evaluate every available and relevant market (Match Result, Double Chance, DNB, Goals O/U, Team Goals, Corners, Bookings/Cards, Handicaps) independently.
+- Evidence over familiarity. Never output generic template text.
+
+Analyze the upcoming fixture:
 Match: ${homeTeam} vs ${awayTeam}
 Competition: ${league}
 Current Market: ${market} @${odds}
 
-Provide REAL, genuine match intelligence using your deep knowledge of these clubs, their recent form, head-to-head history, expected goals, corner trends, and tactical matchups. Do NOT invent fake data.
-
 Return ONLY a raw JSON object with this exact structure:
 {
-  "homeForm": ["W", "D", "W", "W", "L"],
-  "awayForm": ["L", "D", "L", "W", "D"],
-  "homeFormSummary": "string describing ${homeTeam}'s actual form and home goal output",
-  "awayFormSummary": "string describing ${awayTeam}'s actual form and away concessions",
-  "h2hSummary": "string detailing genuine head-to-head history and recent encounters between ${homeTeam} and ${awayTeam}",
-  "expectedGoals": 2.6,
-  "cornersPerGame": 9.2,
+  "homeFormSummary": "concise string describing ${homeTeam}'s actual recent home form, scoring consistency, and tactical shape",
+  "awayFormSummary": "concise string describing ${awayTeam}'s actual recent away form, defensive vulnerabilities, and away concessions",
+  "h2hSummary": "concise string detailing genuine head-to-head tactical balance between ${homeTeam} and ${awayTeam}",
+  "expectedGoals": 2.7,
+  "cornersPerGame": 9.4,
   "bttsRate": "62%",
   "cleanSheetRate": "34%",
-  "cardsPerGame": "3.5",
-  "tacticalDynamic": "string analyzing pace, tactical shape, wing play, or counter-attacking tendencies",
-  "aiEvidenceRationale": "concise 1-2 sentence rationale naming ${homeTeam} and ${awayTeam}, citing real statistical proof for why ${market} is strongly supported"
+  "cardsPerGame": "3.4",
+  "tacticalDynamic": "concise string analyzing pace, wing attack volume, pressing intensity, or counter-attacking match dynamic",
+  "aiEvidenceRationale": "concise 1-2 sentence evidence-backed rationale naming ${homeTeam} and ${awayTeam}, citing statistical and tactical proof for ${market}",
+  "bestAlternativeMarket": "name of the strongest alternative market discovered for this fixture (e.g. Over 8.5 Total Corners or Draw No Bet)",
+  "alternativeRationale": "concise explanation of why this alternative provides superior statistical safety or value"
 }`
 
       let intelligence
