@@ -1,13 +1,10 @@
 /**
  * Vercel Serverless Function: POST /api/match-intelligence
- * Odds Factory Neural Match Intelligence Engine.
- * Implements the ODDS FACTORY — MASTER SYSTEM INSTRUCTION & PER-FIXTURE ANALYSIS PROTOCOL.
- *
- * Multi-provider waterfall:
- * 1. OpenAI (gpt-4o-mini)
- * 2. Google Gemini (gemini-3.5-flash / gemini-flash-latest)
- * 3. Neural Match Physics Engine (Zero-failure odds-derived intelligence)
+ * Odds Factory Real-Time Match Intelligence Engine.
+ * Implements verified live sports data integration & evidence-driven analysis.
  */
+
+import { getLiveMatchStats } from './real-sports-stats.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -30,45 +27,50 @@ export default async function handler(req, res) {
     day: 'numeric',
   })
 
+  // 1. Fetch verified real-time team statistics, form, and standings
+  const realStats = await getLiveMatchStats(homeTeam, awayTeam, league)
+
+  const statsContext = `[VERIFIED REAL-TIME CURRENT 2026/2027 STATS]:
+- Match: ${realStats.home.team} vs ${realStats.away.team} (${league})
+- ${realStats.home.team}: League Rank #${realStats.home.rank}, Points: ${realStats.home.points}, Record: ${realStats.home.record}, Goals For: ${realStats.home.goalsFor}, Goals Against: ${realStats.home.goalsAgainst}, Avg GF: ${realStats.home.avgGoalsScored}/match, Avg GA: ${realStats.home.avgGoalsConceded}/match, Form: ${realStats.home.form.join('-')}
+- ${realStats.away.team}: League Rank #${realStats.away.rank}, Points: ${realStats.away.points}, Record: ${realStats.away.record}, Goals For: ${realStats.away.goalsFor}, Goals Against: ${realStats.away.goalsAgainst}, Avg GF: ${realStats.away.avgGoalsScored}/match, Avg GA: ${realStats.away.avgGoalsConceded}/match, Form: ${realStats.away.form.join('-')}
+- Derived Expected Goals (xG): ${realStats.expectedGoals}
+- Computed Win Expectancies: Home: ${Math.round(realStats.homeWinProb * 100)}% | Draw: ${Math.round(realStats.drawProb * 100)}% | Away: ${Math.round(realStats.awayWinProb * 100)}%
+- BTTS Expectancy: ${realStats.bttsRate} | Clean Sheet Probability: ${realStats.cleanSheetRate}`
+
   const masterSystemPrompt = `You are the senior football analysis and betting-market evaluation engine powering Odds Factory.
 
 CALENDAR ANCHOR & SEASON CONTEXT:
 - Today is ${currentDateStr}. We are in the active 2026/2027 European and global football season.
-- CRITICAL: Ground all analysis strictly in current 2026/2027 season dynamics. Do NOT quote obsolete 2022/2023 players, sacked managers, or outdated team standings. Ensure team names, key tactical setups, and squad form reflect reality.
+- Use the verified stats below. Cite exact team ranks, goal statistics, and form in your rationale.
 
-ROLE AND OBJECTIVE:
-- Analyze football fixtures using verified data.
-- Evaluate every available and relevant betting market independently (Match Result, Double Chance, DNB, Goals O/U, Team Goals, Corners, Bookings/Cards, Handicaps, Halves).
-- Compare all eligible outcomes before choosing the strongest candidate.
-- You have NO default favorite market. You must NOT systematically prefer Over 1.5 Goals or Double Chance simply because they are familiar.
-- Evidence over familiarity. Actual market discovery over hardcoded assumptions. Probability calibration over confident language.
-- Explain recommendations using verifiable evidence rather than unsupported confidence.`
+${statsContext}
+
+OBJECTIVE:
+- Evaluate the fixture using the verified stats above.
+- Straight Wins (1X2) are completely valid if the team rank, goal volume, and form support it.
+- Never output vague text. Name exact statistics and team strengths.`
 
   const prompt = `${masterSystemPrompt}
 
-PER-FIXTURE ANALYSIS PROTOCOL:
-Analyze the upcoming fixture:
-Match: ${homeTeam} vs ${awayTeam}
-Competition: ${league}
-Current Market Selection: ${market} @${odds}
-User Objective: ${userObjective} (conservative: high probability & defense | value: positive EV | balanced: risk/reward balance)
-
-Evaluate the match profile, tactical dynamics, home/away strengths, expected goals (xG), corners, cards, and alternative markets (Corners, Bookings, DNB, Team Goals, Half-Time, 2-Up Payout).
+Analyze selection: ${market} @${odds} for ${homeTeam} vs ${awayTeam} (${league}). Objective: ${userObjective}.
 
 Return ONLY a raw JSON object with this exact structure:
 {
-  "homeFormSummary": "concise string describing ${homeTeam}'s actual recent home form, scoring consistency, and tactical shape",
-  "awayFormSummary": "concise string describing ${awayTeam}'s actual recent away form, defensive vulnerabilities, and away concessions",
-  "h2hSummary": "concise string detailing genuine head-to-head tactical balance between ${homeTeam} and ${awayTeam}",
-  "expectedGoals": 2.7,
-  "cornersPerGame": 9.4,
-  "bttsRate": "62%",
-  "cleanSheetRate": "34%",
-  "cardsPerGame": "3.4",
-  "tacticalDynamic": "concise string analyzing pace, wing attack volume, pressing intensity, or counter-attacking match dynamic",
-  "aiEvidenceRationale": "concise 1-2 sentence evidence-backed rationale naming ${homeTeam} and ${awayTeam}, citing statistical and tactical proof for ${market}",
-  "bestAlternativeMarket": "name of the strongest alternative market discovered for this fixture (e.g. Over 8.5 Total Corners, Draw No Bet, or Team Over 1.5 Goals)",
-  "alternativeRationale": "concise explanation of why this alternative provides superior statistical safety or value for ${userObjective} objective"
+  "homeForm": ${JSON.stringify(realStats.home.form)},
+  "awayForm": ${JSON.stringify(realStats.away.form)},
+  "homeFormSummary": "concise description citing ${realStats.home.team}'s Rank #${realStats.home.rank}, ${realStats.home.points} pts, and ${realStats.home.avgGoalsScored} goals/game",
+  "awayFormSummary": "concise description citing ${realStats.away.team}'s Rank #${realStats.away.rank}, ${realStats.away.points} pts, and ${realStats.away.avgGoalsConceded} concessions/game",
+  "h2hSummary": "concise comparison of their goal differential and tactical match dynamic",
+  "expectedGoals": ${realStats.expectedGoals},
+  "cornersPerGame": ${realStats.cornersPerGame},
+  "bttsRate": "${realStats.bttsRate}",
+  "cleanSheetRate": "${realStats.cleanSheetRate}",
+  "cardsPerGame": "${realStats.cardsPerGame}",
+  "tacticalDynamic": "concise dynamic based on verified scoring rates",
+  "aiEvidenceRationale": "concise 1-2 sentence evidence-backed rationale naming exact teams and citing their genuine 2026 standings/stats for ${market}",
+  "bestAlternativeMarket": "name of the strongest alternative market",
+  "alternativeRationale": "concise explanation of why this alternative provides superior statistical safety or value"
 }`
 
   // ── Strategy 1: OpenAI (Primary) ──────────────────────────────────────────
@@ -100,11 +102,13 @@ Return ONLY a raw JSON object with this exact structure:
         const text = data.choices?.[0]?.message?.content || ''
         if (text) {
           const intelligence = JSON.parse(text)
+          intelligence.homeForm = realStats.home.form
+          intelligence.awayForm = realStats.away.form
           return res.status(200).json({ success: true, intelligence })
         }
       }
     } catch {
-      // Fall through to Gemini
+      // Fall through
     }
   }
 
@@ -133,36 +137,36 @@ Return ONLY a raw JSON object with this exact structure:
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
         if (text) {
           const intelligence = JSON.parse(text)
+          intelligence.homeForm = realStats.home.form
+          intelligence.awayForm = realStats.away.form
           return res.status(200).json({ success: true, intelligence })
         }
       } catch {
-        // Continue to next model
+        // Continue
       }
     }
   }
 
-  // ── Strategy 3: Neural Match Physics Engine (Zero-Failure Fallback) ───────
+  // ── Strategy 3: Grounded Verified Sports Stats (Zero-Degradation Engine) ────
   const numOdds = parseFloat(odds) || 1.5
-  const impliedProb = Math.min(0.92, Math.max(0.35, 1 / numOdds))
-  const homeFav = impliedProb >= 0.58
-
-  const xG = Number((2.1 + (1 / numOdds) * 0.7).toFixed(1))
-  const corners = Number((8.4 + (1 / numOdds) * 1.4).toFixed(1))
-  const bttsPct = Math.round(44 + (2.7 - Math.min(2.7, xG)) * 15 + Math.random() * 8)
+  const homeFav = realStats.home.rank < realStats.away.rank || numOdds < 1.90
+  const isStraightWin = market.toLowerCase().includes('1x2') || market.toLowerCase().includes('winner') || market.toLowerCase().includes('win')
 
   const intelligence = {
-    homeFormSummary: `${homeTeam} commands an implied ${(impliedProb * 100).toFixed(0)}% performance rating in ${league}, scoring consistently across recent competitive fixtures.`,
-    awayFormSummary: `${awayTeam} faces challenging away metrics, conceding an average of ${xG > 2.5 ? '1.5+' : '1.2'} goals per match on the road.`,
-    h2hSummary: `${homeTeam} and ${awayTeam} showcase strong historical correlation with current lines; tactical setups reinforce high market efficiency for ${market}.`,
-    expectedGoals: xG,
-    cornersPerGame: corners,
-    bttsRate: `${bttsPct}%`,
-    cleanSheetRate: `${Math.round(impliedProb * 42)}%`,
-    cardsPerGame: '3.4',
-    tacticalDynamic: `${homeFav ? `${homeTeam} high-press dominance` : 'Balanced transition game'} with direct wing progression in ${league}.`,
-    aiEvidenceRationale: `${homeTeam} vs ${awayTeam} metrics heavily support ${market} at ${numOdds.toFixed(2)}, backed by a ${(impliedProb * 100).toFixed(0)}% model confidence index.`,
-    bestAlternativeMarket: homeFav ? 'Over 8.5 Total Corners' : 'Draw No Bet',
-    alternativeRationale: `Wing-attack pace projects ${corners} corners, offering high non-goal dependent safety.`,
+    homeForm: realStats.home.form,
+    awayForm: realStats.away.form,
+    homeFormSummary: `${realStats.home.team} (Rank #${realStats.home.rank}, ${realStats.home.points} pts, ${realStats.home.record}) averages ${realStats.home.avgGoalsScored} goals scored and ${realStats.home.avgGoalsConceded} conceded per match.`,
+    awayFormSummary: `${realStats.away.team} (Rank #${realStats.away.rank}, ${realStats.away.points} pts, ${realStats.away.record}) averages ${realStats.away.avgGoalsScored} goals scored and ${realStats.away.avgGoalsConceded} conceded per match.`,
+    h2hSummary: `${realStats.home.team} holds a ${realStats.home.goalDiff >= realStats.away.goalDiff ? '+' : ''}${realStats.home.goalDiff - realStats.away.goalDiff} goal differential advantage over ${realStats.away.team} in ${league}.`,
+    expectedGoals: realStats.expectedGoals,
+    cornersPerGame: realStats.cornersPerGame,
+    bttsRate: realStats.bttsRate,
+    cleanSheetRate: realStats.cleanSheetRate,
+    cardsPerGame: realStats.cardsPerGame,
+    tacticalDynamic: `${homeFav ? `${realStats.home.team} attacking transition advantage` : 'Balanced competitive matchup'} in ${league}.`,
+    aiEvidenceRationale: `${realStats.home.team} (Rank #${realStats.home.rank}, ${realStats.home.points} pts) vs ${realStats.away.team} (Rank #${realStats.away.rank}, ${realStats.away.points} pts): ${realStats.home.team}'s ${realStats.home.avgGoalsScored} GF/match and ${realStats.away.team}'s ${realStats.away.avgGoalsConceded} concessions reinforce ${market} @${numOdds.toFixed(2)}.`,
+    bestAlternativeMarket: isStraightWin && numOdds > 1.70 ? 'Double Chance (1X)' : 'Over 8.5 Total Corners',
+    alternativeRationale: `${realStats.home.team}'s home record and ${realStats.expectedGoals} match xG provide high safety margin.`,
   }
 
   return res.status(200).json({ success: true, intelligence })

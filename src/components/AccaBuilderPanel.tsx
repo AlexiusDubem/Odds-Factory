@@ -243,9 +243,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           if (p.hoursFromNow > 168) return false
         }
 
-        // Avoid straight Away Win traps on low odds (<1.70) which bust accumulators
-        if (p.marketId === '1' && String(p.outcomeId) === '3' && p.odds < 1.70) return false
-
         // Exclude tight risky under lines (Under 0.5, 1.5, 2.5) that destroy multi-leg slips
         const lowerMarket = (p.market || '').toLowerCase()
         if (lowerMarket.includes('under 0.5') || lowerMarket.includes('under 1.5') || lowerMarket.includes('under 2.5')) return false
@@ -268,7 +265,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             if (duration === '3days' && p.hoursFromNow > 72) return false
             if (p.hoursFromNow > 168) return false
           }
-          if (p.marketId === '1' && String(p.outcomeId) === '3' && p.odds < 1.70) return false
           const lowerMarket = (p.market || '').toLowerCase()
           if (lowerMarket.includes('under 0.5') || lowerMarket.includes('under 1.5') || lowerMarket.includes('under 2.5')) return false
           if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
