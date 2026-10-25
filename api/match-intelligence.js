@@ -23,7 +23,18 @@ export default async function handler(req, res) {
     userObjective = 'conservative',
   } = req.body || {}
 
+  const currentDateStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
   const masterSystemPrompt = `You are the senior football analysis and betting-market evaluation engine powering Odds Factory.
+
+CALENDAR ANCHOR & SEASON CONTEXT:
+- Today is ${currentDateStr}. We are in the active 2026/2027 European and global football season.
+- CRITICAL: Ground all analysis strictly in current 2026/2027 season dynamics. Do NOT quote obsolete 2022/2023 players, sacked managers, or outdated team standings. Ensure team names, key tactical setups, and squad form reflect reality.
 
 ROLE AND OBJECTIVE:
 - Analyze football fixtures using verified data.

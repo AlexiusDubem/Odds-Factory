@@ -223,6 +223,8 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       // 1. Filter candidates by duration, league preference, market family, and risk band
       let candidates = allLivePicks.filter((p) => {
         if (p.hoursFromNow !== undefined) {
+          // Pre-match rule: Match must not have started yet (diffHours >= 0.05 / 3 mins ahead)
+          if (p.hoursFromNow < 0.05) return false
           if (duration === 'today' && p.hoursFromNow > 24) return false
           if (duration === '3days' && p.hoursFromNow > 72) return false
           if (duration === 'midnight') {
@@ -236,10 +238,18 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               const isNightText = ['22:', '23:', '00:', '01:', '02:', '03:', '04:', '05:'].some(h => lowerKo.includes(h))
               if (!isNightText) return false
             }
-            if (p.hoursFromNow > 28 || p.hoursFromNow < -2) return false
+            if (p.hoursFromNow > 28) return false
           }
           if (p.hoursFromNow > 168) return false
         }
+
+        // Avoid straight Away Win traps on low odds (<1.70) which bust accumulators
+        if (p.marketId === '1' && String(p.outcomeId) === '3' && p.odds < 1.70) return false
+
+        // Exclude tight risky under lines (Under 0.5, 1.5, 2.5) that destroy multi-leg slips
+        const lowerMarket = (p.market || '').toLowerCase()
+        if (lowerMarket.includes('under 0.5') || lowerMarket.includes('under 1.5') || lowerMarket.includes('under 2.5')) return false
+
         if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
         if (leagueScope === 'small' && p.leagueScope && p.leagueScope === 'major') return false
         if (marketFamily !== 'all' && p.marketFamily && p.marketFamily !== marketFamily) return false
@@ -253,10 +263,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       if (candidates.length < numGames) {
         candidates = allLivePicks.filter((p) => {
           if (p.hoursFromNow !== undefined) {
+            if (p.hoursFromNow < 0.05) return false
             if (duration === 'today' && p.hoursFromNow > 24) return false
             if (duration === '3days' && p.hoursFromNow > 72) return false
             if (p.hoursFromNow > 168) return false
           }
+          if (p.marketId === '1' && String(p.outcomeId) === '3' && p.odds < 1.70) return false
+          const lowerMarket = (p.market || '').toLowerCase()
+          if (lowerMarket.includes('under 0.5') || lowerMarket.includes('under 1.5') || lowerMarket.includes('under 2.5')) return false
           if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
           if (leagueScope === 'small' && p.leagueScope && p.leagueScope === 'major') return false
           if (marketFamily !== 'all' && p.marketFamily && p.marketFamily !== marketFamily) return false
@@ -267,15 +281,19 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       if (candidates.length === 0) candidates = allLivePicks
 
-      // 2. Target leg calculation
-      const idealLegOdds = useTargetOdds
-        ? Math.pow(targetOdds, 1 / numGames)
-        : (risk.minOdds + risk.maxOdds) / 2
-
+      // 2. Intelligent Candidate Ranking:
+      // Priority 1: Major European Leagues (Premier League, La Liga, Serie A, Bundesliga, Champions League)
+      // Priority 2: High-Cushion Safety Markets (Double Chance 1X/X2, Over 1.5 Goals, Draw No Bet)
+      // Priority 3: Highest Statistical Probability & EV
       candidates.sort((a, b) => {
-        const distA = Math.abs(a.odds - idealLegOdds)
-        const distB = Math.abs(b.odds - idealLegOdds)
-        if (Math.abs(distA - distB) > 0.04) return distA - distB
+        const scopeA = a.leagueScope === 'major' ? 2 : a.leagueScope === 'small' ? 1 : 0
+        const scopeB = b.leagueScope === 'major' ? 2 : b.leagueScope === 'small' ? 1 : 0
+        if (scopeA !== scopeB) return scopeB - scopeA
+
+        const isCushionA = (a.marketId === '10' || a.marketId === '11' || (a.marketFamily === 'goals' && a.market.includes('Over 1.5'))) ? 1 : 0
+        const isCushionB = (b.marketId === '10' || b.marketId === '11' || (b.marketFamily === 'goals' && b.market.includes('Over 1.5'))) ? 1 : 0
+        if (isCushionA !== isCushionB) return isCushionB - isCushionA
+
         return b.probability - a.probability
       })
 
@@ -787,6 +805,18 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               </button>
             ))}
           </div>
+
+          {numGames >= 8 && (
+            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-200">
+              <i className="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5 shrink-0"></i>
+              <div className="space-y-0.5">
+                <span className="font-bold">Multi-Leg Accumulator Risk Advisory:</span>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Building {numGames} matches compounds variance mathematically. The AI prioritizes Double Chance (1X/X2) and high-cushion lines from top European leagues to maximize survival. Consider splitting into two smaller banker tickets to preserve capital.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. Risk Level Slider (Odds Per Game) */}

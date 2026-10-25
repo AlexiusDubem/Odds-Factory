@@ -19,7 +19,18 @@ export default async function handler(req, res) {
     `${i + 1}. [ID: ${l.id}] ${l.matchLabel || `${l.homeTeam} vs ${l.awayTeam}`} | Market: ${l.market} | Odds: ${l.odds} | Implied Prob: ${Math.round((1 / (l.odds || 1.5)) * 100)}%`
   ).join('\n')
 
+  const currentDateStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
   const prompt = `You are the senior football risk analyst and accumulator evaluation engine powering Odds Factory.
+
+CALENDAR ANCHOR & SEASON CONTEXT:
+- Today is ${currentDateStr}. We are in the active 2026/2027 European and global football season.
+- CRITICAL: Ground all assessments in active 2026/2027 season dynamics. Do NOT quote obsolete historical rosters or obsolete managerial records.
 
 ODDS FACTORY MASTER SYSTEM INSTRUCTION:
 - Audit each selection independently against the user's objective (Goal Mode: ${goal?.mode || 'max_safety'}).

@@ -3,32 +3,26 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getMessaging, isSupported } from 'firebase/messaging'
 
-const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY
+const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyARS5Mzvp22Wt1qn8HFknlaAl83YHRPwyY'
 export const isFirebaseConfigured = Boolean(
   rawApiKey && rawApiKey.trim() !== '' && !rawApiKey.includes('your_api_key')
 )
 
-// Fallback configuration prevents Firebase from throwing auth/invalid-api-key synchronously during import
 const firebaseConfig = {
-  apiKey: isFirebaseConfigured ? rawApiKey : 'AIzaSyDummyKeyForDevModePreview123456',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'odds-factory-dev.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'odds-factory-dev',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'odds-factory-dev.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1234567890',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1234567890:web:abcdef123456',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ''
+  apiKey: rawApiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'odds-factory.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'odds-factory',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'odds-factory.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '461615555734',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:461615555734:web:09a6343d1a0ed953cdceb7',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-5ZEL06L9DR',
 }
 
-if (!isFirebaseConfigured) {
-  console.info('ℹ️ [Firebase] Running in Dev/Preview Mode. Guest session enabled.')
-}
-
-// Safely initialize Firebase app without throwing module evaluation errors
 let firebaseApp
 try {
   firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
 } catch (e) {
-  console.warn('Firebase initialization error, retrying with fallback config:', e)
+  console.warn('Firebase initialization error, retrying:', e)
   firebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig)
 }
 
@@ -37,7 +31,6 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const googleProvider = new GoogleAuthProvider()
 
-// Initialize Messaging (conditionally because it requires browser support)
 export const messaging = async () => {
   try {
     if (!isFirebaseConfigured) return null

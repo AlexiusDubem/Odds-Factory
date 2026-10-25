@@ -201,8 +201,8 @@ export default async function handler(req, res) {
         const now = Date.now()
         const diffHours = e.estimateStartTime ? (e.estimateStartTime - now) / (3600 * 1000) : 0
 
-        // Strict limit: must not be past maxHours or past 7 days (168 hours)
-        if (e.estimateStartTime && (diffHours < -2 || diffHours > maxHours || diffHours > 168)) {
+        // Strict limit: match must be upcoming (at least 3 mins ahead), within maxHours, and not past 7 days
+        if (e.estimateStartTime && (diffHours < 0.05 || diffHours > maxHours || diffHours > 168)) {
           continue
         }
 

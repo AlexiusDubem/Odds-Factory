@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore'
-import { auth, db } from '../config/firebase'
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, limit } from 'firebase/firestore'
+import { auth, db, isFirebaseConfigured } from '../config/firebase'
 
 export interface AppNotification {
   id: string
@@ -8,6 +8,7 @@ export interface AppNotification {
   message: string
   read: boolean
   createdAt: any
+  isBroadcast?: boolean
 }
 
 export function NotificationCenter() {
@@ -23,39 +24,66 @@ export function NotificationCenter() {
   }, [])
 
   useEffect(() => {
-    if (!auth.currentUser) return
+    if (!isFirebaseConfigured) return
 
-    const notifRef = collection(db, 'users', auth.currentUser.uid, 'notifications')
-    const q = query(notifRef, orderBy('createdAt', 'desc'))
+    let userNotifs: AppNotification[] = []
+    let broadcastNotifs: AppNotification[] = []
 
-    let isInitialLoad = true
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data: AppNotification[] = []
-      snapshot.forEach(doc => {
-        data.push({ id: doc.id, ...doc.data() } as AppNotification)
+    const mergeAndSort = () => {
+      const combined = [...userNotifs, ...broadcastNotifs].sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (typeof a.createdAt === 'number' ? a.createdAt : 0)
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (typeof b.createdAt === 'number' ? b.createdAt : 0)
+        return timeB - timeA
       })
-      setNotifications(data)
+      setNotifications(combined)
+    }
 
-      // Trigger Web Push for new unread notifications
-      if (!isInitialLoad && 'Notification' in window && Notification.permission === 'granted') {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const notif = change.doc.data() as AppNotification
-            if (!notif.read) {
-              new Notification(notif.title, {
-                body: notif.message,
-                icon: '/logo.png'
-              })
-            }
+    // 1. Subscribe to Global Broadcasts
+    let unsubBroadcasts: (() => void) | undefined
+    try {
+      const bQuery = query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(10))
+      unsubBroadcasts = onSnapshot(bQuery, (snapshot) => {
+        const data: AppNotification[] = []
+        snapshot.forEach((d) => {
+          const item = d.data()
+          if (item.active !== false) {
+            data.push({
+              id: d.id,
+              title: item.title || 'Broadcast',
+              message: item.message || '',
+              read: false,
+              createdAt: item.createdAt,
+              isBroadcast: true,
+            })
           }
         })
-      }
-      isInitialLoad = false
-    })
+        broadcastNotifs = data
+        mergeAndSort()
+      }, () => {})
+    } catch {}
 
-    return () => unsubscribe()
-  }, [])
+    // 2. Subscribe to User-Specific Notifications
+    let unsubUserNotifs: (() => void) | undefined
+    if (auth.currentUser) {
+      try {
+        const notifRef = collection(db, 'users', auth.currentUser.uid, 'notifications')
+        const q = query(notifRef, orderBy('createdAt', 'desc'), limit(15))
+        unsubUserNotifs = onSnapshot(q, (snapshot) => {
+          const data: AppNotification[] = []
+          snapshot.forEach((d) => {
+            data.push({ id: d.id, ...d.data(), isBroadcast: false } as AppNotification)
+          })
+          userNotifs = data
+          mergeAndSort()
+        }, () => {})
+      } catch {}
+    }
+
+    return () => {
+      if (unsubBroadcasts) unsubBroadcasts()
+      if (unsubUserNotifs) unsubUserNotifs()
+    }
+  }, [auth.currentUser])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -68,105 +96,122 @@ export function NotificationCenter() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleMarkAsRead = async (id: string) => {
+  const handleMarkAsRead = async (n: AppNotification) => {
+    if (n.isBroadcast) {
+      setNotifications((prev) => prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)))
+      return
+    }
     if (!auth.currentUser) return
     try {
-      await updateDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', id), {
-        read: true
+      await updateDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', n.id), {
+        read: true,
       })
     } catch (e) {
       console.error(e)
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (n: AppNotification) => {
+    if (n.isBroadcast) {
+      setNotifications((prev) => prev.filter((item) => item.id !== n.id))
+      return
+    }
     if (!auth.currentUser) return
     try {
-      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', id))
+      await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'notifications', n.id))
     } catch (e) {
       console.error(e)
     }
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length
+  const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+        className="relative p-2 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors cursor-pointer"
+        aria-label="View notifications"
       >
-        <i className="fa-regular fa-bell text-lg"></i>
+        <i className="fa-solid fa-bell text-sm"></i>
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full border-2 border-white animate-pulse"></span>
         )}
       </button>
 
       {isOpen && (
-        <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto sm:right-0 top-[73px] sm:top-full sm:mt-2 bg-white border border-slate-200 shadow-2xl sm:shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 w-auto sm:w-80">
-          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900">Notifications</h3>
-            <div className="flex items-center gap-3">
+        <div className="fixed sm:absolute inset-x-4 sm:inset-x-auto sm:right-0 top-[65px] sm:top-full sm:mt-2 bg-white border border-zinc-200/80 shadow-[0_12px_32px_rgba(0,0,0,0.08)] rounded-2xl overflow-hidden z-50 animate-in fade-in duration-150 w-auto sm:w-84">
+          <div className="p-3.5 border-b border-zinc-100 bg-zinc-50/70 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="font-black text-xs text-zinc-900 uppercase tracking-wider">Alerts & Broadcasts</h3>
               {unreadCount > 0 && (
-                <span className="bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black px-2 py-0.2 rounded-full">
                   {unreadCount} New
                 </span>
               )}
-              <button onClick={() => setIsOpen(false)} className="sm:hidden text-slate-400 hover:text-slate-600">
-                <i className="fa-solid fa-times text-lg"></i>
-              </button>
             </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-zinc-400 hover:text-zinc-700 text-xs cursor-pointer"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
           </div>
-          
-          <div className="max-h-[60vh] sm:max-h-[400px] overflow-y-auto">
+
+          <div className="max-h-[380px] overflow-y-auto divide-y divide-zinc-100">
             {notifications.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">
-                <i className="fa-regular fa-bell-slash text-3xl mb-3 text-slate-300"></i>
-                <p className="text-sm">You're all caught up!</p>
+              <div className="p-8 text-center text-zinc-400 space-y-1.5">
+                <i className="fa-solid fa-bell-slash text-2xl text-zinc-300 mb-1"></i>
+                <p className="text-xs font-bold text-zinc-700">No Notifications</p>
+                <p className="text-[11px] text-zinc-400">All system broadcasts and alerts will appear here</p>
               </div>
             ) : (
-              <ul className="divide-y divide-slate-100">
-                {notifications.map(n => (
-                  <li 
-                    key={n.id} 
-                    className={`p-4 transition-colors hover:bg-slate-50 cursor-pointer ${n.read ? 'opacity-60' : 'bg-blue-50/30'}`}
-                    onClick={() => !n.read && handleMarkAsRead(n.id)}
-                  >
-                    <div className="flex gap-3 justify-between items-start">
-                      <div className="flex gap-3">
-                        <div className="mt-1">
-                          {n.read ? (
-                            <i className="fa-solid fa-envelope-open text-slate-400"></i>
-                          ) : (
-                            <i className="fa-solid fa-envelope text-accent"></i>
-                          )}
-                        </div>
-                        <div>
-                          <h4 className={`text-sm ${n.read ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
-                            {n.title}
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                            {n.message}
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-2 font-medium uppercase tracking-wider">
-                            {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleString() : 'Just now'}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {n.read && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleDelete(n.id) }}
-                          className="text-slate-300 hover:text-red-500 transition-colors p-2 shrink-0"
-                          title="Delete notification"
-                        >
-                          <i className="fa-solid fa-trash-can text-sm"></i>
-                        </button>
-                      )}
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  onClick={() => !n.read && handleMarkAsRead(n)}
+                  className={`p-3.5 transition-colors hover:bg-zinc-50 cursor-pointer flex gap-3 items-start justify-between ${
+                    n.read ? 'opacity-60' : 'bg-white'
+                  }`}
+                >
+                  <div className="flex gap-2.5 min-w-0">
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 mt-0.5 ${
+                        n.isBroadcast
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-zinc-100 text-zinc-600'
+                      }`}
+                    >
+                      <i className={`fa-solid ${n.isBroadcast ? 'fa-bullhorn' : 'fa-envelope'}`}></i>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-xs font-black text-zinc-900 truncate">{n.title}</span>
+                        {n.isBroadcast && (
+                          <span className="text-[9px] font-bold bg-zinc-900 text-white px-1.5 py-0.2 rounded">
+                            Broadcast
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-zinc-600 font-medium leading-relaxed">{n.message}</p>
+                      <p className="text-[10px] text-zinc-400 font-medium mt-1">
+                        {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleString() : 'Just now'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(n)
+                    }}
+                    className="text-zinc-300 hover:text-rose-600 transition-colors p-1 shrink-0 cursor-pointer"
+                    title="Dismiss alert"
+                  >
+                    <i className="fa-solid fa-trash-can text-xs"></i>
+                  </button>
+                </div>
+              ))
             )}
           </div>
         </div>

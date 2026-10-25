@@ -14,7 +14,18 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, rationales: {} })
   }
 
+  const currentDateStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
   const prompt = `You are the senior football analysis and betting-market evaluation engine powering Odds Factory.
+
+CALENDAR ANCHOR & SEASON CONTEXT:
+- Today is ${currentDateStr}. We are in the active 2026/2027 European and global football season.
+- CRITICAL: Ground all rationales strictly in active 2026/2027 season dynamics. Do NOT quote obsolete 2022/2023 players, managers, or outdated team forms. Ensure team names and tactical setups reflect reality today.
 
 ODDS FACTORY MASTER INSTRUCTION:
 - You have NO default favorite market. You must evaluate every market (Match Result, Double Chance, DNB, Goals, Corners, Cards, Team Goals, Half-Time) on its genuine statistical merit.

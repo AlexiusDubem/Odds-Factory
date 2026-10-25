@@ -472,7 +472,8 @@ const server = http.createServer(async (req, res) => {
           const now = Date.now()
           const diffHours = e.estimateStartTime ? (e.estimateStartTime - now) / (3600 * 1000) : 0
 
-          if (e.estimateStartTime && (diffHours < -2 || diffHours > maxHours || diffHours > 168)) {
+          // Strict limit: match must be upcoming (at least 3 mins ahead), within maxHours, and not past 7 days
+          if (e.estimateStartTime && (diffHours < 0.05 || diffHours > maxHours || diffHours > 168)) {
             continue
           }
 
@@ -970,7 +971,12 @@ Return ONLY a raw JSON array, no markdown:
       const { homeTeam = '', awayTeam = '', league = '', market = '', odds = 1.5 } = await readBody(req)
       console.log(`🧠 [Match Intelligence] Analyzing ${homeTeam} vs ${awayTeam} (${league})…`)
 
+      const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const prompt = `You are the senior football analysis and betting-market evaluation engine powering Odds Factory.
+
+CALENDAR ANCHOR & SEASON CONTEXT:
+- Today is ${dateStr}. We are in the active 2026/2027 season.
+- CRITICAL: Ground all analysis strictly in current 2026/2027 season dynamics. Do NOT quote obsolete 2022/2023 players, managers, or outdated team forms. Ensure team names and tactical setups reflect reality today.
 
 ODDS FACTORY MASTER INSTRUCTION:
 - Analyze football fixtures using verified data without market bias.
@@ -1043,7 +1049,9 @@ Return ONLY a raw JSON object with this exact structure:
 
       console.log(`🧠 [Batch Rationales] Synthesizing proof for ${picks.length} legs…`)
 
+      const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const prompt = `You are Odds Factory's Neural Betting Analyst.
+CALENDAR ANCHOR: Today is ${dateStr} (active 2026/2027 season).
 For each selected match below, produce a CONCISE, 1-SENTENCE evidence-backed rationale naming the exact teams and citing real statistics, recent form, xG, or head-to-head proof. Never output generic template text.
 
 Matches:
