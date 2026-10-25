@@ -115,13 +115,16 @@ Return ONLY a raw JSON object with this exact structure:
   // ── Strategy 2: Google Gemini (Fallback) ──────────────────────────────────
   const geminiKey = process.env.GEMINI_API_KEY
   if (geminiKey) {
-    const models = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite', 'gemini-3.8-flash']
+    const models = ['gemini-flash-latest']
     for (const model of models) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-goog-api-key': geminiKey,
+          },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {

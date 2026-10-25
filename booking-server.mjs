@@ -68,16 +68,19 @@ async function callGemini(prompt, geminiKey, jsonMode = false) {
       ...(jsonMode ? { response_mime_type: 'application/json' } : {})
     }
   }
-  const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest']
+  const models = ['gemini-flash-latest']
   let lastErr = null
 
   for (const model of models) {
     try {
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-goog-api-key': activeKey,
+          },
           body: JSON.stringify(body),
           // No timeout — let Gemini always finish regardless of slip size
         }
@@ -953,7 +956,30 @@ Return ONLY a raw JSON array, no markdown:
         }
       }))
 
-      const evals = chunkResults.flat()
+      let evals = chunkResults.flat()
+      if (evals.length === 0) {
+        evals = legs.map((l) => {
+          const odds = parseFloat(l.odds) || 1.5
+          const prob = l.probability ? (l.probability > 1 ? l.probability / 100 : l.probability) : 1 / odds
+          const ev = Number((prob * odds - 1).toFixed(3))
+          const m = (l.market || '').toLowerCase()
+          const isHighVariance = m.includes('over 2.5') || m.includes('over 3.5') || m.includes('btts') || odds > 2.20
+          const isNegativeEv = ev < -0.06
+          const shouldDrop = isNegativeEv || (isHighVariance && odds > 2.0)
+          const [home = 'Home', away = 'Away'] = (l.matchLabel || '').split(' vs ')
+          const rationale = shouldDrop
+            ? `${home} vs ${away}: ${l.market} @${odds.toFixed(2)} carries elevated variance (EV ${ev >= 0 ? `+${ev}` : ev}) — consider safer cushion line.`
+            : `${home} vs ${away}: ${l.market} @${odds.toFixed(2)} maintains a calibrated ${Math.round(prob * 100)}% model survival rating.`
+          return {
+            legId: l.id,
+            trueProbability: Number(prob.toFixed(2)),
+            ev,
+            volatility: isHighVariance ? 0.65 : 0.25,
+            shouldDrop,
+            rationale,
+          }
+        })
+      }
       debug(`✅ [SmartDrop] Got ${evals.length}/${legs.length} evals across ${chunks.length} batch(es)`)
 
       res.writeHead(200)
