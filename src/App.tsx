@@ -42,11 +42,6 @@ function App() {
   // 1. Auth & Telemetry tracking
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      setUser({
-        uid: 'guest-local-user',
-        email: 'preview@oddsfactory.local',
-        displayName: 'Guest Previewer',
-      } as any)
       setLoading(false)
       return
     }
@@ -157,9 +152,11 @@ function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f7f8f4] flex items-center justify-center">
-        <div className="w-9 h-9 rounded-xl bg-[#16201c] text-[#dfff46] flex items-center justify-center font-mono font-bold text-xs animate-pulse">
-          OF
-        </div>
+        <img
+          src="/logo.png"
+          alt="Odds Factory"
+          className="w-12 h-12 object-contain rounded-2xl animate-pulse shadow-xs"
+        />
       </div>
     )
   }
@@ -167,7 +164,7 @@ function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f7f8f4] flex items-center justify-center p-4">
-        <LoginPanel onContinueAsGuest={() => setUser({ uid: 'guest-user', email: 'guest@oddsfactory.local', displayName: 'Guest' } as any)} />
+        <LoginPanel />
       </div>
     )
   }
@@ -221,7 +218,11 @@ function App() {
         {/* Desktop Sticky Sidebar */}
         <aside className="side">
           <div className="brand">
-            <div className="mark">OF</div>
+            <img
+              src="/logo.png"
+              alt="Odds Factory"
+              className="w-7 h-7 object-contain rounded-lg shadow-2xs"
+            />
             <span>Odds Factory</span>
           </div>
 
@@ -270,7 +271,7 @@ function App() {
                   {user.displayName || user.email?.split('@')[0]}
                 </div>
                 <div className="text-[10px] text-[#8a9690] font-mono leading-tight">
-                  {isAdmin ? 'Superadmin' : user.email?.includes('@oddsfactory.local') ? 'Guest' : 'Pro Member'}
+                  {isAdmin ? 'Superadmin' : 'Pro Member'}
                 </div>
               </div>
             </div>

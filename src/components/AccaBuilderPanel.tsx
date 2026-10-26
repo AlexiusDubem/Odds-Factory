@@ -586,437 +586,261 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12 font-sans">
-      {/* ── Dottaa Studio Hero Header ────────────────────────────────────── */}
-      <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 sm:p-10 shadow-[0_2px_20px_rgba(0,0,0,0.02)] relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-800 text-[11px] font-bold tracking-tight">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Real Live SportyBet Engine</span>
-            <span className="text-zinc-400">•</span>
-            <span className="text-zinc-500">{todayDateString}</span>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>
-              {isLoadingLive
-                ? 'Discovering competitions & markets…'
-                : isLiveConnected
-                ? `${discoveredCompetitions.length || 36} leagues • ${allLivePicks.length} markets audited`
-                : 'Model engine ready'}
-            </span>
-          </div>
+    <div className="space-y-6 w-full pb-12 font-sans">
+      {/* ── Page Intro ───────────────────────────────────────────────────────── */}
+      <section className="page-intro">
+        <div className="eyebrow flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Model-ranked picks · Live market explorer</span>
         </div>
+        <h2>Considered picks.<br />Real booking codes.</h2>
+        <p>Set the guardrails, then let the engine find a healthier set of selections across active SportyBet markets.</p>
+      </section>
 
-        <h1 className="text-3xl sm:text-5xl font-black text-zinc-950 tracking-tight leading-[1.08] mb-3">
-          Considered Picks. <br className="hidden sm:inline" />
-          <span className="text-zinc-400 font-semibold">Real Booking Codes.</span>
-        </h1>
-        <p className="text-sm sm:text-base text-zinc-600 max-w-2xl leading-relaxed">
-          Dynamic SportyBet competition & market discovery. Filter across Goals, Corners, Cards, Handicaps, and Match Results to assemble mathematically sound tickets with real booking codes.
-        </p>
-      </div>
-
-      {/* ── Main Bento Configuration Box ──────────────────────────────────── */}
-      <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 sm:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] space-y-8">
-        <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
-          <div>
-            <h2 className="text-base font-black text-zinc-950 flex items-center gap-2">
-              <i className="fa-solid fa-sliders text-zinc-950 text-sm"></i>
-              Configure Ticket Conditions
-            </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Tune your timeframe, leagues, market type, and risk appetite.
-            </p>
-          </div>
-          <span className="text-[10px] uppercase font-black tracking-wider text-zinc-400 bg-zinc-50 border border-zinc-200/60 px-2.5 py-1 rounded-full">
-            STEP 01
+      {/* ── Ticket Filters Card ──────────────────────────────────────────────── */}
+      <section className="card filters-box">
+        <div className="filter-step">
+          <span className="num">01</span>
+          <b>Set your ticket conditions</b>
+          <span className="ml-auto text-[10px] font-mono text-zinc-500 hidden sm:inline">
+            {isLoadingLive
+              ? 'Discovering lines…'
+              : isLiveConnected
+              ? `${discoveredCompetitions.length || 36} leagues • ${allLivePicks.length} markets audited`
+              : 'Statistical engine ready'}
           </span>
         </div>
 
-        {/* 1. Timeframe & League Scope Segmented Pills */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Timeframe */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
-                Match Timeframe
-              </label>
-              <span className="text-[10px] text-zinc-500 font-semibold">
-                {duration === 'today' ? 'Kickoff in <24h' : duration === 'midnight' ? '10:00 PM – 6:00 AM Night Slate' : duration === '3days' ? 'Weekend slate' : 'Max 7 days'}
-              </span>
-            </div>
-            <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-1 border border-zinc-200/60">
-              {([
-                ['today', 'fa-solid fa-bolt', 'Today', 'Next 24h'],
-                ['midnight', 'fa-solid fa-moon text-indigo-500', 'Midnight', '10 PM - 6 AM'],
-                ['3days', 'fa-solid fa-calendar-days', '3 Days', 'Weekend'],
-                ['1week', 'fa-solid fa-calendar-week', '1 Week', 'Max 7d'],
-              ] as const).map(([val, icon, label, sub]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => handleDurationChange(val)}
-                  className={`py-2 px-2 rounded-xl text-center transition-all cursor-pointer ${
-                    duration === val
-                      ? 'bg-white text-zinc-950 shadow-xs font-black'
-                      : 'text-zinc-600 hover:text-zinc-950 font-bold hover:bg-white/50'
-                  }`}
-                >
-                  <div className="text-xs flex items-center justify-center gap-1.5 leading-none">
-                    <i className={`${icon} text-[11px]`}></i>
-                    <span>{label}</span>
-                  </div>
-                  <div className="text-[9px] text-zinc-400 mt-1 font-semibold">{sub}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* League Scope */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
-                League Preference
-              </label>
-              <span className="text-[10px] text-zinc-500 font-semibold">
-                {leagueScope === 'major'
-                  ? 'Top European (EPL, UCL…)'
-                  : leagueScope === 'small'
-                  ? 'Secondary & Regional (NPFL…)'
-                  : `All Discovered (${discoveredCompetitions.length || '30+'} Leagues)`}
-              </span>
-            </div>
-            <div className="bg-zinc-100/80 p-1.5 rounded-2xl grid grid-cols-3 gap-1 border border-zinc-200/60">
-              {([
-                ['major', 'fa-solid fa-trophy', 'Major', 'EPL, UCL…'],
-                ['small', 'fa-solid fa-earth-africa', 'Small', 'NPFL, Cups'],
-                ['all', 'fa-solid fa-globe', 'All', `${discoveredCompetitions.length || 'All'} Leagues`],
-              ] as const).map(([val, icon, label, sub]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setLeagueScope(val)}
-                  className={`py-2 px-2 rounded-xl text-center transition-all cursor-pointer ${
-                    leagueScope === val
-                      ? 'bg-white text-zinc-950 shadow-xs font-black'
-                      : 'text-zinc-600 hover:text-zinc-950 font-bold hover:bg-white/50'
-                  }`}
-                >
-                  <div className="text-xs flex items-center justify-center gap-1.5 leading-none">
-                    <i className={`${icon} text-[11px]`}></i>
-                    <span>{label}</span>
-                  </div>
-                  <div className="text-[9px] text-zinc-400 mt-1 font-semibold">{sub}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 2. Dynamic Market Families Selector */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
-                Market Family & Category
-              </label>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Target specific sports markets or discover across all active SportyBet lines.
-              </p>
-            </div>
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-full">
-              Full Discovery Active
+        {/* 1. Timeframe */}
+        <div className="option-group">
+          <label>
+            <span>Match timeframe</span>
+            <span className="lowercase font-mono text-[10px] text-zinc-400">
+              {duration === 'today' ? 'Kickoff in <24h' : duration === 'midnight' ? '10 PM - 6 AM night slate' : duration === '3days' ? 'Weekend slate' : 'Max 7 days'}
             </span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
+          </label>
+          <div className="chips">
             {([
-              ['all', 'fa-solid fa-layer-group', 'All Markets'],
-              ['goals', 'fa-solid fa-futbol', 'Goals & Totals'],
-              ['match_result', 'fa-solid fa-trophy', 'Match Result / DC'],
-              ['btts', 'fa-solid fa-arrows-split-up-and-left', 'Both Score (GG)'],
-              ['corners', 'fa-solid fa-flag', 'Corners'],
-              ['cards_bookings', 'fa-solid fa-square', 'Cards & Bookings'],
-              ['intervals_halves', 'fa-solid fa-stopwatch', 'Halves & Intervals'],
-              ['handicap', 'fa-solid fa-scale-unbalanced', 'Handicap'],
-              ['cleansheet', 'fa-solid fa-shield-cat', 'Clean Sheet'],
-            ] as const).map(([val, icon, label]) => (
+              ['today', '⚡ Today · Next 24h'],
+              ['midnight', '☾ Midnight (10 PM - 6 AM)'],
+              ['3days', '3 Days · Weekend'],
+              ['1week', '1 Week'],
+            ] as const).map(([val, label]) => (
               <button
                 key={val}
                 type="button"
-                onClick={() => setMarketFamily(val)}
-                className={`py-2 px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                  marketFamily === val
-                    ? 'bg-zinc-950 text-white shadow-xs font-black'
-                    : 'bg-zinc-100/80 hover:bg-zinc-200/80 text-zinc-600 hover:text-zinc-950 border border-zinc-200/60'
-                }`}
+                onClick={() => handleDurationChange(val)}
+                className={`chip ${duration === val ? 'on' : ''}`}
               >
-                <i className={`${icon} text-[11px]`}></i>
-                <span>{label}</span>
+                {label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* 2. Number of Games Slider (Dottaa Tactile Range) */}
-        <div className="bg-zinc-50/70 border border-zinc-200/70 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
-                Number of Games
-              </label>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Target count of unique matches on the ticket.
-              </p>
-            </div>
-            <div className="text-right">
-              <span className="text-4xl font-black text-zinc-950 tracking-tight leading-none">
-                {numGames}
-              </span>
-              <span className="text-xs font-bold text-zinc-400 ml-1">games</span>
-            </div>
+        {/* 2. League Preference */}
+        <div className="option-group">
+          <label>
+            <span>League preference</span>
+            <span className="font-mono text-[10px] text-zinc-400">
+              {leagueScope === 'major' ? 'Top European (EPL, UCL…)' : leagueScope === 'small' ? 'Secondary & Regional (NPFL…)' : 'All Leagues'}
+            </span>
+          </label>
+          <div className="chips">
+            {([
+              ['major', 'Top European (EPL, UCL…)'],
+              ['small', 'Secondary & Regional (NPFL…)'],
+              ['all', `All Leagues (${discoveredCompetitions.length || '30+'})`],
+            ] as const).map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setLeagueScope(val)}
+                className={`chip ${leagueScope === val ? 'on' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <input
-              type="range"
-              min={2}
-              max={30}
-              step={1}
-              value={numGames}
-              onChange={(e) => setNumGames(Number(e.target.value))}
-              className="w-full h-2.5 rounded-full cursor-pointer appearance-none bg-zinc-200 accent-zinc-950"
-              style={{
-                background: `linear-gradient(to right, #09090b ${
-                  ((numGames - 2) / 28) * 100
-                }%, #e4e4e7 ${((numGames - 2) / 28) * 100}%)`,
-              }}
-            />
-            <div className="flex justify-between text-[10px] font-bold text-zinc-400 px-0.5">
-              <span>2 Games</span>
-              <span>10 Games</span>
-              <span>20 Games</span>
-              <span>30 Games (Max Multi)</span>
-            </div>
+        {/* 3. Market Family */}
+        <div className="option-group">
+          <label>
+            <span>Market family</span>
+            <span className="text-emerald-700 font-mono text-[10px] font-bold">Full Discovery Active</span>
+          </label>
+          <div className="chips">
+            {([
+              ['all', 'All markets'],
+              ['goals', 'Goals & totals'],
+              ['match_result', 'Match result / DC'],
+              ['btts', 'Both teams score'],
+              ['corners', 'Corners'],
+              ['cards_bookings', 'Cards'],
+              ['cleansheet', 'Clean sheet'],
+              ['intervals_halves', 'Halves & intervals'],
+              ['handicap', 'Handicap'],
+            ] as const).map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setMarketFamily(val)}
+                className={`chip ${marketFamily === val ? 'on' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {/* Quick presets */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-1">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase mr-1">Presets:</span>
+        {/* 4. Number of Games */}
+        <div className="option-group">
+          <label>
+            <span>Number of games <span className="text-zinc-950 font-bold font-mono">({numGames})</span></span>
+            <span className="font-mono text-[10px] text-zinc-400">Min 2 · Max 30</span>
+          </label>
+          <input
+            type="range"
+            min={2}
+            max={30}
+            step={1}
+            value={numGames}
+            onChange={(e) => setNumGames(Number(e.target.value))}
+            className="range-slider my-2"
+          />
+          <div className="chips">
             {[3, 5, 6, 8, 10, 15, 20, 25, 30].map((n) => (
               <button
                 key={n}
                 type="button"
                 onClick={() => setNumGames(n)}
-                className={`py-1 px-3 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  numGames === n
-                    ? 'bg-zinc-950 text-white shadow-xs'
-                    : 'bg-white border border-zinc-200 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100'
-                }`}
+                className={`chip ${numGames === n ? 'on' : ''}`}
               >
                 {n} legs
               </button>
             ))}
           </div>
-
           {numGames >= 8 && (
-            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-200">
+            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-200">
               <i className="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5 shrink-0"></i>
               <div className="space-y-0.5">
                 <span className="font-bold">Multi-Leg Accumulator Risk Advisory:</span>
                 <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Building {numGames} matches compounds variance mathematically. The AI prioritizes Double Chance (1X/X2) and high-cushion lines from top European leagues to maximize survival. Consider splitting into two smaller banker tickets to preserve capital.
+                  Building {numGames} matches compounds variance mathematically. The statistical pipeline prioritizes lower-variance lines to maximize survival.
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* 3. Risk Level Slider (Odds Per Game) */}
-        <div className="bg-zinc-50/70 border border-zinc-200/70 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
-                Risk Level & Odds Intensity
-              </label>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Controls individual match odds range and probability thresholds.
-              </p>
-            </div>
-            <div
-              className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-black ${currentRisk.badgeBg} ${currentRisk.badgeBorder} ${currentRisk.color}`}
-            >
-              <i className={`${currentRisk.icon} text-xs`}></i>
-              <span>{currentRisk.label}</span>
-              <span className="text-[10px] opacity-75 font-semibold">
-                (~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)}x /leg)
-              </span>
-            </div>
+        {/* 5. Risk Level */}
+        <div className="option-group">
+          <label>
+            <span>Risk level & model threshold</span>
+            <span className="font-mono text-[10px] text-zinc-400">~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)}x / leg</span>
+          </label>
+          <div className="chips">
+            {([1, 2, 3, 4, 5] as RiskLevel[]).map((lvl) => {
+              const r = RISK_CONFIG[lvl]
+              return (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setRiskLevel(lvl)}
+                  className={`chip ${riskLevel === lvl ? 'on' : ''}`}
+                >
+                  {r.label}
+                </button>
+              )
+            })}
           </div>
-
-          <div className="space-y-2">
-            <input
-              type="range"
-              min={1}
-              max={5}
-              step={1}
-              value={riskLevel}
-              onChange={(e) => setRiskLevel(Number(e.target.value) as RiskLevel)}
-              className="w-full h-2.5 rounded-full cursor-pointer appearance-none"
-              style={{
-                background: `linear-gradient(to right, ${currentRisk.trackColor} ${
-                  ((riskLevel - 1) / 4) * 100
-                }%, #e4e4e7 ${((riskLevel - 1) / 4) * 100}%)`,
-              }}
-            />
-            <div className="flex justify-between text-[10px] font-bold px-0.5">
-              <span className="text-emerald-700 flex items-center gap-1">
-                <i className="fa-solid fa-shield-halved text-[9px]"></i> Ultra Safe
-              </span>
-              <span className="text-teal-700 flex items-center gap-1">
-                <i className="fa-solid fa-circle-check text-[9px]"></i> Safe
-              </span>
-              <span className="text-blue-700 flex items-center gap-1">
-                <i className="fa-solid fa-scale-balanced text-[9px]"></i> Balanced
-              </span>
-              <span className="text-amber-700 flex items-center gap-1">
-                <i className="fa-solid fa-fire text-[9px]"></i> Daring
-              </span>
-              <span className="text-rose-700 flex items-center gap-1">
-                <i className="fa-solid fa-bolt text-[9px]"></i> High Risk
-              </span>
-            </div>
-          </div>
-
-          <p className="text-xs text-zinc-600 bg-white border border-zinc-200/70 rounded-xl px-3.5 py-2.5 font-medium leading-relaxed">
+          <p className="text-[11px] text-zinc-500 mt-2 font-medium">
             {currentRisk.desc}
           </p>
         </div>
 
-        {/* 4. Live Multiplier Projection & Target Lock */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-zinc-950 text-white rounded-2xl p-5 flex flex-col justify-between">
-            <div className="flex items-center justify-between text-zinc-400">
-              <span className="text-[10px] font-bold uppercase tracking-wider">
-                Projected Multiplier
-              </span>
-              <span className="text-[10px] font-semibold text-zinc-400">
-                {numGames} games × {currentRisk.label}
-              </span>
-            </div>
-            <div className="my-3">
-              <div className="text-4xl sm:text-5xl font-black tracking-tight text-white">
-                {estimatedOdds >= 1000000
-                  ? `${(estimatedOdds / 1000000).toFixed(1)}M`
-                  : estimatedOdds >= 1000
-                  ? `${(estimatedOdds / 1000).toFixed(1)}K`
-                  : estimatedOdds >= 100
-                  ? estimatedOdds.toFixed(0)
-                  : estimatedOdds.toFixed(1)}
-                <span className="text-2xl text-emerald-400 font-bold ml-1">x</span>
-              </div>
-              <p className="text-xs text-zinc-400 mt-1">
-                Estimated odds based on your chosen risk level.
-              </p>
-            </div>
-            <div className="text-[11px] text-zinc-400 pt-2 border-t border-zinc-800 flex items-center justify-between">
-              <span>Potential Return on ₦{stake.toLocaleString()}:</span>
-              <span className="font-bold text-emerald-400">
-                ₦{Math.round(stake * estimatedOdds).toLocaleString()}
-              </span>
-            </div>
+        {/* 6. Optional Target Odds */}
+        <div className="option-group pt-2 border-t border-zinc-100">
+          <div className="flex items-center justify-between mb-2">
+            <label className="mb-0">
+              <span>Lock to Target Multiplier (Optional)</span>
+            </label>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useTargetOdds}
+                onChange={(e) => setUseTargetOdds(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-8 h-4 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-zinc-950"></div>
+            </label>
           </div>
-
-          <div className="bg-zinc-50/70 border border-zinc-200/70 rounded-2xl p-5 flex flex-col justify-between space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-400">
-                Lock to Target Odds
-              </label>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useTargetOdds}
-                  onChange={(e) => setUseTargetOdds(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-950"></div>
-              </label>
-            </div>
-
-            <div className={`space-y-2.5 transition-all ${useTargetOdds ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[5, 10, 20, 50].map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => {
-                      setTargetOdds(v)
-                      setCustomOddsInput(String(v))
-                    }}
-                    className={`py-2 rounded-xl text-xs font-black border transition-all cursor-pointer ${
-                      targetOdds === v && useTargetOdds
-                        ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs'
-                        : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
-                    }`}
-                  >
-                    {v}x
-                  </button>
-                ))}
-              </div>
+          {useTargetOdds && (
+            <div className="chips mt-2">
+              {[5, 10, 20, 50].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => {
+                    setTargetOdds(v)
+                    setCustomOddsInput(String(v))
+                  }}
+                  className={`chip ${targetOdds === v ? 'on' : ''}`}
+                >
+                  {v}x
+                </button>
+              ))}
               <input
                 type="number"
                 min="1.5"
                 max="500"
                 step="0.5"
-                placeholder="Or enter custom odds…"
+                placeholder="Custom odds…"
                 value={customOddsInput}
                 onChange={(e) => {
                   setCustomOddsInput(e.target.value)
                   const v = parseFloat(e.target.value)
                   if (v > 1) setTargetOdds(v)
                 }}
-                className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 text-center focus:outline-none focus:border-zinc-950"
+                className="px-2.5 py-1 text-xs border border-zinc-200 rounded-lg w-28 font-mono font-bold"
               />
             </div>
-
-            <span className="text-[10px] text-zinc-400">
-              {useTargetOdds
-                ? `System will assemble ${numGames} matches calibrated to hit ${targetOdds}x.`
-                : 'Free mode: model picks the best probability matches in the tier.'}
-            </span>
-          </div>
+          )}
         </div>
 
-        {/* 5. Primary Action Button (Dottaa Tactile Pill) */}
-        <button
-          onClick={handleRunAnalysisAndGenerate}
-          disabled={isAnalyzing}
-          className="w-full py-4.5 px-6 bg-zinc-950 hover:bg-zinc-800 active:scale-[0.99] text-white font-black text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
-        >
-          {isAnalyzing ? (
-            <>
-              <i className="fa-solid fa-circle-notch fa-spin text-emerald-400 text-base"></i>
-              <span>Auditing Matches & Assembling Ticket…</span>
-            </>
-          ) : (
-            <>
-              <i className="fa-solid fa-wand-magic-sparkles text-emerald-400 text-base"></i>
-              <span>
-                Analyze & Build {numGames} {currentRisk.label} Games
-                {useTargetOdds
-                  ? ` • ${targetOdds}x Target`
-                  : ` • ~${
-                      estimatedOdds >= 1000
-                        ? `${(estimatedOdds / 1000).toFixed(1)}K`
-                        : estimatedOdds.toFixed(1)
-                    }x Est.`}
-              </span>
-            </>
-          )}
-        </button>
-      </div>
+        {/* 7. Result Bar */}
+        <div className="result-bar">
+          <div>
+            <div className="eyebrow">Projected multiplier</div>
+            <b>
+              {numGames} games × {currentRisk.label} · <span className="green">{useTargetOdds ? `${targetOdds}x target` : `${estimatedOdds >= 1000 ? `${(estimatedOdds / 1000).toFixed(1)}k` : estimatedOdds.toFixed(1)}x est.`}</span>
+            </b>
+            <div className="text-[11px] text-zinc-500 mt-0.5 font-mono">
+              Potential Return on ₦{stake.toLocaleString()}: <span className="font-bold text-zinc-900">₦{Math.round(stake * (useTargetOdds ? targetOdds : estimatedOdds)).toLocaleString()}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="build"
+            onClick={handleRunAnalysisAndGenerate}
+            disabled={isAnalyzing}
+            className="primary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isAnalyzing ? (
+              <>
+                <i className="fa-solid fa-circle-notch fa-spin"></i>
+                <span>Auditing live lines…</span>
+              </>
+            ) : (
+              <>
+                <i className="not-italic text-lime font-bold">✦</i>
+                <span>Analyze & build {numGames} candidate games</span>
+              </>
+            )}
+          </button>
+        </div>
+      </section>
 
       {/* ── Generated Ticket Section ──────────────────────────────────────── */}
       {hasGenerated && (
