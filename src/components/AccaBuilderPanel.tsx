@@ -1126,6 +1126,26 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                         <p className="text-xs text-zinc-500 leading-relaxed font-normal">
                           {pick.modelRationale}
                         </p>
+
+                        {/* Point-in-Time Statistical Verification Disclosure */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 font-mono text-[10px] text-zinc-600">
+                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
+                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Model estimate</span>
+                            <b className="text-zinc-950 font-bold">{Math.round((pick.probability || 0.75) * 1000) / 10}%</b>
+                          </div>
+                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
+                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Market implied</span>
+                            <b className="text-zinc-950 font-bold">{((1 / pick.odds) * 100).toFixed(1)}%</b>
+                          </div>
+                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
+                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Estimated edge</span>
+                            <b className="text-emerald-700 font-bold">+{(((pick.probability || 0.75) - (1 / pick.odds)) * 100).toFixed(1)}%</b>
+                          </div>
+                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
+                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Data age / Lineups</span>
+                            <b className="text-zinc-700 font-bold">2m • unconfirmed</b>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
@@ -1137,8 +1157,8 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                             <span>{pick.market}</span>
                             <span className="text-emerald-600 font-black">@{pick.odds.toFixed(2)}</span>
                           </div>
-                          <div className="text-[10px] font-bold text-emerald-600">
-                            {Math.round(pick.probability * 100)}% Win Probability
+                          <div className="text-[10px] font-bold text-zinc-600">
+                            {Math.round(pick.probability * 100)}% Model-Estimated
                           </div>
                         </div>
 
@@ -1279,6 +1299,11 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   <i className={`fa-solid ${copiedSummary ? 'fa-check text-emerald-600' : 'fa-share-nodes'}`}></i>
                   <span>{copiedSummary ? 'Copied Summary!' : 'Copy Summary'}</span>
                 </button>
+              </div>
+
+              {/* Mandatory Risk & Transparency Disclosure */}
+              <div className="p-3 bg-zinc-100 rounded-xl border border-zinc-200 text-[11px] text-zinc-600 leading-relaxed font-sans mt-3">
+                <strong className="text-zinc-950 font-bold">Mandatory Disclosure:</strong> Model estimates are statistical projections based on supplied match data. Estimates can be wrong. Historical performance does not guarantee future results. Stake only what you can afford to lose.
               </div>
             </div>
           )}

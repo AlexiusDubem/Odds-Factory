@@ -166,14 +166,18 @@ export const DashboardPanel = ({ }: Props) => {
               </div>
             ) : (
               livePicks.map((pick) => {
-                const isAnchor = (pick.probability || 0.7) >= 0.75
+                const prob = pick.probability || 0.75
+                const impliedProb = 1 / pick.odds
+                const edge = prob - impliedProb
+                const isLowerVariance = prob >= 0.78
+
                 return (
                   <article
                     key={pick.id}
                     onClick={() => navigate('/builder')}
                     className="p-4 sm:p-5 hover:bg-[#fbfcf9] transition-colors cursor-pointer grid grid-cols-[1fr_auto] gap-3.5 items-center"
                   >
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 space-y-1.5">
                       <div className="font-mono text-[10px] uppercase text-[#85918b]">
                         {pick.country || 'Europe'} · {pick.league || 'League'} · {pick.kickoff || 'Today'}
                       </div>
@@ -181,7 +185,22 @@ export const DashboardPanel = ({ }: Props) => {
                         {pick.homeTeam} <span className="text-[#a2aca6] font-normal text-xs">vs</span> {pick.awayTeam}
                       </div>
                       <div className="text-[11px] text-[#71807a]">
-                        Market: <strong className="text-[#16201c] font-semibold">{pick.market}</strong> · Model confidence {Math.round((pick.probability || 0.75) * 100)}%
+                        Market: <strong className="text-[#16201c] font-semibold">{pick.market}</strong>
+                      </div>
+                      {/* Full statistical disclosure */}
+                      <div className="flex items-center gap-2.5 flex-wrap font-mono text-[10px] text-[#52615b] pt-0.5">
+                        <span className="bg-[#f0f4f1] px-1.5 py-0.5 rounded">
+                          Model Est: <b>{(prob * 100).toFixed(1)}%</b>
+                        </span>
+                        <span className="bg-[#f0f4f1] px-1.5 py-0.5 rounded">
+                          Implied: <b>{(impliedProb * 100).toFixed(1)}%</b>
+                        </span>
+                        <span className="bg-[#e9f7e4] text-[#15966a] px-1.5 py-0.5 rounded font-bold">
+                          Edge: +{(edge * 100).toFixed(1)}%
+                        </span>
+                        <span className="text-[#84918a]">
+                          Lineups: unconfirmed
+                        </span>
                       </div>
                     </div>
 
@@ -190,19 +209,23 @@ export const DashboardPanel = ({ }: Props) => {
                         {pick.odds.toFixed(2)}
                       </b>
                       <span
-                        className={`inline-block font-mono text-[9px] font-medium px-2 py-0.5 rounded-[5px] mt-1 ${
-                          isAnchor
+                        className={`inline-block font-mono text-[9px] font-semibold px-2 py-0.5 rounded-[5px] mt-1 ${
+                          isLowerVariance
                             ? 'bg-[#e9f7e4] text-[#287252]'
-                            : 'bg-[#f0f4f1] text-[#4a5852]'
+                            : 'bg-[#f0f4f1] text-[#3d5248]'
                         }`}
                       >
-                        {isAnchor ? 'SAFE ANCHOR' : 'VALUE'}
+                        {isLowerVariance ? 'LOWER VARIANCE' : 'POSITIVE EDGE'}
                       </span>
                     </div>
                   </article>
                 )
               })
             )}
+
+            <div className="p-3 bg-[#f7f8f4] text-[10px] text-[#71807a] leading-relaxed">
+              <strong className="text-[#16201c]">Statutory Notice:</strong> Model estimates are statistical projections based on supplied match data. Estimates carry inherent sports variance and do not guarantee future results. Stake only what you can afford to lose.
+            </div>
           </div>
         </div>
 

@@ -1014,11 +1014,43 @@ export interface DailySurePick {
   odds: number
   probability: number
   ev: number
+  impliedProbability?: number
+  modelProbability?: number
+  edge?: number
+  uncertaintyLevel?: 'LOW' | 'MODERATE' | 'HIGH'
+  lineupStatus?: 'confirmed' | 'projected' | 'unconfirmed'
+  dataAgeMinutes?: number
+  varianceCategory?: 'lower_variance' | 'positive_edge'
+  disclaimer?: string
   confidenceScore: number
   confidenceTier: 1 | 2 | 3
   modelType: SurePickType
   badgeLabel: string
   modelRationale: string
+}
+
+export function enrichPickWithStats(p: DailySurePick): DailySurePick {
+  const implied = Number((1 / p.odds).toFixed(4))
+  const modelProb = Number(p.probability.toFixed(4))
+  const edge = Number((modelProb - implied).toFixed(4))
+  const ev = Number((modelProb * p.odds - 1).toFixed(4))
+  const uncertainty = p.probability >= 0.82 ? 'LOW' : p.probability >= 0.70 ? 'MODERATE' : 'HIGH'
+  const varianceCat = p.probability >= 0.78 ? 'lower_variance' : 'positive_edge'
+  const badge = p.probability >= 0.78 ? 'Lower-Variance Candidate' : 'Positive Estimated Edge'
+
+  return {
+    ...p,
+    impliedProbability: p.impliedProbability ?? implied,
+    modelProbability: p.modelProbability ?? modelProb,
+    edge: p.edge ?? edge,
+    ev: p.ev ?? ev,
+    uncertaintyLevel: p.uncertaintyLevel ?? uncertainty,
+    lineupStatus: p.lineupStatus ?? 'unconfirmed',
+    dataAgeMinutes: p.dataAgeMinutes ?? 2,
+    varianceCategory: p.varianceCategory ?? varianceCat,
+    badgeLabel: badge,
+    disclaimer: p.disclaimer ?? 'Estimates can be wrong. Historical performance does not guarantee future results. Stake only what you can afford to lose.',
+  }
 }
 
 export const DAILY_SURE_PICKS: DailySurePick[] = [

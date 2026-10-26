@@ -238,8 +238,8 @@ export function getBoomingAlternatives(
 
   if (ultraSafe.length > 0) {
     tiers.push({
-      tierName: 'Ultra Safe (Banker)',
-      tierTag: 'BANKER LOCKS',
+      tierName: 'Lower Variance (Statistical Floor)',
+      tierTag: 'LOWER VARIANCE',
       icon: 'fa-solid fa-shield-halved',
       color: 'text-emerald-700',
       badgeBg: 'bg-emerald-50',
@@ -251,8 +251,8 @@ export function getBoomingAlternatives(
 
   if (safe.length > 0) {
     tiers.push({
-      tierName: 'Safe (Solid Acca)',
-      tierTag: 'STEADY VALUE',
+      tierName: 'Balanced Edge (Solid Acca)',
+      tierTag: 'BALANCED EDGE',
       icon: 'fa-solid fa-circle-check',
       color: 'text-teal-700',
       badgeBg: 'bg-teal-50',

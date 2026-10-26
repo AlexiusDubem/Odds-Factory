@@ -233,7 +233,7 @@ function App() {
             </NavLink>
             <NavLink to="/builder" className={({ isActive }) => (isActive ? 'active' : '')}>
               <span className="icon-slot"><i className="fa-solid fa-wand-magic-sparkles"></i></span>
-              Sure picks
+              Model picks
             </NavLink>
             <NavLink to="/audit" className={({ isActive }) => (isActive ? 'active' : '')}>
               <span className="icon-slot"><i className="fa-solid fa-magnifying-glass-chart"></i></span>
