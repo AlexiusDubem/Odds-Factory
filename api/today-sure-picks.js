@@ -86,16 +86,33 @@ export default async function handler(req, res) {
       'super league', 'league one', 'league two', 'segunda'
     ]
 
+    const isSimulatedOrVirtual = (text) => {
+      if (!text) return false
+      const lower = String(text).toLowerCase()
+      return (
+        lower.includes('srl') ||
+        lower.includes('simulated') ||
+        lower.includes('virtual') ||
+        lower.includes('electronic') ||
+        lower.includes('efootball') ||
+        lower.includes('cyber') ||
+        lower.includes('esport') ||
+        lower.includes('fifa')
+      )
+    }
+
     const discoveredCompetitions = []
     const seenTournIds = new Set()
 
     for (const t of tournaments) {
+      const name = t.name || 'Unknown Tournament'
+      const categoryName = t.categoryName || 'International'
+      if (isSimulatedOrVirtual(name) || isSimulatedOrVirtual(categoryName)) continue
+
       const tournId = t.tournamentId || `tourn-${t.name}`
       if (seenTournIds.has(tournId)) continue
       seenTournIds.add(tournId)
 
-      const name = t.name || 'Unknown Tournament'
-      const categoryName = t.categoryName || 'International'
       const lowerName = name.toLowerCase()
 
       let tier = 'other'
@@ -186,6 +203,8 @@ export default async function handler(req, res) {
     for (const t of tournaments) {
       const tournamentName = t.name || ''
       const categoryName = t.categoryName || ''
+      if (isSimulatedOrVirtual(tournamentName) || isSimulatedOrVirtual(categoryName)) continue
+
       const tournId = t.tournamentId || `tourn-${tournamentName}`
       const lowerT = tournamentName.toLowerCase()
 
@@ -196,6 +215,7 @@ export default async function handler(req, res) {
         const home = e.homeTeamName || ''
         const away = e.awayTeamName || ''
         const matchLabel = `${home} vs ${away}`
+        if (isSimulatedOrVirtual(home) || isSimulatedOrVirtual(away) || isSimulatedOrVirtual(matchLabel)) continue
         const eventId = e.eventId
 
         const now = Date.now()

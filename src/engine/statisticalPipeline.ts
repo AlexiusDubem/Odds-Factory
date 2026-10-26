@@ -229,6 +229,21 @@ export function deriveModelProbability(canonicalMarket: CanonicalMarket, homeLam
   }
 }
 
+export function isSimulatedOrVirtualMatch(text: string): boolean {
+  if (!text) return false
+  const lower = text.toLowerCase()
+  return (
+    lower.includes('srl') ||
+    lower.includes('simulated') ||
+    lower.includes('virtual') ||
+    lower.includes('electronic') ||
+    lower.includes('efootball') ||
+    lower.includes('cyber') ||
+    lower.includes('esport') ||
+    lower.includes('fifa')
+  )
+}
+
 /**
  * Evaluates candidate market strictly against statistical thresholds
  */
@@ -258,6 +273,32 @@ export function evaluateMarket(
   const thresholdsFailed: string[] = []
   const riskFlags: string[] = []
   const evidence: string[] = []
+
+  // Strict Exclusion of Simulated Reality League (SRL) / Virtual matches
+  if (isSimulatedOrVirtualMatch(input.fixtureId) || isSimulatedOrVirtualMatch(input.marketLabel)) {
+    thresholdsFailed.push('real_fixture_mandate')
+    return {
+      fixtureId: input.fixtureId,
+      canonicalMarket: input.canonicalMarket,
+      marketLabel: input.marketLabel,
+      decimalOdds: input.decimalOdds,
+      impliedProbability,
+      modelProbability,
+      edge,
+      expectedValue,
+      uncertaintyScore: 0.99,
+      uncertaintyLevel: 'HIGH',
+      status: 'REJECTED',
+      thresholdsPassed: [],
+      thresholdsFailed,
+      rejectionReason: 'Simulated Reality League (SRL) matches are strictly excluded. Only real, official fixtures are permitted.',
+      riskFlags: ['Simulated / Virtual match detected.'],
+      evidence: ['Match rejected by verified real-sport policy filter.'],
+      dataAgeMinutes: input.dataFreshnessMinutes,
+      lineupStatus: input.lineupStatus,
+      evaluatedAt: new Date().toISOString(),
+    }
+  }
 
   // Even/Odd market has mandatory RESEARCH_ONLY gate (near 50% coin flip cannot clear bookmaker margin)
   if (input.canonicalMarket === 'TOTAL_GOALS_EVEN_ODD') {

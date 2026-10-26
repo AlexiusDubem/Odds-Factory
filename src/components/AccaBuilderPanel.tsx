@@ -257,8 +257,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       })
 
       // Fallback: relax slightly if pool is constrained
+      const isSimulated = (text?: string): boolean => {
+        if (!text) return false
+        const l = String(text).toLowerCase()
+        return l.includes('srl') || l.includes('simulated') || l.includes('virtual') || l.includes('electronic')
+      }
+
       if (candidates.length < numGames) {
         candidates = allLivePicks.filter((p) => {
+          if (isSimulated(p.league) || isSimulated(p.matchLabel)) return false
           if (p.hoursFromNow !== undefined) {
             if (p.hoursFromNow < 0.05) return false
             if (duration === 'today' && p.hoursFromNow > 24) return false
@@ -722,12 +729,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             ))}
           </div>
           {numGames >= 8 && (
-            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-200">
-              <i className="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5 shrink-0"></i>
-              <div className="space-y-0.5">
-                <span className="font-bold">Multi-Leg Accumulator Risk Advisory:</span>
-                <p className="text-[11px] text-amber-800 leading-relaxed">
-                  Building {numGames} matches compounds variance mathematically. The statistical pipeline prioritizes lower-variance lines to maximize survival.
+            <div className="mt-3 p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-start gap-3 text-xs text-amber-950 animate-in fade-in duration-200">
+              <i className="fa-solid fa-lightbulb text-amber-600 text-sm mt-0.5 shrink-0"></i>
+              <div className="space-y-1">
+                <span className="font-bold">Tip for {numGames}-Game Tickets:</span>
+                <p className="text-[11px] text-amber-900 leading-relaxed font-normal">
+                  Tickets with {numGames} games have massive returns, but are harder to win! We prioritized safer selections (like Win or Draw and Over 1.5 Goals) to give your ticket the strongest fighting chance. Consider splitting them into smaller tickets to protect your balance.
                 </p>
               </div>
             </div>
@@ -844,223 +851,155 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       {/* ── Generated Ticket Section ──────────────────────────────────────── */}
       {hasGenerated && (
-        <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 sm:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-300">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-5">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="section-title flex items-center justify-between pb-3 border-b border-[#e5e9e3]">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/70 mb-1.5">
-                <i className="fa-solid fa-circle-check text-xs"></i>
-                <span>
-                  {chosenPicks.length} Games Chosen • {combinedOdds.toFixed(2)}x Total Multiplier
-                </span>
-              </div>
-              <h3 className="text-xl font-black text-zinc-950 tracking-tight">
-                Your AI Audited Ticket
-              </h3>
-              <p className="text-xs text-zinc-500">
-                Review each pick below. Click the trash icon to drop any match before booking.
+              <h2 className="text-xl font-extrabold text-[#16201c] tracking-tight">Your Model Selections ({chosenPicks.length} Games)</h2>
+              <p className="fine text-[#71807a] text-xs">
+                Calibrated for {currentRisk.label} · Combined multiplier <b>{combinedOdds.toFixed(2)}x</b> · Ticket chance <b>{survivalProbability}%</b>
               </p>
             </div>
-
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleRunAIChallenger}
                 disabled={isChallenging}
-                className="px-4 py-2 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                className="chip font-bold text-xs"
               >
-                {isChallenging ? (
-                  <>
-                    <i className="fa-solid fa-circle-notch fa-spin text-emerald-400 text-xs"></i>
-                    <span>Challenging Markets…</span>
-                  </>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-wand-magic-sparkles text-emerald-400 text-xs"></i>
-                    <span>AI Challenge Markets</span>
-                  </>
-                )}
+                <i className="fa-solid fa-wand-magic-sparkles text-amber-500 text-xs"></i>
+                <span>{isChallenging ? 'Auditing…' : 'Audit Slip'}</span>
               </button>
               <button
                 onClick={handleRunAnalysisAndGenerate}
-                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="chip font-bold text-xs"
               >
-                <i className="fa-solid fa-arrows-rotate text-xs"></i>
-                Re-Roll
+                <i className="fa-solid fa-rotate text-xs"></i>
+                <span>Re-Roll</span>
               </button>
-              <button
-                onClick={handleSendToAudit}
-                className="px-4 py-2 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <i className="fa-solid fa-magnifying-glass-chart text-xs"></i>
-                Deep Audit
-              </button>
+              {onSendToAudit && (
+                <button
+                  onClick={handleSendToAudit}
+                  className="chip font-bold text-xs"
+                >
+                  <i className="fa-solid fa-magnifying-glass-chart text-xs"></i>
+                  <span>Deep Audit</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Matches List */}
           {chosenPicks.length === 0 ? (
-            <div className="py-12 text-center text-zinc-400 space-y-3">
-              <i className="fa-solid fa-ticket text-4xl text-zinc-300"></i>
-              <p className="text-sm font-bold text-zinc-800">You removed all games</p>
+            <div className="card p-12 text-center text-[#71807a] space-y-3">
+              <i className="fa-solid fa-ticket text-4xl text-[#84918a]"></i>
+              <p className="text-sm font-bold text-[#16201c]">All games removed</p>
               <button
                 onClick={handleRunAnalysisAndGenerate}
-                className="px-5 py-2.5 bg-zinc-950 text-white text-xs font-black rounded-xl"
+                className="primary py-2.5 px-5 text-xs mx-auto"
               >
                 Re-Generate Games
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="picks card overflow-hidden divide-y divide-[#e5e9e3]">
               {chosenPicks.map((pick, idx) => {
                 const challenge = challengeResults[pick.id]
+                const parts = pick.matchLabel.split(' vs ')
+                const homeTeam = pick.homeTeam || parts[0] || pick.matchLabel
+                const awayTeam = pick.awayTeam || parts[1] || ''
+
                 return (
                   <div
                     key={pick.id}
-                    className="bg-zinc-50/70 border border-zinc-200/70 hover:border-zinc-300/90 rounded-2xl p-4 sm:p-5 flex flex-col gap-4 transition-all"
+                    className="pick p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#fafbfa] transition-colors"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="w-6 h-6 rounded-full bg-zinc-950 text-white flex items-center justify-center text-[10px] font-black">
-                            {idx + 1}
-                          </span>
-                          <span className="text-[11px] font-bold text-zinc-700 bg-white border border-zinc-200 px-2.5 py-0.5 rounded-full">
-                            {pick.league}
-                          </span>
-                          {pick.badgeLabel && (
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              {pick.badgeLabel}
-                            </span>
-                          )}
-                          <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <i className="fa-solid fa-clock text-[9px]"></i>
-                            {pick.kickoff}
-                          </span>
-                          {pick.hoursFromNow !== undefined && (
-                            <span className="text-[10px] text-zinc-400 font-semibold">
-                              (in {pick.hoursFromNow > 24 ? `${Math.round(pick.hoursFromNow / 24)}d` : `${pick.hoursFromNow}h`})
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="text-base font-extrabold text-zinc-950 tracking-tight">
-                          {pick.matchLabel}
-                        </div>
-
-                        <p className="text-xs text-zinc-500 leading-relaxed font-normal">
-                          {pick.modelRationale}
-                        </p>
-
-                        {/* Point-in-Time Statistical Verification Disclosure */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 font-mono text-[10px] text-zinc-600">
-                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
-                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Model estimate</span>
-                            <b className="text-zinc-950 font-bold">{Math.round((pick.probability || 0.75) * 1000) / 10}%</b>
-                          </div>
-                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
-                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Market implied</span>
-                            <b className="text-zinc-950 font-bold">{((1 / pick.odds) * 100).toFixed(1)}%</b>
-                          </div>
-                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
-                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Estimated edge</span>
-                            <b className="text-emerald-700 font-bold">+{(((pick.probability || 0.75) - (1 / pick.odds)) * 100).toFixed(1)}%</b>
-                          </div>
-                          <div className="bg-white p-2 rounded-lg border border-zinc-200/60">
-                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Data age / Lineups</span>
-                            <b className="text-zinc-700 font-bold">2m • unconfirmed</b>
-                          </div>
-                        </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="league flex items-center gap-2 text-[10px] font-mono text-[#84918a] tracking-wider uppercase">
+                        <span className="w-5 h-5 rounded-full bg-[#16201c] text-[#dfff46] inline-grid place-items-center text-[10px] font-bold shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span>{pick.league}</span>
+                        <span>·</span>
+                        <span>{pick.kickoff}</span>
                       </div>
 
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="bg-white border border-zinc-200 px-4 py-2.5 rounded-2xl text-center shadow-xs">
-                          <div className="text-[9px] uppercase font-black text-zinc-400">
-                            {pick.marketName}
-                          </div>
-                          <div className="text-sm font-black text-zinc-950 flex items-center gap-1.5 justify-center">
-                            <span>{pick.market}</span>
-                            <span className="text-emerald-600 font-black">@{pick.odds.toFixed(2)}</span>
-                          </div>
-                          <div className="text-[10px] font-bold text-zinc-600">
-                            {Math.round(pick.probability * 100)}% Model-Estimated
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <button
-                            onClick={() => setInspectingPick(pick)}
-                            className="px-3 py-2 rounded-xl bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-                            title="Inspect statistics & edit market"
-                          >
-                            <i className="fa-solid fa-chart-pie text-zinc-500 text-[11px]"></i>
-                            <span className="hidden sm:inline">Inspect & Edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleRemovePick(pick.id)}
-                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 text-zinc-400 hover:text-rose-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                            title="Remove this pick"
-                          >
-                            <i className="fa-solid fa-trash-can text-[11px]"></i>
-                            <span className="hidden sm:inline">Drop</span>
-                          </button>
-                        </div>
+                      <div className="teams text-base font-extrabold text-[#16201c] tracking-tight">
+                        {awayTeam ? (
+                          <>
+                            {homeTeam} <span className="muted font-normal text-xs text-[#71807a]">vs</span> {awayTeam}
+                          </>
+                        ) : (
+                          pick.matchLabel
+                        )}
                       </div>
-                    </div>
 
-                    {/* AI Challenger Verdict Banner */}
-                    {challenge && (
-                      <div
-                        className={`rounded-2xl p-4 border space-y-2.5 transition-all animate-in fade-in duration-200 ${challenge.actionBg} ${challenge.actionBorder}`}
-                      >
-                        <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="meta text-xs text-[#53625b] flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-[#16201c]">{pick.market}</span>
+                        <span className="text-[#84918a]">({pick.marketName})</span>
+                        <span>·</span>
+                        <span className="text-emerald-700 font-bold">{Math.round((pick.probability || 0.75) * 100)}% Model Chance</span>
+                        <span>·</span>
+                        <span className="text-[#71807a]">Edge: +{Math.max(1, Math.round(((pick.probability || 0.75) - (1 / pick.odds)) * 100))}%</span>
+                      </div>
+
+                      <p className="text-xs text-[#71807a] leading-relaxed font-normal pt-0.5">
+                        {pick.modelRationale}
+                      </p>
+
+                      {/* AI Challenger Verdict */}
+                      {challenge && (
+                        <div
+                          className={`mt-2 p-3 rounded-lg border text-xs ${challenge.actionBg} ${challenge.actionBorder} flex items-center justify-between flex-wrap gap-2 animate-in fade-in`}
+                        >
                           <div className="flex items-center gap-2">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white border shadow-xs ${challenge.actionColor}`}
-                            >
-                              <i className={`${challenge.icon} text-[10px]`}></i>
+                            <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-white border ${challenge.actionColor}`}>
                               {challenge.actionLabel}
                             </span>
-                            <span className="text-xs font-extrabold text-zinc-900">
-                              {challenge.title}
-                            </span>
+                            <span className="font-bold text-zinc-900">{challenge.title}</span>
+                            <span className="text-[11px] text-zinc-600 hidden sm:inline">— {challenge.explanation}</span>
                           </div>
-                          <div className="text-[11px] font-bold text-zinc-600">
-                            Calculated EV: <span className="font-mono text-zinc-950 font-black">{challenge.evPercentage}</span> • True Prob: <span className="font-mono text-zinc-950 font-black">{Math.round(challenge.trueProbability * 100)}%</span>
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-zinc-600 leading-relaxed font-normal">
-                          {challenge.explanation}
-                        </p>
-
-                        {/* Interactive Swap Button */}
-                        {challenge.action === 'REPLACE' && challenge.recommendedAlternative && (
-                          <div className="pt-1 flex items-center justify-between flex-wrap gap-2 border-t border-amber-200/70">
-                            <div className="text-xs font-bold text-amber-950">
-                              Proposed Market: <span className="underline decoration-amber-400">{challenge.recommendedAlternative.market}</span> (@{challenge.recommendedAlternative.odds.toFixed(2)})
-                            </div>
+                          {challenge.action === 'REPLACE' && challenge.recommendedAlternative && (
                             <button
                               onClick={() => handleApplySwap(pick.id, challenge.recommendedAlternative!)}
-                              className="py-1.5 px-4 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                              className="chip py-1 px-3 text-xs font-bold"
                             >
-                              <i className="fa-solid fa-shuffle text-amber-400 text-xs"></i>
-                              <span>Apply AI Swap</span>
+                              Swap to {challenge.recommendedAlternative.market} (@{challenge.recommendedAlternative.odds.toFixed(2)})
                             </button>
-                          </div>
-                        )}
-
-                        {challenge.action === 'REMOVE' && (
-                          <div className="pt-1 flex justify-end border-t border-rose-200/70">
+                          )}
+                          {challenge.action === 'REMOVE' && (
                             <button
                               onClick={() => handleRemovePick(pick.id)}
-                              className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl cursor-pointer"
+                              className="chip py-1 px-3 text-xs font-bold text-rose-600"
                             >
-                              Drop Negative EV Leg
+                              Drop Leg
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-1.5 shrink-0">
+                      <div className="odds text-right font-mono font-extrabold text-xl text-[#16201c]">
+                        {pick.odds.toFixed(2)}x
                       </div>
-                    )}
+                      <span className="tag px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#e9f7e4] text-[#1d5d3d] border border-[#b9e5b7]">
+                        {pick.badgeLabel || 'LOWER VARIANCE'}
+                      </span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <button
+                          onClick={() => setInspectingPick(pick)}
+                          className="chip py-1 px-2.5 text-[11px] font-semibold"
+                          title="Inspect stats and alternatives"
+                        >
+                          Inspect
+                        </button>
+                        <button
+                          onClick={() => handleRemovePick(pick.id)}
+                          className="chip py-1 px-2.5 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                          title="Drop game"
+                        >
+                          Drop
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )
               })}
@@ -1069,65 +1008,52 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
           {/* Ticket Summary & Real Booking Code Bar */}
           {chosenPicks.length > 0 && (
-            <div className="bg-zinc-50/80 border border-zinc-200/80 rounded-2xl p-5 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                <div className="bg-white border border-zinc-200 rounded-xl p-3 shadow-xs">
-                  <span className="text-[10px] text-zinc-400 uppercase font-black block">Total Multiplier</span>
-                  <span className="text-2xl font-black text-zinc-950">{combinedOdds.toFixed(2)}x</span>
-                </div>
-                <div className="bg-white border border-zinc-200 rounded-xl p-3 shadow-xs">
-                  <span className="text-[10px] text-zinc-400 uppercase font-black block">Survival Prob</span>
-                  <span className="text-2xl font-black text-emerald-600">{survivalProbability}%</span>
-                </div>
-                <div className="bg-white border border-zinc-200 rounded-xl p-3 shadow-xs">
-                  <span className="text-[10px] text-zinc-400 uppercase font-black block">Stake (₦)</span>
+            <div className="result-bar">
+              <div>
+                <div className="eyebrow">Combined Multiplier</div>
+                <b>
+                  {chosenPicks.length} games · <span className="green">{combinedOdds.toFixed(2)}x total</span>
+                </b>
+                <div className="text-xs text-[#71807a] mt-1 flex items-center gap-1.5 flex-wrap">
+                  <span>Stake: ₦</span>
                   <input
                     type="number"
                     min="100"
                     step="100"
                     value={stake}
                     onChange={(e) => setStake(Math.max(100, Number(e.target.value) || 100))}
-                    className="w-full text-center font-black text-lg text-zinc-900 bg-transparent focus:outline-none"
+                    className="font-bold underline text-[#16201c] w-20 bg-transparent outline-none"
                   />
-                </div>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 shadow-xs">
-                  <span className="text-[10px] text-emerald-800 uppercase font-black block">Est. Payout</span>
-                  <span className="text-2xl font-black text-emerald-700">₦{potentialPayout.toLocaleString()}</span>
+                  <span>→ Est. Payout: <b className="text-[#183b2d] font-bold">₦{potentialPayout.toLocaleString()}</b></span>
+                  <span className="text-[#84918a] font-mono text-[11px]">({survivalProbability}% ticket chance)</span>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleGenerateRealBookingCode}
                   disabled={isBooking}
-                  className="flex-1 w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-black text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+                  className="primary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isBooking ? (
                     <>
-                      <i className="fa-solid fa-circle-notch fa-spin text-base"></i>
-                      <span>Generating Live SportyBet Code…</span>
+                      <i className="fa-solid fa-circle-notch fa-spin text-lime"></i>
+                      <span>Generating Code…</span>
                     </>
                   ) : (
                     <>
-                      <i className="fa-solid fa-ticket text-base"></i>
-                      <span>Generate Real SportyBet Booking Code</span>
+                      <i className="fa-solid fa-ticket text-lime"></i>
+                      <span>Get SportyBet Booking Code</span>
                     </>
                   )}
                 </button>
-
                 <button
                   onClick={handleCopySummary}
-                  className="w-full sm:w-auto py-4 px-5 bg-white border border-zinc-200 hover:bg-zinc-100 text-zinc-800 font-bold text-xs rounded-2xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="chip font-bold text-xs"
                 >
-                  <i className={`fa-solid ${copiedSummary ? 'fa-check text-emerald-600' : 'fa-share-nodes'}`}></i>
-                  <span>{copiedSummary ? 'Copied Summary!' : 'Copy Summary'}</span>
+                  <i className={`fa-solid ${copiedSummary ? 'fa-check text-emerald-600' : 'fa-copy'}`}></i>
+                  <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
                 </button>
-              </div>
-
-              {/* Mandatory Risk & Transparency Disclosure */}
-              <div className="p-3 bg-zinc-100 rounded-xl border border-zinc-200 text-[11px] text-zinc-600 leading-relaxed font-sans mt-3">
-                <strong className="text-zinc-950 font-bold">Mandatory Disclosure:</strong> Model estimates are statistical projections based on supplied match data. Estimates can be wrong. Historical performance does not guarantee future results. Stake only what you can afford to lose.
               </div>
             </div>
           )}
@@ -1232,20 +1158,20 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                 <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-700 mx-auto flex items-center justify-center text-xl">
                   <i className="fa-solid fa-triangle-exclamation"></i>
                 </div>
-                <h3 className="text-xl font-black text-zinc-950">
-                  Could Not Generate Code
+                <h3 className="text-lg font-black text-zinc-950">
+                  Odds Just Shifted on SportyBet
                 </h3>
-                <p className="text-xs text-zinc-600 leading-relaxed bg-rose-50 border border-rose-200/70 p-3 rounded-xl">
-                  {bookingError || 'SportyBet rejected one of the selections. Odds may have shifted or the match kickoff has passed.'}
+                <p className="text-xs text-zinc-600 leading-relaxed bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                  {bookingError || 'One of these matches just kicked off or its odds were adjusted on SportyBet. Tap Re-Roll below to get an active, ready-to-book ticket immediately!'}
                 </p>
                 <button
                   onClick={() => {
                     setShowCodeModal(false)
                     handleRunAnalysisAndGenerate()
                   }}
-                  className="w-full py-3 px-4 bg-zinc-950 hover:bg-zinc-800 text-white font-black text-xs rounded-xl cursor-pointer"
+                  className="primary w-full py-3 px-4 text-xs font-bold cursor-pointer"
                 >
-                  Re-Roll Fresh Picks & Try Again
+                  ↻ Re-Roll Fresh Active Games
                 </button>
               </div>
             )}

@@ -200,7 +200,28 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       if (!scrapedPicks || scrapedPicks.length === 0) {
         throw new Error('No picks found in this booking code or format unsupported')
       }
-      const legsToUse = scrapedPicks
+      const isSimulated = (text?: string): boolean => {
+        if (!text) return false
+        const l = String(text).toLowerCase()
+        return l.includes('srl') || l.includes('simulated') || l.includes('virtual') || l.includes('electronic')
+      }
+
+      const realPicks = scrapedPicks.filter((pick: any) => {
+        const pHome = pick.homeTeamName ?? pick.homeTeam ?? pick.home ?? ''
+        const pAway = pick.awayTeamName ?? pick.awayTeam ?? pick.away ?? ''
+        const pMarket = pick.outcomeName ?? pick.outcome_name ?? pick.marketName ?? pick.market_name ?? ''
+        return !isSimulated(pHome) && !isSimulated(pAway) && !isSimulated(pMarket)
+      })
+
+      if (realPicks.length < scrapedPicks.length) {
+        toast('info', 'Simulated Matches Removed', `${scrapedPicks.length - realPicks.length} Simulated Reality (SRL) match(es) were filtered out to protect ticket quality.`)
+      }
+
+      if (realPicks.length === 0) {
+        throw new Error('Only simulated (SRL) matches were in this code. Only real-sport fixtures are supported.')
+      }
+
+      const legsToUse = realPicks
       const updatedMap = new Map(localMatchMap)
 
       const parsedLegs: SlipLeg[] = legsToUse.map((pick: any, i: number) => {
@@ -311,18 +332,39 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
         const displayMkt  = pMarket || enhancedMatch.availableMarkets.at(-1)?.market || '1X2'
         const displayOdds = isNaN(pOdds) ? (enhancedMatch.availableMarkets.at(-1)?.odds ?? 2.0) : pOdds
 
+        const impliedProb = 1 / Math.max(1.01, displayOdds)
+        const homeXG = enhancedMatch.football?.homeGoalsFor || 1.45
+        const awayXG = enhancedMatch.football?.awayGoalsFor || 1.15
+        const totalXG = homeXG + awayXG
+
+        let modelProb = impliedProb * 0.95
+        if (displayMkt.includes('Over 1.5')) {
+          modelProb = 1 - Math.exp(-totalXG) * (1 + totalXG)
+        } else if (displayMkt.includes('1X') || displayMkt.includes('Double Chance') || displayMkt.includes('X2')) {
+          modelProb = Math.min(0.88, impliedProb * 1.06)
+        } else if (displayMkt.includes('Over 2.5')) {
+          modelProb = 1 - Math.exp(-totalXG) * (1 + totalXG + (totalXG * totalXG) / 2)
+        } else if (displayMkt.includes('Under 3.5')) {
+          modelProb = Math.min(0.85, impliedProb * 1.04)
+        }
+        modelProb = Math.max(0.12, Math.min(0.92, modelProb))
+        const calculatedEv = Number((modelProb * displayOdds - 1).toFixed(3))
+        const hitRatePct = Math.round(modelProb * 100)
+        const matchLabel = pHome && pAway ? `${pHome} vs ${pAway}` : `${enhancedMatch.homeTeam} vs ${enhancedMatch.awayTeam}`
+        const tacticalRationale = `${matchLabel}: calibrated ${hitRatePct}% probability for ${displayMkt} @${displayOdds.toFixed(2)}${calculatedEv > 0 ? ` (+${(calculatedEv * 100).toFixed(1)}% EV)` : ''}.`
+
         return {
           id: `leg-${Date.now()}-${i}`,
           matchId: uniqueId,
-          matchLabel: pHome && pAway ? `${pHome} vs ${pAway}` : `${enhancedMatch.homeTeam} vs ${enhancedMatch.awayTeam}`,
+          matchLabel,
           sport:   pick.sport?.name ?? pick.sportName ?? enhancedMatch.sport,
           profile: analysis.profile,
           market:  displayMkt,
           odds:    displayOdds,
-          probability: Math.max(1, Math.min(95, Math.round((1 / displayOdds) * 100 * 0.90))),
-          ev: 0.8,
-          tier: 3 as const,
-          rationale: 'Analyzed live. Run AI Optimization to reveal insights.',
+          probability: hitRatePct,
+          ev: calculatedEv,
+          tier: (modelProb >= 0.75 ? 1 : modelProb >= 0.60 ? 2 : 3) as 1 | 2 | 3,
+          rationale: tacticalRationale,
           isOriginal: true,
           rawSelection,
         }
@@ -635,39 +677,52 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
       <div className="space-y-5 max-w-4xl mx-auto w-full overflow-x-hidden">
 
         {/* ── Header bar ──────────────────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-white border border-border shadow-sm gap-4 w-full">
+        <div className="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#e5e9e3]">
           <div className="w-full sm:w-auto">
-            <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200 tracking-wide break-all max-w-[200px] truncate">{selectedSlip.name}</span>
-              <span className="text-sm text-slate-500 font-medium whitespace-nowrap">{selectedSlip.legs.length} {selectedSlip.legs.length === 1 ? 'leg' : 'legs'}</span>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="pill text-xs font-bold font-mono bg-[#f4f6f2] text-[#16201c] border border-[#e5e9e3]">
+                {selectedSlip.name}
+              </span>
+              <span className="text-xs text-[#71807a] font-medium">{selectedSlip.legs.length} {selectedSlip.legs.length === 1 ? 'game' : 'games'}</span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-600 break-words">
-              Survival: <strong className={survivalColor}>{selectedSlip.survivalProbability < 0.1 ? '<0.1' : selectedSlip.survivalProbability.toFixed(1)}%</strong>
-              {' · '}Combined Odds: <strong className="text-accent">{selectedSlip.combinedOdds.toFixed(2)}</strong>
+            <p className="text-xs sm:text-sm text-[#71807a]">
+              Estimated survival chance: <strong className={survivalColor}>{selectedSlip.survivalProbability < 0.1 ? '<0.1' : selectedSlip.survivalProbability.toFixed(1)}%</strong>
+              {' · '}Combined Odds: <strong className="font-mono text-[#16201c]">{selectedSlip.combinedOdds.toFixed(2)}x</strong>
             </p>
           </div>
-          <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 w-full sm:w-auto">
-            <button id="save-slip-btn" onClick={handleSaveSlip} disabled={isSaving || !selectedSlip} className="w-full sm:w-auto px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors font-semibold text-sm border border-slate-200 shadow-sm disabled:opacity-50 flex items-center justify-center whitespace-nowrap">
-              {isSaving ? <i className="fa-solid fa-circle-notch fa-spin mr-2" /> : <i className="fa-regular fa-bookmark mr-2" />}
+          <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+            <button
+              id="save-slip-btn"
+              onClick={handleSaveSlip}
+              disabled={isSaving || !selectedSlip}
+              className="chip font-bold text-xs cursor-pointer"
+            >
+              {isSaving ? <i className="fa-solid fa-circle-notch fa-spin mr-1" /> : <i className="fa-regular fa-bookmark mr-1" />}
               {isSaving ? 'Saving...' : 'Save'}
             </button>
-            <button id="clear-slip-btn" onClick={handleClear} className="w-full sm:w-auto px-4 sm:px-4 py-3 sm:py-2.5 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm border border-transparent flex items-center justify-center whitespace-nowrap">
-              <i className="fa-solid fa-times mr-1.5" />Clear
+            <button
+              id="clear-slip-btn"
+              onClick={handleClear}
+              className="chip font-bold text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 cursor-pointer"
+            >
+              <i className="fa-solid fa-times mr-1" />Clear
             </button>
-            <button id="optimize-btn" onClick={() => setShowGoalPanel((v) => !v)} className="w-full sm:w-auto px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-700 font-bold transition-all shadow-sm border border-violet-200 flex items-center justify-center gap-2 whitespace-nowrap">
-              <i className="fa-solid fa-wand-magic-sparkles" />AI Optimize
+            <button
+              id="optimize-btn"
+              onClick={() => setShowGoalPanel((v) => !v)}
+              className="chip font-bold text-xs cursor-pointer"
+            >
+              <i className="fa-solid fa-wand-magic-sparkles text-amber-500 mr-1" />AI Optimize
             </button>
-            <div className="relative group w-full sm:w-auto sm:ml-2">
-              <button id="generate-code-btn" onClick={handleGenerateCode} disabled={isGenerating} className="relative flex w-full p-px font-black leading-6 text-white bg-accent shadow-xl cursor-pointer rounded-xl transition-all duration-300 ease-in-out hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center">
-                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-400 via-emerald-500 to-green-500 p-[2px] opacity-100" />
-                <span className="relative z-10 flex w-full items-center justify-center px-4 sm:px-6 py-3 sm:py-2.5 rounded-xl bg-accent border border-transparent transition-colors shadow-inner">
-                  <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
-                    {isGenerating ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-bolt" />}
-                    <span className="tracking-wide text-[10px] sm:text-sm">{isGenerating ? 'GENERATING...' : 'GENERATE SPORTYBET CODE'}</span>
-                  </div>
-                </span>
-              </button>
-            </div>
+            <button
+              id="generate-code-btn"
+              onClick={handleGenerateCode}
+              disabled={isGenerating}
+              className="primary flex items-center justify-center gap-2 text-xs font-bold py-2.5 px-4 cursor-pointer disabled:opacity-50"
+            >
+              {isGenerating ? <i className="fa-solid fa-circle-notch fa-spin text-lime" /> : <i className="fa-solid fa-ticket text-lime" />}
+              <span>{isGenerating ? 'Booking…' : 'Generate SportyBet Code'}</span>
+            </button>
           </div>
         </div>
 
@@ -787,7 +842,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
 
         {/* ── Legs ─────────────────────────────────────────────────────────── */}
-        <div className="space-y-2">
+        <div className="card overflow-hidden divide-y divide-[#e5e9e3] shadow-xs">
           {selectedSlip.legs.map((leg, i) => (
             <SlipLegRow key={leg.id} leg={leg} index={i} onRemove={() => handleRemoveLeg(leg.id)} />
           ))}
