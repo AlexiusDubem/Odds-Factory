@@ -573,41 +573,53 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
     return (
       <>
         <ToastContainer toasts={toasts} onDismiss={dismiss} />
-        <div className="flex flex-col items-center justify-center py-24">
-          <div className="w-20 h-20 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-4xl text-accent mb-8 shadow-sm">
-            <i className="fa-solid fa-cloud-arrow-down" />
+        <div className="max-w-[720px] mx-auto my-12 text-center px-4 animate-in fade-in duration-200">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-[#e9f7e4] text-[#183b2d] flex items-center justify-center text-3xl mb-5 border border-[#cbe8c4]">
+            <i className="fa-solid fa-wand-magic-sparkles" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Import Booking Code</h2>
-          <p className="text-sm text-slate-500 mb-10 max-w-sm text-center leading-relaxed">
-            Paste your SportyBet booking code. The engine analyses every pick and helps you optimise for better survival rates.
+          <div className="font-mono text-[10px] uppercase font-bold tracking-[0.1em] text-[#84918a] mb-2">
+            Ticket Optimizer
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-[-1.5px] text-[#16201c] mb-3">
+            Import a booking code
+          </h2>
+          <p className="text-xs sm:text-sm text-[#71807a] max-w-lg mx-auto mb-8 leading-relaxed">
+            Paste your SportyBet booking code. We’ll assess every leg and show what is helping—or hurting—your ticket’s survival rate.
           </p>
-          <form onSubmit={handleLoadBookingCode} className="w-full max-w-md flex flex-col gap-3">
+
+          <form onSubmit={handleLoadBookingCode} className="w-full max-w-md mx-auto space-y-3">
             <input
               id="booking-code-input"
               type="text"
-              placeholder="e.g. X60VQ9"
+              placeholder="e.g. SBT-4F8J9 or X60VQ9"
               value={bookingCode}
               onChange={(e) => setBookingCode(e.target.value.toUpperCase())}
               disabled={isLoading}
-              className="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-2xl bg-white border-2 border-border focus:border-accent/60 text-slate-900 placeholder:text-slate-400 focus:outline-none text-center font-bold tracking-[0.2em] sm:tracking-[0.3em] uppercase text-base sm:text-lg shadow-sm transition-colors"
+              className="w-full px-5 py-3.5 rounded-xl bg-white border border-[#e5e9e5] focus:border-[#183b2d] text-[#16201c] placeholder:text-[#8a9690] focus:outline-none text-center font-mono font-bold tracking-[0.2em] uppercase text-base shadow-xs transition-colors"
             />
-            <div className="relative group w-full">
-              <button
-                id="load-code-btn"
-                type="submit"
-                disabled={isLoading || !bookingCode.trim()}
-                className="relative inline-block w-full p-px font-semibold leading-6 text-slate-900 bg-white shadow-xl cursor-pointer rounded-2xl transition-transform duration-300 ease-in-out hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="absolute inset-0 rounded-2xl bg-gradient-to-r from-teal-400 via-blue-500 to-purple-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                <span className="relative z-10 block px-4 sm:px-5 py-3 sm:py-4 rounded-2xl bg-slate-950 border border-slate-800 group-hover:border-transparent transition-colors">
-                  <div className="relative z-10 flex items-center justify-center space-x-2 text-white">
-                    {isLoading ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-download transition-transform duration-500 group-hover:-translate-y-1" />}
-                    <span className="transition-all duration-500 group-hover:translate-x-1 text-sm sm:text-base">{isLoading ? 'Loading picks…' : 'Load Booking Code'}</span>
-                  </div>
-                </span>
-              </button>
-            </div>
+            <button
+              id="load-code-btn"
+              type="submit"
+              disabled={isLoading || !bookingCode.trim()}
+              className="w-full py-3.5 px-6 rounded-xl bg-[#16201c] hover:bg-[#202d28] text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <>
+                  <i className="fa-solid fa-circle-notch fa-spin text-xs text-[#dfff46]" />
+                  <span>Loading picks from SportyBet…</span>
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-bolt text-xs text-[#dfff46]" />
+                  <span>Load booking code</span>
+                </>
+              )}
+            </button>
           </form>
+
+          <p className="text-[11px] text-[#8a9690] mt-6">
+            Supports official SportyBet booking codes (Nigeria, Ghana, Kenya, Zambia).
+          </p>
         </div>
       </>
     )

@@ -317,9 +317,27 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         if (selected.length >= numGames) break
       }
 
-      // 4. Fill up if we are short
+      // 4. Fill up if we are short (first from candidates, then allLivePicks, then fallback DAILY_SURE_PICKS)
       if (selected.length < numGames) {
         for (const pick of candidates) {
+          if (!usedEvents.has(pick.eventId)) {
+            selected.push(pick)
+            usedEvents.add(pick.eventId)
+            if (selected.length >= numGames) break
+          }
+        }
+      }
+      if (selected.length < numGames) {
+        for (const pick of allLivePicks) {
+          if (!usedEvents.has(pick.eventId)) {
+            selected.push(pick)
+            usedEvents.add(pick.eventId)
+            if (selected.length >= numGames) break
+          }
+        }
+      }
+      if (selected.length < numGames) {
+        for (const pick of DAILY_SURE_PICKS) {
           if (!usedEvents.has(pick.eventId)) {
             selected.push(pick)
             usedEvents.add(pick.eventId)
@@ -765,28 +783,29 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             <input
               type="range"
               min={2}
-              max={20}
+              max={30}
               step={1}
               value={numGames}
               onChange={(e) => setNumGames(Number(e.target.value))}
               className="w-full h-2.5 rounded-full cursor-pointer appearance-none bg-zinc-200 accent-zinc-950"
               style={{
                 background: `linear-gradient(to right, #09090b ${
-                  ((numGames - 2) / 18) * 100
-                }%, #e4e4e7 ${((numGames - 2) / 18) * 100}%)`,
+                  ((numGames - 2) / 28) * 100
+                }%, #e4e4e7 ${((numGames - 2) / 28) * 100}%)`,
               }}
             />
             <div className="flex justify-between text-[10px] font-bold text-zinc-400 px-0.5">
-              <span>2 Games (Punchy)</span>
+              <span>2 Games</span>
               <span>10 Games</span>
-              <span>20 Games (Max Safe)</span>
+              <span>20 Games</span>
+              <span>30 Games (Max Multi)</span>
             </div>
           </div>
 
           {/* Quick presets */}
           <div className="flex items-center gap-1.5 flex-wrap pt-1">
             <span className="text-[10px] font-bold text-zinc-400 uppercase mr-1">Presets:</span>
-            {[3, 5, 6, 8, 10, 12, 15].map((n) => (
+            {[3, 5, 6, 8, 10, 15, 20, 25, 30].map((n) => (
               <button
                 key={n}
                 type="button"

@@ -3,19 +3,19 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getMessaging, isSupported } from 'firebase/messaging'
 
-const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyARS5Mzvp22Wt1qn8HFknlaAl83YHRPwyY'
+const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCP9RNmj5Wfrv7UJXEKUIp5Yg8CSepzzks'
 export const isFirebaseConfigured = Boolean(
   rawApiKey && rawApiKey.trim() !== '' && !rawApiKey.includes('your_api_key')
 )
 
 const firebaseConfig = {
   apiKey: rawApiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'odds-factory.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'odds-factory',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'odds-factory.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '461615555734',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:461615555734:web:09a6343d1a0ed953cdceb7',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-5ZEL06L9DR',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'oddsfactory-betsai.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'oddsfactory-betsai',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'oddsfactory-betsai.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '431503465290',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:431503465290:web:06a70c5d6be18a11c63fb3',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-2FBDYZLMY8',
 }
 
 let firebaseApp

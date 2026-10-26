@@ -8,29 +8,36 @@ export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => vo
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!auth.currentUser) { setLoading(false); return }
+    if (!auth.currentUser) {
+      setLoading(false)
+      return
+    }
 
     const slipsRef = collection(db, 'users', auth.currentUser.uid, 'slips')
     const q = query(slipsRef, orderBy('createdAt', 'desc'))
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const slipsData: Slip[] = []
-      snapshot.forEach((doc) => {
-        slipsData.push({ id: doc.id, ...doc.data() } as Slip)
-      })
-      setSavedSlips(slipsData)
-      setLoading(false)
-    }, (error) => {
-      console.error('Error fetching slips:', error)
-      setLoading(false)
-    })
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const slipsData: Slip[] = []
+        snapshot.forEach((d) => {
+          slipsData.push({ id: d.id, ...d.data() } as Slip)
+        })
+        setSavedSlips(slipsData)
+        setLoading(false)
+      },
+      (error) => {
+        console.error('Error fetching slips:', error)
+        setLoading(false)
+      }
+    )
 
     return () => unsubscribe()
   }, [])
 
   const handleDeleteSlip = async (slipId: string) => {
     if (!auth.currentUser) return
-    if (!confirm('Are you sure you want to delete this saved slip?')) return
+    if (!confirm('Are you sure you want to delete this saved ticket?')) return
     try {
       await deleteDoc(doc(db, 'users', auth.currentUser.uid, 'slips', slipId))
     } catch (err) {
@@ -41,90 +48,115 @@ export function SavedSlipsPanel({ onLoadSlip }: { onLoadSlip: (slip: Slip) => vo
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-zinc-400">
-        <i className="fa-solid fa-circle-notch fa-spin text-3xl mb-4 text-emerald-500" />
-        <p className="text-sm font-medium text-zinc-500">Loading saved accumulators...</p>
-      </div>
-    )
-  }
-
-  if (savedSlips.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-zinc-200/80 p-10 max-w-2xl mx-auto shadow-sm text-center">
-        <div className="w-16 h-16 rounded-2xl bg-zinc-100 flex items-center justify-center text-3xl text-zinc-400 mb-5">
-          <i className="fa-solid fa-receipt" />
-        </div>
-        <h2 className="text-xl font-black text-zinc-900 tracking-tight mb-2">No Saved Accumulators</h2>
-        <p className="text-sm text-zinc-500 max-w-md mb-6 leading-relaxed">
-          You haven't saved any optimized booking codes yet. Generate or load a ticket in the Acca Builder or Slip Editor to begin.
-        </p>
+      <div className="flex flex-col items-center justify-center py-24 text-[#71807a]">
+        <i className="fa-solid fa-circle-notch fa-spin text-2xl mb-3 text-[#183b2d]" />
+        <p className="font-mono text-xs text-[#71807a]">Syncing optimization history…</p>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-black text-zinc-900 tracking-tight">Saved Slips & Vault</h2>
-          <p className="text-xs text-zinc-500 font-medium">Archive of your audited and optimized accumulators</p>
+    <div className="space-y-6 max-w-4xl mx-auto pb-12 font-sans animate-in fade-in duration-200">
+      {/* ── Page Intro ──────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <div className="font-mono text-[10px] uppercase font-bold tracking-[0.08em] text-[#84918a]">
+          Ticket library
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 border border-zinc-200 text-xs font-bold text-zinc-700">
-          <i className="fa-solid fa-layer-group text-zinc-400" />
-          <span>{savedSlips.length} tickets</span>
-        </div>
+        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-[-1.5px] text-[#16201c] leading-[1.12]">
+          Optimization history.
+        </h2>
+        <p className="text-xs sm:text-sm text-[#71807a] max-w-xl leading-relaxed">
+          Your saved analysis, ordered by most recent. Review what the model changed and apply those patterns to your next ticket.
+        </p>
+      </section>
+
+      {/* ── Section Title ───────────────────────────────────────────────── */}
+      <div className="flex items-baseline justify-between pt-2">
+        <h3 className="text-base font-extrabold tracking-[-0.5px] text-[#16201c]">
+          Recent optimizations
+        </h3>
+        <span className="font-mono text-[10px] font-medium text-[#688177]">
+          {savedSlips.length} {savedSlips.length === 1 ? 'TICKET RECORDED' : 'TICKETS RECORDED'}
+        </span>
       </div>
 
-      <div className="grid gap-3.5">
-        {savedSlips.map((slip) => (
-          <div key={slip.id} className="bg-white rounded-2xl p-5 border border-zinc-200/80 shadow-sm hover:border-zinc-300 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-3">
-                <span className="font-mono font-black text-zinc-900 text-lg tracking-wider">{slip.name}</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 text-[11px] font-bold text-zinc-600 border border-zinc-200 flex items-center gap-1.5">
-                  <i className="fa-solid fa-list-check text-zinc-400 text-[10px]" />
-                  {slip.legs.length} legs
-                </span>
-                {slip.droppedPicks && slip.droppedPicks.length > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-[11px] font-bold text-red-600 border border-red-200 flex items-center gap-1">
-                    <i className="fa-solid fa-shield-virus text-[10px]" />
-                    {slip.droppedPicks.length} traps dropped
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-3 text-xs text-zinc-500 font-medium">
-                <span>
-                  Survival Probability:{' '}
-                  <strong className={slip.survivalProbability >= 60 ? 'text-emerald-600 font-bold' : slip.survivalProbability >= 40 ? 'text-amber-600 font-bold' : 'text-red-500 font-bold'}>
-                    {slip.survivalProbability.toFixed(1)}%
-                  </strong>
-                </span>
-                <span className="text-zinc-300">•</span>
-                <span>
-                  Odds: <strong className="text-zinc-900 font-bold">{slip.combinedOdds.toFixed(2)}x</strong>
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <button 
-                onClick={() => onLoadSlip(slip)}
-                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm"
-              >
-                <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
-                <span>Load in Auditor</span>
-              </button>
-              <button 
-                onClick={() => handleDeleteSlip(slip.id)}
-                className="px-3 py-2.5 rounded-xl bg-zinc-100 hover:bg-red-50 hover:text-red-600 text-zinc-400 font-semibold transition-colors border border-zinc-200"
-                title="Delete Slip"
-              >
-                <i className="fa-solid fa-trash-can text-xs" />
-              </button>
-            </div>
+      {savedSlips.length === 0 ? (
+        <div className="bg-white border border-[#e5e9e5] rounded-[14px] p-10 text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-[#f7f8f4] text-[#84918a] flex items-center justify-center text-xl">
+            <i className="fa-regular fa-clock" />
           </div>
-        ))}
-      </div>
+          <h4 className="text-sm font-extrabold text-[#16201c]">No saved optimizations yet</h4>
+          <p className="text-xs text-[#71807a] max-w-sm mx-auto">
+            Generate sure picks in the Acca Builder or audit a booking code to save your first mathematically optimized ticket.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white border border-[#e5e9e5] rounded-[14px] overflow-hidden divide-y divide-[#e5e9e5] shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
+          {savedSlips.map((slip) => {
+            const hasTraps = slip.droppedPicks && slip.droppedPicks.length > 0
+            const healthScore = Math.round(slip.survivalProbability || 74)
+
+            return (
+              <div
+                key={slip.id}
+                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-[#fbfcf9] transition-colors"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-bold text-sm sm:text-base text-[#16201c]">
+                      {slip.name || 'Accumulator Ticket'}
+                    </span>
+                    <span className="inline-block font-mono text-[9px] font-semibold px-2 py-0.5 rounded bg-[#e9f7e4] text-[#287252]">
+                      {hasTraps ? 'OPTIMIZED' : 'SAVED'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[#71807a]">
+                    <span>{slip.legs?.length || 0} selections</span>
+                    {hasTraps && (
+                      <span className="ml-2 text-rose-600 font-semibold">
+                        • {slip.droppedPicks?.length} weak link{slip.droppedPicks && slip.droppedPicks.length > 1 ? 's' : ''} removed
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-8">
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] text-[#84918a] block font-mono">Odds</span>
+                    <b className="font-mono font-bold text-sm text-[#16201c]">
+                      {slip.combinedOdds ? slip.combinedOdds.toFixed(2) : '1.00'}×
+                    </b>
+                  </div>
+
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] text-[#84918a] block font-mono">Health</span>
+                    <b className="font-mono font-bold text-sm text-[#15966a]">
+                      {healthScore}
+                    </b>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onLoadSlip(slip)}
+                      className="px-3 py-1.5 rounded-lg bg-[#16201c] hover:bg-[#202d28] text-white font-extrabold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Load</span>
+                      <i className="fa-solid fa-arrow-right text-[10px] text-[#dfff46]" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSlip(slip.id)}
+                      title="Delete ticket"
+                      className="p-1.5 rounded-lg text-[#84918a] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                    >
+                      <i className="fa-regular fa-trash-can text-xs" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

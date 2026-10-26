@@ -20,6 +20,19 @@ export const ProfilePanel = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16 font-sans animate-in fade-in duration-300">
+      {/* ── Page Intro ──────────────────────────────────────────────────── */}
+      <section className="space-y-2">
+        <div className="font-mono text-[10px] uppercase font-bold tracking-[0.08em] text-[#84918a]">
+          Account
+        </div>
+        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-[-1.5px] text-[#16201c] leading-[1.12]">
+          Your preferences.
+        </h2>
+        <p className="text-xs sm:text-sm text-[#71807a] max-w-xl leading-relaxed">
+          Control how Odds Factory presents markets, executes smart drops, and measures ticket survival probability.
+        </p>
+      </section>
+
       {/* ── User Identity Card ─────────────────────────────────────────── */}
       <div className="bg-white border border-zinc-200/80 rounded-[32px] p-6 sm:p-8 shadow-[0_2px_20px_rgba(0,0,0,0.02)] relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
