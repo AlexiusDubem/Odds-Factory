@@ -31,7 +31,12 @@ interface BroadcastItem {
   author?: string
 }
 
+const ADMIN_EMAIL = 'alexiusdubem7@gmail.com'
+
 export const ControlPanel = () => {
+  const currentEmail = auth.currentUser?.email?.toLowerCase().trim()
+  const isAuthorized = currentEmail === ADMIN_EMAIL
+
   const [users, setUsers] = useState<UserStats[]>([])
   const [droppedPicks, setDroppedPicks] = useState<DroppedPickStats[]>([])
   const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([])
@@ -53,6 +58,10 @@ export const ControlPanel = () => {
 
   // Fetch genuine admin, telemetry, and broadcast data
   const fetchAdminData = async () => {
+    if (!isAuthorized) {
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
 
@@ -304,6 +313,26 @@ export const ControlPanel = () => {
   const mobileCount = useMemo(() => users.filter((u) => u.isMobile).length, [users])
   const desktopCount = useMemo(() => users.length - mobileCount, [users, mobileCount])
   const mobilePct = users.length > 0 ? Math.round((mobileCount / users.length) * 100) : 0
+
+  if (!isAuthorized) {
+    return (
+      <div className="max-w-md mx-auto my-16 bg-white border border-rose-200 rounded-[28px] p-8 text-center space-y-4 shadow-sm font-sans animate-in fade-in duration-200">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-2xl">
+          <i className="fa-solid fa-lock"></i>
+        </div>
+        <h2 className="text-xl font-black text-zinc-950">Access Restricted</h2>
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          The Odds Factory Administrative Command Center is strictly reserved for authorized system administrators. Your account (<span className="font-mono text-zinc-800 font-semibold">{auth.currentUser?.email || 'Guest'}</span>) does not have administrative clearance.
+        </p>
+        <button
+          onClick={() => window.location.href = '/dashboard'}
+          className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+        >
+          Return to Dashboard
+        </button>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

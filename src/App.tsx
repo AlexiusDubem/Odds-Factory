@@ -17,14 +17,7 @@ import { getToken } from 'firebase/messaging'
 import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { UpdatePrompt } from './components/UpdatePrompt'
 
-const NAV_LINKS = [
-  { path: '/dashboard', label: 'Dashboard', icon: 'fa-solid fa-chart-line' },
-  { path: '/builder', label: 'Sure Picks', icon: 'fa-solid fa-star' },
-  { path: '/audit', label: 'Audit Slip', icon: 'fa-solid fa-wand-magic-sparkles' },
-  { path: '/history', label: 'History', icon: 'fa-solid fa-clock-rotate-left' },
-  { path: '/profile', label: 'Profile', icon: 'fa-solid fa-user' },
-  { path: '/control', label: 'Admin', icon: 'fa-solid fa-shield-halved' },
-]
+const ADMIN_EMAIL = 'alexiusdubem7@gmail.com'
 
 interface ActiveBroadcast {
   id: string
@@ -38,6 +31,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [slips, setSlips] = useState<Slip[]>([])
   const [activeBroadcast, setActiveBroadcast] = useState<ActiveBroadcast | null>(null)
+
+  const isAdmin = Boolean(user?.email && user.email.toLowerCase().trim() === ADMIN_EMAIL)
 
   const handleSendToAudit = (newSlip: Slip) => {
     setSlips((prev) => [newSlip, ...prev.filter((s) => s.id !== newSlip.id)])
@@ -111,7 +106,6 @@ function App() {
   // 2. Real-time Broadcast Listener
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      // Check local storage for preview broadcasts
       try {
         const local = localStorage.getItem('odds_factory_active_broadcast')
         if (local) {
@@ -162,39 +156,58 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <i className="fa-solid fa-circle-notch fa-spin text-4xl text-accent"></i>
+      <div className="min-h-screen bg-[#f7f8f4] flex items-center justify-center">
+        <div className="w-9 h-9 rounded-xl bg-[#16201c] text-[#dfff46] flex items-center justify-center font-mono font-bold text-xs animate-pulse">
+          OF
+        </div>
       </div>
     )
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f7f8f4] flex items-center justify-center p-4">
         <LoginPanel onContinueAsGuest={() => setUser({ uid: 'guest-user', email: 'guest@oddsfactory.local', displayName: 'Guest' } as any)} />
       </div>
     )
   }
 
+  // Greeting & date calculations
+  const now = new Date()
+  const hour = now.getHours()
+  const greetingTime = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
+  const todayFormatted = now.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+  const firstName = user.displayName?.split(' ')[0] || (user.email ? user.email.split('@')[0] : 'Punter')
+  const initials = (user.displayName || user.email || 'OF')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA]">
+    <div className="min-h-screen bg-[#f7f8f4] text-[#16201c]">
       {/* ── Active Broadcast Announcement Banner ──────────────────────────── */}
       {activeBroadcast && (
-        <div className="bg-zinc-950 text-white px-4 py-2.5 text-xs font-semibold border-b border-zinc-800 shadow-sm animate-in fade-in duration-200">
+        <div className="bg-[#183b2d] text-white px-4 py-2.5 text-xs font-semibold border-b border-[#2d5543] shadow-sm animate-in fade-in duration-200">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-ping"></span>
-              <span className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] uppercase font-bold tracking-wider text-emerald-400 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-[#dfff46] shrink-0 animate-ping"></span>
+              <span className="px-2 py-0.5 rounded bg-black/40 text-[10px] uppercase font-mono font-bold tracking-wider text-[#dfff46] shrink-0 border border-[#dfff46]/20">
                 Live Broadcast
               </span>
               <span className="truncate">
-                <strong className="text-zinc-100">{activeBroadcast.title}:</strong>{' '}
-                <span className="text-zinc-300">{activeBroadcast.message}</span>
+                <strong className="text-white">{activeBroadcast.title}:</strong>{' '}
+                <span className="text-[#c7d8cc]">{activeBroadcast.message}</span>
               </span>
             </div>
             <button
               onClick={() => handleDismissBroadcast(activeBroadcast.id)}
-              className="text-zinc-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+              className="text-[#c7d8cc] hover:text-white text-xs px-2 py-1 rounded hover:bg-black/20 transition-colors cursor-pointer shrink-0"
               title="Dismiss announcement"
             >
               <i className="fa-solid fa-xmark"></i>
@@ -203,107 +216,159 @@ function App() {
         </div>
       )}
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="border-b border-zinc-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-2xl bg-zinc-950 text-white flex items-center justify-center font-black text-xs shadow-xs">
-                OF
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base font-black text-zinc-950 tracking-tight">Odds Factory</h1>
-                  <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full hidden sm:inline-flex items-center gap-1.5">
-                    <i className="fa-solid fa-circle text-[6px] text-emerald-500 animate-pulse"></i>
-                    <span>Live Engine</span>
-                  </span>
+      {/* ── Main App Grid (Desktop Sidebar + Main Content) ────────────────── */}
+      <div className="app-container">
+        {/* Desktop Sticky Sidebar */}
+        <aside className="side">
+          <div className="brand">
+            <div className="mark">OF</div>
+            <span>Odds Factory</span>
+          </div>
+
+          <div className="nav">
+            <div className="nav-label">Workspace</div>
+            <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <span className="icon-slot"><i className="fa-solid fa-shapes"></i></span>
+              Overview
+            </NavLink>
+            <NavLink to="/builder" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <span className="icon-slot"><i className="fa-solid fa-wand-magic-sparkles"></i></span>
+              Sure picks
+            </NavLink>
+            <NavLink to="/audit" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <span className="icon-slot"><i className="fa-solid fa-magnifying-glass-chart"></i></span>
+              Audit a slip
+            </NavLink>
+
+            <div className="nav-label">Library</div>
+            <NavLink to="/history" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <span className="icon-slot"><i className="fa-regular fa-clock"></i></span>
+              History
+            </NavLink>
+            <NavLink to="/profile" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <span className="icon-slot"><i className="fa-regular fa-user"></i></span>
+              Profile
+            </NavLink>
+
+            {/* Admin Center - ONLY available to alexiusdubem7@gmail.com */}
+            {isAdmin && (
+              <>
+                <div className="nav-label">System</div>
+                <NavLink to="/control" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  <span className="icon-slot"><i className="fa-solid fa-shield-halved text-emerald-600"></i></span>
+                  Superadmin
+                </NavLink>
+              </>
+            )}
+          </div>
+
+          <div className="side-footer">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="avatar shrink-0">{initials}</div>
+              <div className="min-w-0 truncate">
+                <div className="truncate text-xs font-bold text-[#16201c] leading-tight">
+                  {user.displayName || user.email?.split('@')[0]}
                 </div>
-                <p className="text-[11px] text-zinc-400 font-medium leading-none mt-0.5">
-                  AI Betting Intelligence Platform
-                </p>
+                <div className="text-[10px] text-[#8a9690] font-mono leading-tight">
+                  {isAdmin ? 'Superadmin' : user.email?.includes('@oddsfactory.local') ? 'Guest' : 'Pro Member'}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-sm text-zinc-500">
-              <span className="font-semibold text-zinc-700 bg-zinc-100 border border-zinc-200/60 px-3 py-1 rounded-full text-xs hidden sm:inline-block">
-                {user.email}
-              </span>
+            <button
+              onClick={() => {
+                if (isFirebaseConfigured) {
+                  signOut(auth)
+                } else {
+                  setUser(null)
+                }
+              }}
+              title="Log out"
+              className="text-[#8a9690] hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-[#edf1eb] cursor-pointer shrink-0"
+            >
+              <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Workspace Area */}
+        <main className="main-content">
+          <header className="top">
+            <div className="greeting">
+              <div className="eyebrow">{todayFormatted}</div>
+              <h1>Good {greetingTime}, {firstName}.</h1>
+            </div>
+            <div className="actions">
               <NotificationCenter />
-              <button 
-                onClick={() => { if (isFirebaseConfigured) { signOut(auth) } else { setUser(null) } }} 
-                className="hover:text-rose-600 transition-colors flex items-center gap-1.5 font-bold text-xs bg-zinc-50 hover:bg-zinc-100 border border-zinc-200/80 px-3 py-1.5 rounded-xl cursor-pointer"
-              >
-                <i className="fa-solid fa-arrow-right-from-bracket text-xs"></i>
-                <span className="hidden sm:inline">Log Out</span>
+              <button onClick={() => navigate('/builder')} className="primary-btn">
+                <i>✦</i> <span>Build a slip</span>
               </button>
             </div>
-          </div>
-        </div>
-      </header>
+          </header>
 
-      {/* ── Navigation ──────────────────────────────────────────────────── */}
-      <nav className="hidden sm:block border-b border-zinc-200/80 bg-[#FAFAFA] sticky top-[61px] z-40">
-        <div className="max-w-7xl mx-auto px-4 py-2">
-          <div className="bg-zinc-200/60 p-1 rounded-2xl inline-flex gap-1 overflow-x-auto">
-            {NAV_LINKS.map((link) => (
-              <NavLink
-                key={link.path}
-                to={link.path}
-                className={({ isActive }) => `flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  isActive
-                    ? 'bg-white text-zinc-950 shadow-xs font-black'
-                    : 'text-zinc-500 hover:text-zinc-950 hover:bg-white/50'
-                }`}
-              >
-                <i className={`${link.icon} text-xs`}></i>
-                {link.label}
-              </NavLink>
-            ))}
-          </div>
-        </div>
-      </nav>
-
-      {/* ── Main View ───────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 pb-24 sm:pb-6">
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<DashboardPanel />} />
-          <Route path="/builder" element={<AccaBuilderPanel onSendToAudit={handleSendToAudit} />} />
-          <Route path="/audit" element={
-            <SlipEditorPanel
-              matches={sampleMatches}
-              slips={slips}
-              setSlips={setSlips}
-              onSlipUpdated={(slip: Slip) => setSlips((prev) => prev.map((s) => (s.id === slip.id ? slip : s)))}
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPanel />} />
+            <Route path="/builder" element={<AccaBuilderPanel onSendToAudit={handleSendToAudit} />} />
+            <Route
+              path="/audit"
+              element={
+                <SlipEditorPanel
+                  matches={sampleMatches}
+                  slips={slips}
+                  setSlips={setSlips}
+                  onSlipUpdated={(slip: Slip) => setSlips((prev) => prev.map((s) => (s.id === slip.id ? slip : s)))}
+                />
+              }
             />
-          } />
-          <Route path="/history" element={
-            <SavedSlipsPanel
-              onLoadSlip={(slip) => {
-                handleSendToAudit(slip)
-              }}
+            <Route
+              path="/history"
+              element={
+                <SavedSlipsPanel
+                  onLoadSlip={(slip) => {
+                    handleSendToAudit(slip)
+                  }}
+                />
+              }
             />
-          } />
-          <Route path="/profile" element={<ProfilePanel />} />
-          <Route path="/control" element={<ControlPanel />} />
-        </Routes>
-      </main>
+            <Route path="/profile" element={<ProfilePanel />} />
+            {/* STRICT ADMIN ROUTE: Only accessible by alexiusdubem7@gmail.com */}
+            <Route
+              path="/control"
+              element={isAdmin ? <ControlPanel /> : <Navigate to="/dashboard" replace />}
+            />
+          </Routes>
+        </main>
+      </div>
 
       {/* ── Mobile Tab Navigation Bar ───────────────────────────────────── */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 border-t border-zinc-200/80 bg-white/95 backdrop-blur-md z-50 px-2 py-1.5 flex justify-around">
-        {NAV_LINKS.map((link) => (
-          <NavLink
-            key={link.path}
-            to={link.path}
-            className={({ isActive }) => `flex flex-col items-center justify-center p-2 rounded-xl text-[10px] font-bold ${
-              isActive ? 'text-zinc-950 font-black' : 'text-zinc-400 hover:text-zinc-600'
-            }`}
-          >
-            <i className={`${link.icon} text-sm mb-1`}></i>
-            <span>{link.label}</span>
+      <nav className="bottom-nav">
+        <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <i className="fa-solid fa-shapes"></i>
+          <span>Overview</span>
+        </NavLink>
+        <NavLink to="/builder" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <i className="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Picks</span>
+        </NavLink>
+        <NavLink to="/audit" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <i className="fa-solid fa-magnifying-glass-chart"></i>
+          <span>Audit</span>
+        </NavLink>
+        <NavLink to="/history" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <i className="fa-regular fa-clock"></i>
+          <span>History</span>
+        </NavLink>
+        <NavLink to="/profile" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <i className="fa-regular fa-user"></i>
+          <span>Profile</span>
+        </NavLink>
+        {isAdmin && (
+          <NavLink to="/control" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <i className="fa-solid fa-shield-halved text-emerald-600"></i>
+            <span>Admin</span>
           </NavLink>
-        ))}
-      </div>
+        )}
+      </nav>
 
       <UpdatePrompt />
     </div>

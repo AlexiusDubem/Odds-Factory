@@ -2,8 +2,11 @@ import { Link } from 'react-router-dom'
 import { auth, isFirebaseConfigured } from '../config/firebase'
 import { signOut } from 'firebase/auth'
 
+const ADMIN_EMAIL = 'alexiusdubem7@gmail.com'
+
 export const ProfilePanel = () => {
   const user = auth.currentUser
+  const isAdmin = Boolean(user?.email && user.email.toLowerCase().trim() === ADMIN_EMAIL)
 
   const handleLogout = () => {
     if (confirm('Are you sure you want to log out of Odds Factory?')) {
@@ -55,31 +58,33 @@ export const ProfilePanel = () => {
         </div>
       </div>
 
-      {/* ── Admin Command Card ─────────────────────────────────────────── */}
-      <div className="bg-zinc-950 border border-zinc-800 rounded-[32px] p-6 sm:p-7 shadow-sm text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-emerald-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <i className="fa-solid fa-shield-halved text-[9px]"></i>
-              Administrator Privileges
-            </span>
+      {/* ── Admin Command Card (Strictly for alexiusdubem7@gmail.com) ── */}
+      {isAdmin && (
+        <div className="bg-[#183b2d] border border-[#2d5543] rounded-[24px] p-6 sm:p-7 shadow-sm text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono uppercase tracking-wider bg-black/30 text-[#dfff46] px-2.5 py-0.5 rounded-full flex items-center gap-1.5 border border-[#dfff46]/20">
+                <i className="fa-solid fa-shield-halved text-[9px]"></i>
+                Superadmin Clearance
+              </span>
+            </div>
+            <h3 className="text-lg font-extrabold text-white tracking-tight">
+              Platform Command Center
+            </h3>
+            <p className="text-xs text-[#b4d4bd] font-medium">
+              Monitor active users, telemetry, dropped picks, and dispatch real-time notifications.
+            </p>
           </div>
-          <h3 className="text-lg font-black text-white tracking-tight">
-            Superadmin Command Center
-          </h3>
-          <p className="text-xs text-zinc-400 font-medium">
-            Monitor real-time visitors, user signups, dropped picks, and system infrastructure.
-          </p>
-        </div>
 
-        <Link
-          to="/control"
-          className="py-3 px-5 bg-white hover:bg-zinc-100 text-zinc-950 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
-        >
-          <i className="fa-solid fa-sliders text-xs"></i>
-          <span>Open Control Center</span>
-        </Link>
-      </div>
+          <Link
+            to="/control"
+            className="py-3 px-5 bg-[#dfff46] hover:bg-[#d4f53f] text-[#16201c] font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
+          >
+            <i className="fa-solid fa-sliders text-xs"></i>
+            <span>Open Command Center</span>
+          </Link>
+        </div>
+      )}
 
       {/* ── Two-Column Stats Bento ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
