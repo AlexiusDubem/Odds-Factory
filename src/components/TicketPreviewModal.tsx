@@ -6,84 +6,83 @@ interface Props {
 }
 
 export function TicketPreviewModal({ slip, onClose }: Props) {
-  // Suggest a simple unit-based stake
   const stakeSuggestion = Math.max(1, Math.round((slip.survivalProbability / 100) * 5))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] border border-[#e4e9e3] font-sans">
         {/* Header / Branding */}
-        <div className="bg-slate-900 p-5 flex items-center justify-between shrink-0 relative overflow-hidden">
-          {/* Subtle background glow */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-accent/20 rounded-full blur-3xl -mr-10 -mt-10" />
-          
-          <div className="flex items-center gap-3 relative z-10">
-            <img src="/logo.png" alt="Odds Factory" className="w-10 h-10 object-contain drop-shadow-md bg-white rounded-md p-1" />
+        <div className="p-4 sm:p-5 border-b border-[#e4e9e3] bg-[#fbfcf9] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Odds Factory" className="w-8 h-8 object-contain rounded-lg shadow-2xs" />
             <div>
-              <h2 className="text-lg font-black tracking-wider text-white uppercase font-sans">Odds Factory</h2>
-              <p className="text-xs text-slate-400 font-medium tracking-widest uppercase">Verified Ticket</p>
+              <div className="eyebrow">Verified Ticket Ledger</div>
+              <h2 className="text-base font-extrabold text-[#16201c] tracking-tight">{slip.name}</h2>
             </div>
           </div>
-          <button onClick={onClose} className="relative z-10 text-slate-400 hover:text-white transition-colors p-2">
-            <i className="fa-solid fa-xmark text-xl" />
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white hover:bg-[#f4f6f2] border border-[#e4e9e3] text-[#71807a] hover:text-[#16201c] flex items-center justify-center cursor-pointer transition-colors"
+          >
+            <i className="fa-solid fa-xmark text-sm" />
           </button>
         </div>
 
-        {/* Ticket Body with Watermark */}
-        <div className="flex-1 overflow-y-auto p-0 relative bg-slate-50">
-          {/* Watermark Logo */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] overflow-hidden">
-            <img src="/logo.png" alt="" className="w-96 h-96 object-contain rotate-[-15deg] grayscale" />
-          </div>
-
-          <div className="p-5 space-y-3 relative z-10">
-            {slip.legs.map((leg) => (
-              <div key={leg.id} className="bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-col gap-2 relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-accent" />
-                <div className="flex justify-between items-start gap-2 ml-1">
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{leg.sport}</p>
-                    <p className="text-sm font-bold text-slate-900 leading-tight">{leg.matchLabel}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="inline-block px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-black">
-                      EV: {leg.ev.toFixed(2)}
+        {/* Ticket Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-[#fbfcf9]">
+          {slip.legs.map((leg, idx) => (
+            <div
+              key={leg.id}
+              className="bg-white rounded-xl p-3.5 border border-[#e4e9e3] shadow-2xs flex flex-col gap-1.5"
+            >
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <div className="text-[10px] font-mono text-[#84918a] uppercase flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#16201c] text-[#dfff46] inline-grid place-items-center text-[9px] font-bold">
+                      {idx + 1}
                     </span>
+                    <span>{leg.sport || 'FOOTBALL'}</span>
                   </div>
+                  <p className="text-sm font-extrabold text-[#16201c] mt-0.5">{leg.matchLabel}</p>
                 </div>
-                
-                <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg mt-1 ml-1 border border-slate-100">
-                  <span className="text-sm font-bold text-accent">{leg.market}</span>
-                  <span className="text-sm font-black text-slate-900">@{leg.odds.toFixed(2)}</span>
-                </div>
+                <span className="pill text-[10px] bg-[#f4f6f2] text-[#53625b] border border-[#e4e9e3]">
+                  {leg.probability}% chance
+                </span>
               </div>
-            ))}
-          </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-[#f4f6f2]">
+                <span className="text-xs font-extrabold text-[#183b2d]">{leg.market}</span>
+                <span className="font-mono font-extrabold text-sm text-[#16201c]">@{leg.odds.toFixed(2)}x</span>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Footer Summary */}
-        <div className="bg-white p-5 border-t border-slate-200 shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] z-10">
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Total Odds</p>
-              <p className="text-xl font-black text-accent">{slip.combinedOdds.toFixed(2)}</p>
+        <div className="p-4 sm:p-5 border-t border-[#e4e9e3] bg-white space-y-3 shrink-0">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl bg-[#fbfcf9] border border-[#e4e9e3] text-center">
+              <span className="text-[10px] font-mono uppercase text-[#84918a] block">Combined Multiplier</span>
+              <b className="text-xl font-mono font-extrabold text-[#16201c]">{slip.combinedOdds.toFixed(2)}x</b>
             </div>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Win Prob</p>
-              <p className="text-xl font-black text-emerald-600">{slip.survivalProbability < 0.1 ? '<0.1' : slip.survivalProbability.toFixed(1)}%</p>
+            <div className="p-3 rounded-xl bg-[#fbfcf9] border border-[#e4e9e3] text-center">
+              <span className="text-[10px] font-mono uppercase text-[#84918a] block">Ticket Survival Chance</span>
+              <b className="text-xl font-mono font-extrabold text-emerald-800">
+                {slip.survivalProbability < 0.1 ? '<0.1' : slip.survivalProbability.toFixed(1)}%
+              </b>
             </div>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-100 rounded-xl mb-4">
-            <span className="text-sm font-bold text-indigo-900 flex items-center gap-2">
-              <i className="fa-solid fa-coins text-indigo-500" /> Stake Suggestion
-            </span>
-            <span className="text-sm font-black text-indigo-700">{stakeSuggestion} Unit{stakeSuggestion > 1 ? 's' : ''}</span>
           </div>
 
-          <button 
+          <div className="flex items-center justify-between p-2.5 bg-[#edf4e9] border border-[#dbe8d6] rounded-xl text-xs text-[#1d5d3d]">
+            <span className="font-semibold flex items-center gap-1.5">
+              <i className="fa-solid fa-coins text-[#183b2d]" /> Stake Recommendation:
+            </span>
+            <b className="font-bold">{stakeSuggestion} Unit{stakeSuggestion > 1 ? 's' : ''} (~₦{(stakeSuggestion * 500).toLocaleString()})</b>
+          </div>
+
+          <button
             onClick={onClose}
-            className="w-full py-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-all shadow-md active:scale-[0.98]"
+            className="primary w-full py-3 text-xs font-bold cursor-pointer"
           >
             Close Preview
           </button>

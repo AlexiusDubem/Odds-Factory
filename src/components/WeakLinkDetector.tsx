@@ -10,83 +10,94 @@ export function WeakLinkDetector({ smartDropResult, onApplyDrops, onCancel }: Pr
   if (!smartDropResult || smartDropResult.droppedLegs.length === 0) return null;
 
   return (
-    <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 shadow-sm mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <i className="fa-solid fa-link-slash text-red-500"></i> Weak Link Detector™
-        </h3>
-        <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-          {smartDropResult.droppedLegs.length} Picks Flagged
+    <div className="card p-5 sm:p-6 border border-rose-200 bg-[#fffdfd] rounded-2xl shadow-xs mb-6 animate-in fade-in slide-in-from-top-3 duration-300 font-sans space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-rose-100">
+        <div>
+          <div className="eyebrow flex items-center gap-1.5 text-rose-700">
+            <i className="fa-solid fa-triangle-exclamation"></i>
+            <span>Ticket Survival Hazard</span>
+          </div>
+          <h3 className="text-lg font-extrabold text-[#16201c] tracking-tight mt-0.5">
+            Weak Link Audit
+          </h3>
+        </div>
+        <span className="pill text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+          {smartDropResult.droppedLegs.length} High-Risk Legs Flagged
         </span>
       </div>
 
-      <p className="text-sm text-slate-600 mb-6">
-        The AI has identified the following picks as mathematically toxic to your ticket's survival probability. 
-        Dropping them drastically improves your slip.
+      <p className="text-xs text-[#71807a] leading-relaxed">
+        The statistical pipeline identified the following selections as having negative expected value or excessive volatility. Dropping them protects your ticket chance.
       </p>
 
-      <div className="space-y-4 mb-6">
-        {smartDropResult.droppedLegs.map((drop, idx) => {
-          // We need the original legs passed in, or just map them from the original slip.
-          // For now, assume the legId matches the UI.
-          return (
-            <div key={drop.legId} className="bg-white border border-red-100 rounded-xl p-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">
-                  {idx + 1}
+      <div className="space-y-2.5">
+        {smartDropResult.droppedLegs.map((drop, idx) => (
+          <div
+            key={drop.legId}
+            className="p-3.5 bg-white border border-[#e4e9e3] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs"
+          >
+            <div className="flex items-start gap-3">
+              <span className="w-5 h-5 rounded-full bg-rose-100 text-rose-700 font-bold text-xs inline-grid place-items-center shrink-0 mt-0.5">
+                {idx + 1}
+              </span>
+              <div className="space-y-0.5">
+                <h4 className="font-extrabold text-[#16201c] text-sm">{drop.matchLabel}</h4>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-bold text-rose-700">{drop.market}</span>
+                  <span className="text-[#84918a]">·</span>
+                  <span className="font-mono text-[#71807a]">EV: {drop.ev >= 0 ? `+${drop.ev.toFixed(2)}` : drop.ev.toFixed(2)}</span>
                 </div>
-                <div>
-                  <h4 className="font-bold text-slate-800 text-sm truncate max-w-[200px] sm:max-w-xs">{drop.matchLabel}</h4>
-                  <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-0.5">{drop.market}</p>
-                  <p className="text-xs font-medium text-slate-500 mt-1 flex items-start gap-1.5 leading-relaxed">
-                    <i className="fa-solid fa-robot text-slate-400 mt-0.5 shrink-0"></i> {drop.rationale}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-4 w-full md:w-auto text-center md:text-left bg-slate-50 rounded-lg p-2 md:p-0 md:bg-transparent">
-                <div>
-                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">EV</div>
-                  <div className="text-sm font-bold text-red-500">{drop.ev >= 0 ? `+${drop.ev.toFixed(2)}` : drop.ev.toFixed(2)}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Volatility</div>
-                  <div className="text-sm font-bold text-amber-500">{Math.round(drop.volatility * 100)}%</div>
-                </div>
+                <p className="fine leading-relaxed">
+                  {drop.rationale}
+                </p>
               </div>
             </div>
-          )
-        })}
+
+            <div className="shrink-0 text-right sm:border-l sm:border-[#e4e9e3] sm:pl-4">
+              <span className="text-[10px] font-mono text-[#84918a] uppercase block">Volatility</span>
+              <span className="font-mono font-bold text-sm text-rose-600">
+                {Math.round(drop.volatility * 100)}%
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="result-bar flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Ticket Compare</div>
-          <div className="flex items-center gap-6">
+          <div className="eyebrow">Ticket Projection After Drop</div>
+          <div className="flex items-center gap-4 text-xs font-mono mt-1">
             <div>
-              <div className="text-xs text-slate-400">Original Odds</div>
-              <div className="text-lg font-bold text-slate-700 line-through">{(smartDropResult.optimizedSlip.combinedOdds + smartDropResult.droppedLegs.reduce((a,b)=>a+b.oddsReduction,0)).toFixed(2)}</div>
+              <span className="text-[#84918a] block text-[10px]">Original Odds</span>
+              <span className="line-through text-[#71807a]">
+                {(smartDropResult.optimizedSlip.combinedOdds + smartDropResult.droppedLegs.reduce((a, b) => a + b.oddsReduction, 0)).toFixed(2)}x
+              </span>
             </div>
-            <i className="fa-solid fa-arrow-right text-slate-300"></i>
+            <i className="fa-solid fa-arrow-right text-[#84918a]"></i>
             <div>
-              <div className="text-xs text-emerald-600 font-bold">Optimized Odds</div>
-              <div className="text-xl font-black text-emerald-600">{smartDropResult.optimizedSlip.combinedOdds.toFixed(2)}</div>
+              <span className="text-[#84918a] block text-[10px]">Optimized Odds</span>
+              <b className="text-emerald-800 text-base">{smartDropResult.optimizedSlip.combinedOdds.toFixed(2)}x</b>
             </div>
-            <div className="border-l border-slate-200 pl-6 hidden sm:block">
-              <div className="text-xs text-blue-600 font-bold">Win Probability Lift</div>
-              <div className="text-xl font-black text-blue-600">+{Math.round(smartDropResult.droppedLegs.reduce((a,b)=>a+b.sspIncrease,0) * 100)}%</div>
+            <div className="border-l border-[#dbe8d6] pl-4">
+              <span className="text-[#84918a] block text-[10px]">Estimated Win Probability Boost</span>
+              <b className="text-emerald-800 text-base">+{Math.round(smartDropResult.droppedLegs.reduce((a, b) => a + b.sspIncrease, 0) * 100)}%</b>
             </div>
           </div>
         </div>
-        
-        <div className="flex gap-2 w-full md:w-auto">
-          <button onClick={onCancel} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-slate-50 transition-colors w-full md:w-auto">
-            Dismiss
-          </button>
-          <button 
-            onClick={() => onApplyDrops(smartDropResult.droppedLegs.map(l => l.legId))}
-            className="px-6 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-all shadow-md shadow-red-500/20 w-full md:w-auto flex items-center justify-center gap-2 whitespace-nowrap"
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={onCancel}
+            className="chip font-bold text-xs flex-1 sm:flex-none justify-center"
           >
-            <i className="fa-solid fa-scissors"></i> Drop Weak Links
+            Keep All Legs
+          </button>
+          <button
+            onClick={() => onApplyDrops(smartDropResult.droppedLegs.map((l) => l.legId))}
+            className="primary py-2 px-4 text-xs font-bold flex-1 sm:flex-none flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <i className="fa-solid fa-scissors text-lime text-xs"></i>
+            <span>Drop Weak Legs</span>
           </button>
         </div>
       </div>

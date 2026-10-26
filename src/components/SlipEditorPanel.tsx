@@ -1,3 +1,5 @@
+import { MatchIntelligenceModal } from './MatchIntelligenceModal'
+import type { DailySurePick } from '../data/sportybetCompetitions'
 import React, { useState, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Match, OptimizationGoal, OptimizationMode, Slip, SlipLeg, MarketOdds } from '../types'
@@ -85,6 +87,7 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
   const [isSaving, setIsSaving] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [generatedCode, setGeneratedCode] = useState<string | null>(null)
+  const [inspectingPick, setInspectingPick] = useState<DailySurePick | null>(null)
   const [showGoalPanel, setShowGoalPanel] = useState(false)
   const [showTicketPreview, setShowTicketPreview] = useState(false)
   const [editLog, setEditLog]             = useState<EditResult[]>([])
@@ -740,19 +743,31 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
         />
 
         {generatedCode && (
-          <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm animate-in zoom-in duration-300 gap-4">
-            <div className="w-full">
-              <p className="text-[10px] sm:text-xs text-emerald-600 font-bold tracking-widest uppercase mb-1 flex items-center gap-2">
-                <i className="fa-solid fa-check-circle"></i> Booking Code Generated
-              </p>
-              <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-[0.1em] sm:tracking-[0.25em] drop-shadow-sm break-all">{generatedCode}</h1>
+          <div className="card p-6 border-2 border-[#183b2d] bg-[#fbfcf9] rounded-2xl shadow-xs space-y-3 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="pill text-[10px] bg-[#e9f7e4] text-[#1d5d3d] border border-[#b9e5b7]">
+                ✓ Official SportyBet Booking Code
+              </span>
+              <span className="text-xs text-[#71807a]">Valid for SportyBet Web & Mobile App</span>
             </div>
-            <button 
-              onClick={() => { navigator.clipboard.writeText(generatedCode); toast('success', 'Copied!', 'Code copied to clipboard') }}
-              className="w-full sm:w-14 h-12 sm:h-14 rounded-xl bg-white border border-emerald-200 shadow-sm flex items-center justify-center text-emerald-600 hover:text-white hover:bg-emerald-500 hover:border-transparent transition-all hover:scale-105 active:scale-95 group shrink-0"
-            >
-              <i className="fa-regular fa-copy text-2xl group-hover:scale-110 transition-transform"></i>
-            </button>
+            <div className="p-4 bg-white border border-[#e5e9e3] rounded-xl flex items-center justify-between gap-4">
+              <div className="font-mono font-extrabold text-3xl sm:text-4xl text-[#16201c] tracking-widest select-all">
+                {generatedCode}
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedCode)
+                  toast('success', 'Copied!', 'Booking code copied to clipboard')
+                }}
+                className="primary py-2.5 px-5 text-xs font-bold flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <i className="fa-regular fa-copy text-sm text-[#dfff46]"></i>
+                <span>Copy Code</span>
+              </button>
+            </div>
+            <p className="fine m-0">
+              Paste this into SportyBet → <b>Betslip</b> → <b>Load Code</b> to place your ticket instantly.
+            </p>
           </div>
         )}
 
@@ -844,7 +859,40 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
         {/* ── Legs ─────────────────────────────────────────────────────────── */}
         <div className="card overflow-hidden divide-y divide-[#e5e9e3] shadow-xs">
           {selectedSlip.legs.map((leg, i) => (
-            <SlipLegRow key={leg.id} leg={leg} index={i} onRemove={() => handleRemoveLeg(leg.id)} />
+            <SlipLegRow
+              key={leg.id}
+              leg={leg}
+              index={i}
+              onInspect={() => {
+                const parts = leg.matchLabel.split(' vs ')
+                const p: DailySurePick = {
+                  id: leg.id,
+                  eventId: leg.rawSelection?.eventId || leg.matchId,
+                  matchLabel: leg.matchLabel,
+                  homeTeam: parts[0] || leg.matchLabel,
+                  awayTeam: parts[1] || '',
+                  league: leg.sport === 'football' ? 'European League' : (leg.sport || 'Sports'),
+                  country: 'International',
+                  kickoff: 'Upcoming',
+                  market: leg.market,
+                  marketName: leg.market,
+                  marketFamily: 'all',
+                  marketId: leg.rawSelection?.marketId || '1',
+                  outcomeId: leg.rawSelection?.outcomeId || '1',
+                  specifier: leg.rawSelection?.specifier || '',
+                  odds: leg.odds,
+                  probability: (leg.probability || 75) / 100,
+                  ev: leg.ev || 0.05,
+                  confidenceScore: leg.probability || 75,
+                  confidenceTier: leg.tier || 1,
+                  modelType: 'banker',
+                  badgeLabel: 'Statistical Selection',
+                  modelRationale: leg.rationale || '',
+                }
+                setInspectingPick(p)
+              }}
+              onRemove={() => handleRemoveLeg(leg.id)}
+            />
           ))}
         </div>
 
@@ -871,17 +919,57 @@ export function SlipEditorPanel({ matches, slips, setSlips, onSlipUpdated }: Pro
 
       {showTicketPreview && <TicketPreviewModal slip={selectedSlip} onClose={() => setShowTicketPreview(false)} />}
 
+      {inspectingPick && (
+        <MatchIntelligenceModal
+          matchPick={inspectingPick}
+          allEventPicks={[inspectingPick]}
+          onSelectOutcome={(newPick) => {
+            if (!selectedSlip) return
+            const newLegs = selectedSlip.legs.map((l) => {
+              if (l.id === inspectingPick.id) {
+                return {
+                  ...l,
+                  market: newPick.market,
+                  odds: newPick.odds,
+                  probability: Math.round(newPick.probability * 100),
+                  rationale: newPick.modelRationale,
+                  wasSwapped: true,
+                  previousMarket: l.market,
+                  rawSelection: {
+                    ...l.rawSelection,
+                    marketId: newPick.marketId,
+                    outcomeId: newPick.outcomeId,
+                    specifier: newPick.specifier,
+                  },
+                }
+              }
+              return l
+            })
+            const updated = {
+              ...selectedSlip,
+              legs: newLegs,
+              combinedOdds: calcCombinedOdds(newLegs),
+              survivalProbability: calcSurvival(newLegs),
+            }
+            onSlipUpdated(updated)
+            setInspectingPick(null)
+            toast('success', 'Selection Swapped', `Updated match to ${newPick.market} (@${newPick.odds.toFixed(2)})`)
+          }}
+          onClose={() => setInspectingPick(null)}
+        />
+      )}
+
       {modalError && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-slate-100">
-            <div className="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center mb-4 mx-auto shadow-sm">
-              <i className="fa-solid fa-triangle-exclamation text-lg text-red-500"></i>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-in fade-in duration-200 font-sans">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in-95 duration-200 border border-[#e4e9e3] space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xl">
+              <i className="fa-solid fa-triangle-exclamation"></i>
             </div>
-            <h3 className="text-xl font-black text-center text-slate-900 mb-2">{modalError.title}</h3>
-            <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">{modalError.message}</p>
+            <h3 className="text-lg font-extrabold text-[#16201c]">{modalError.title}</h3>
+            <p className="text-xs text-[#71807a] leading-relaxed">{modalError.message}</p>
             <button 
               onClick={() => setModalError(null)}
-              className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-md"
+              className="primary w-full py-2.5 text-xs font-bold cursor-pointer"
             >
               Okay, got it
             </button>

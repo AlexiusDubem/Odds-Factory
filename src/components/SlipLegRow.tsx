@@ -3,16 +3,17 @@ import type { SlipLeg } from '../types'
 interface Props {
   leg: SlipLeg
   index: number
+  onInspect?: () => void
   onRemove?: () => void
 }
 
-export function SlipLegRow({ leg, index, onRemove }: Props) {
+export function SlipLegRow({ leg, index, onInspect, onRemove }: Props) {
   const parts = leg.matchLabel.split(' vs ')
   const home = parts[0] || leg.matchLabel
   const away = parts[1] || ''
 
   return (
-    <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white hover:bg-[#fafbfa] transition-colors border-b border-[#e5e9e3] last:border-b-0">
+    <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white hover:bg-[#fafbfa] transition-colors border-b border-[#e5e9e3] last:border-b-0 font-sans">
       <div className="flex-1 min-w-0 space-y-1">
         <div className="flex items-center gap-2">
           <span className="w-5 h-5 rounded-full bg-[#16201c] text-[#dfff46] inline-grid place-items-center text-[10px] font-mono font-bold shrink-0">
@@ -58,20 +59,31 @@ export function SlipLegRow({ leg, index, onRemove }: Props) {
         )}
       </div>
 
-      <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-1.5 shrink-0">
+      <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-2 shrink-0">
         <div className="font-mono font-extrabold text-xl text-[#16201c]">
           {leg.odds.toFixed(2)}x
         </div>
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="chip py-1 px-2.5 text-[11px] text-rose-600 hover:text-rose-800 hover:bg-rose-50"
-            title="Drop this pick from ticket"
-          >
-            <i className="fa-solid fa-trash-can text-[10px] mr-1" />
-            Drop
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 mt-1">
+          {onInspect && (
+            <button
+              onClick={onInspect}
+              className="chip py-1 px-2.5 text-[11px] font-semibold cursor-pointer"
+              title="Inspect stats and booming alternatives"
+            >
+              Inspect
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={onRemove}
+              className="chip py-1 px-2.5 text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 cursor-pointer"
+              title="Drop this pick from ticket"
+            >
+              <i className="fa-solid fa-trash-can text-[10px] mr-1" />
+              Drop
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

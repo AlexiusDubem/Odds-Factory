@@ -64,7 +64,7 @@ export function MatchIntelligenceModal({
     return generateEvidenceRationale(matchPick, allEventPicks)
   }, [liveIntel, matchPick, allEventPicks])
 
-  // Effective statistics (combining AI research + live SportyBet market physics)
+  // Effective statistics (combining verified stats + live SportyBet market physics)
   const effectiveXG = liveIntel?.expectedGoals ?? physics.expectedGoals
   const effectiveCorners = liveIntel?.cornersPerGame ?? physics.expectedCorners
   const effectiveBtts = liveIntel?.bttsRate ?? `${physics.bttsProbability}%`
@@ -73,7 +73,7 @@ export function MatchIntelligenceModal({
   const effectiveDynamic = liveIntel?.tacticalDynamic || physics.primaryGameDynamic
   const effectiveH2H =
     liveIntel?.h2hSummary ||
-    `${matchPick.homeTeam} holds strong competitive balance against ${matchPick.awayTeam} in ${matchPick.league}. Live bookmaker distributions assign strong statistical backing to ${matchPick.market}.`
+    `${matchPick.homeTeam} holds strong competitive balance against ${matchPick.awayTeam} in ${matchPick.league}. Model distributions project positive expected edge on ${matchPick.market}.`
   const effectiveHomeSummary =
     liveIntel?.homeFormSummary ||
     `${matchPick.homeTeam} commands an implied ${physics.homeWinProb}% win probability at home in ${matchPick.league}.`
@@ -81,259 +81,246 @@ export function MatchIntelligenceModal({
     liveIntel?.awayFormSummary ||
     `${matchPick.awayTeam} concedes an estimated ${physics.expectedGoals > 2.5 ? '1.5+' : '1.2'} goals per away fixture.`
 
+  const parts = matchPick.matchLabel.split(' vs ')
+  const home = matchPick.homeTeam || parts[0] || matchPick.matchLabel
+  const away = matchPick.awayTeam || parts[1] || ''
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-zinc-950/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white border border-zinc-200 rounded-[32px] max-w-3xl w-full max-h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
-        {/* ── Modal Header ──────────────────────────────────────────────── */}
-        <div className="p-6 border-b border-zinc-100 flex items-start justify-between gap-4 bg-zinc-50/60">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-white border border-zinc-200 text-zinc-700 px-2.5 py-0.5 rounded-full">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/45 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white border border-[#e4e9e3] rounded-2xl max-w-3xl w-full max-h-[88vh] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 font-sans">
+        {/* ── Modal Header ────────────────────────────────────────────── */}
+        <div className="p-5 sm:p-6 border-b border-[#e4e9e3] flex items-start justify-between gap-4 bg-[#fbfcf9]">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="pill text-[10px] bg-white border border-[#e4e9e3] text-[#53625b]">
                 {matchPick.league}
               </span>
-              <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <i className="fa-solid fa-clock text-[9px]"></i>
-                {matchPick.kickoff}
+              <span className="text-[10px] font-mono text-[#84918a]">
+                Kickoff {matchPick.kickoff}
               </span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span className="pill text-[10px] bg-[#e9f7e4] text-[#1d5d3d] border border-[#b9e5b7] flex items-center gap-1">
                 {isLoadingIntel ? (
                   <>
-                    <i className="fa-solid fa-circle-notch fa-spin text-[9px] text-emerald-500"></i>
-                    Neural Engine Analyzing…
+                    <i className="fa-solid fa-circle-notch fa-spin text-[9px]"></i>
+                    Auditing live data…
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-brain text-[9px] text-emerald-500"></i>
-                    AI Intelligence Verified
+                    <i className="fa-solid fa-check text-[9px]"></i>
+                    Live data verified
                   </>
                 )}
               </span>
             </div>
 
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-950 tracking-tight">
-              {matchPick.matchLabel}
+            <h2 className="text-xl sm:text-2xl font-extrabold text-[#16201c] tracking-tight">
+              {away ? (
+                <>
+                  {home} <span className="muted font-normal text-sm text-[#71807a]">vs</span> {away}
+                </>
+              ) : (
+                matchPick.matchLabel
+              )}
             </h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {effectiveDynamic} • Event ID: <span className="font-mono font-bold text-zinc-700">{matchPick.eventId}</span>
+            <p className="text-xs text-[#71807a]">
+              {effectiveDynamic} · Match ID <span className="font-mono font-bold text-[#16201c]">{matchPick.eventId}</span>
             </p>
           </div>
 
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-500 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+            className="w-9 h-9 rounded-full bg-white hover:bg-[#f4f6f2] border border-[#e4e9e3] text-[#71807a] hover:text-[#16201c] flex items-center justify-center cursor-pointer transition-colors shrink-0"
+            aria-label="Close"
           >
             <i className="fa-solid fa-xmark text-sm"></i>
           </button>
         </div>
 
-        {/* ── Tab Switcher ──────────────────────────────────────────────── */}
-        <div className="px-6 pt-3 border-b border-zinc-100 flex items-center gap-2 bg-white">
-          <button
-            onClick={() => setActiveTab('intelligence')}
-            className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'intelligence'
-                ? 'border-zinc-950 text-zinc-950 font-black'
-                : 'border-transparent text-zinc-500 hover:text-zinc-800'
-            }`}
-          >
-            <i className="fa-solid fa-chart-pie text-xs"></i>
-            <span>Real Match Statistics & Evidence</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('booming')}
-            className={`py-2.5 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'booming'
-                ? 'border-zinc-950 text-zinc-950 font-black'
-                : 'border-transparent text-zinc-500 hover:text-zinc-800'
-            }`}
-          >
-            <i className="fa-solid fa-fire text-amber-500 text-xs"></i>
-            <span>Sure Booming Alternatives ({totalBoomingCount})</span>
-          </button>
+        {/* ── Tab Selector ────────────────────────────────────────────── */}
+        <div className="px-6 py-3 border-b border-[#e4e9e3] bg-[#fbfcf9] flex items-center gap-2">
+          <div className="chips">
+            <button
+              onClick={() => setActiveTab('intelligence')}
+              className={`chip ${activeTab === 'intelligence' ? 'on' : ''}`}
+            >
+              <i className="fa-solid fa-chart-pie text-xs"></i>
+              <span>Match Intelligence & Stats</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('booming')}
+              className={`chip ${activeTab === 'booming' ? 'on' : ''}`}
+            >
+              <i className="fa-solid fa-fire text-amber-500 text-xs"></i>
+              <span>Alternative Booming Picks ({totalBoomingCount})</span>
+            </button>
+          </div>
         </div>
 
-        {/* ── Tab Content ──────────────────────────────────────────────── */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        {/* ── Tab Content ────────────────────────────────────────────── */}
+        <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-white">
           {activeTab === 'intelligence' ? (
             <div className="space-y-6">
-              {/* Team Tactical Profiles & Win Expectancy Bento */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Home Profile */}
-                <div className="bg-zinc-50/80 border border-zinc-200/80 rounded-2xl p-4.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-900 flex items-center gap-1.5">
-                      <i className="fa-solid fa-shield-halved text-emerald-600 text-[11px]"></i>
-                      {matchPick.homeTeam} (Home Territory)
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                      {physics.homeWinProb}% Win Rate
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-700 leading-relaxed font-medium">
-                    {effectiveHomeSummary}
-                  </p>
-                  <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    <i className="fa-solid fa-chart-simple text-[9px] text-emerald-500"></i>
-                    <span>Primary Home Dynamic: {physics.primaryGameDynamic}</span>
-                  </div>
-                </div>
-
-                {/* Away Profile */}
-                <div className="bg-zinc-50/80 border border-zinc-200/80 rounded-2xl p-4.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-zinc-900 flex items-center gap-1.5">
-                      <i className="fa-solid fa-plane-departure text-zinc-500 text-[11px]"></i>
-                      {matchPick.awayTeam} (Away Record)
-                    </span>
-                    <span className="text-[10px] font-bold text-zinc-600 bg-zinc-200/60 px-2 py-0.5 rounded-full">
-                      {physics.awayWinProb}% Away Win Rate
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-700 leading-relaxed font-medium">
-                    {effectiveAwaySummary}
-                  </p>
-                  <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                    <i className="fa-solid fa-arrows-split-up-and-left text-[9px] text-blue-500"></i>
-                    <span>Expected Concession: {physics.expectedGoals > 2.5 ? '1.5+ Goals' : 'Under 1.5 Goals'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Head-to-Head & Tactical Dynamics Bento */}
-              <div className="bg-zinc-50/80 border border-zinc-200/80 rounded-2xl p-4.5 space-y-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                  <i className="fa-solid fa-users-between-lines text-zinc-500 text-[10px]"></i>
-                  Head-to-Head History & Tactical Dynamic
-                </span>
-                <p className="text-xs text-zinc-800 leading-relaxed font-semibold">
-                  {effectiveH2H}
-                </p>
-                <div className="text-[11px] text-zinc-500 flex items-center gap-2 pt-1 border-t border-zinc-200/60">
-                  <i className="fa-solid fa-compass-drafting text-blue-500"></i>
-                  <span>Tactical Shape: {effectiveDynamic}</span>
-                </div>
-              </div>
-
-              {/* Real Derived Statistics Metrics */}
+              {/* Derived Statistics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-xs text-center space-y-1">
-                  <span className="text-[10px] uppercase font-black text-zinc-400 block">Expected Goals (xG)</span>
-                  <div className="text-2xl font-black text-zinc-950 flex items-center justify-center gap-1">
+                <div className="card p-4 text-center space-y-1">
+                  <div className="eyebrow">Expected Goals (xG)</div>
+                  <div className="font-mono font-extrabold text-2xl text-[#16201c] flex items-center justify-center gap-1.5">
                     <i className="fa-solid fa-futbol text-xs text-emerald-600"></i>
                     <span>{effectiveXG}</span>
                   </div>
-                  <span className="text-[10px] text-zinc-500 font-semibold">
-                    {Number(effectiveXG) >= 2.5 ? 'Over 1.5 High Safety' : 'Controlled Scoring'}
+                  <span className="fine block">
+                    {Number(effectiveXG) >= 2.5 ? 'High scoring tempo' : 'Controlled pace'}
                   </span>
                 </div>
 
-                <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-xs text-center space-y-1">
-                  <span className="text-[10px] uppercase font-black text-zinc-400 block">Corners / Game</span>
-                  <div className="text-2xl font-black text-zinc-950 flex items-center justify-center gap-1">
+                <div className="card p-4 text-center space-y-1">
+                  <div className="eyebrow">Corners / Game</div>
+                  <div className="font-mono font-extrabold text-2xl text-[#16201c] flex items-center justify-center gap-1.5">
                     <i className="fa-solid fa-flag text-xs text-amber-500"></i>
                     <span>{effectiveCorners}</span>
                   </div>
-                  <span className="text-[10px] text-zinc-500 font-semibold">Over 7.5 Favored</span>
+                  <span className="fine block">Over 7.5 line favorable</span>
                 </div>
 
-                <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-xs text-center space-y-1">
-                  <span className="text-[10px] uppercase font-black text-zinc-400 block">BTTS Frequency</span>
-                  <div className="text-2xl font-black text-zinc-950 flex items-center justify-center gap-1">
+                <div className="card p-4 text-center space-y-1">
+                  <div className="eyebrow">BTTS Frequency</div>
+                  <div className="font-mono font-extrabold text-2xl text-[#16201c] flex items-center justify-center gap-1.5">
                     <i className="fa-solid fa-arrows-split-up-and-left text-xs text-blue-500"></i>
                     <span>{effectiveBtts}</span>
                   </div>
-                  <span className="text-[10px] text-zinc-500 font-semibold">Both Teams Score Rate</span>
+                  <span className="fine block">Both score tendency</span>
                 </div>
 
-                <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-xs text-center space-y-1">
-                  <span className="text-[10px] uppercase font-black text-zinc-400 block">Clean Sheet Rate</span>
-                  <div className="text-2xl font-black text-zinc-950 flex items-center justify-center gap-1">
-                    <i className="fa-solid fa-shield text-xs text-teal-600"></i>
+                <div className="card p-4 text-center space-y-1">
+                  <div className="eyebrow">Clean Sheet Rate</div>
+                  <div className="font-mono font-extrabold text-2xl text-[#16201c] flex items-center justify-center gap-1.5">
+                    <i className="fa-solid fa-shield-halved text-xs text-teal-600"></i>
                     <span>{effectiveCleanSheet}</span>
                   </div>
-                  <span className="text-[10px] text-zinc-500 font-semibold">Avg Cards: {effectiveCards}</span>
+                  <span className="fine block">Avg cards: {effectiveCards}</span>
                 </div>
               </div>
 
-              {/* Current Active Selection with Evidence Card */}
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-5 space-y-2.5">
+              {/* Team Home & Away Context */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="card p-4.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-[#16201c] flex items-center gap-1.5">
+                      <i className="fa-solid fa-shield text-emerald-600 text-[11px]"></i>
+                      {matchPick.homeTeam} (Home Form)
+                    </span>
+                    <span className="pill text-[10px] bg-[#e9f7e4] text-[#1d5d3d] border border-[#b9e5b7]">
+                      {physics.homeWinProb}% Win Rate
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#53625b] leading-relaxed">
+                    {effectiveHomeSummary}
+                  </p>
+                </div>
+
+                <div className="card p-4.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-[#16201c] flex items-center gap-1.5">
+                      <i className="fa-solid fa-plane-departure text-[#71807a] text-[11px]"></i>
+                      {matchPick.awayTeam} (Away Form)
+                    </span>
+                    <span className="pill text-[10px] bg-[#f4f6f2] text-[#53625b] border border-[#e4e9e3]">
+                      {physics.awayWinProb}% Win Rate
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#53625b] leading-relaxed">
+                    {effectiveAwaySummary}
+                  </p>
+                </div>
+              </div>
+
+              {/* Head-to-Head & Tactical Breakdown */}
+              <div className="card p-4.5 space-y-2">
+                <div className="eyebrow flex items-center gap-1.5">
+                  <i className="fa-solid fa-users-between-lines text-xs text-[#71807a]"></i>
+                  <span>Head-to-Head Record & Tactical Dynamic</span>
+                </div>
+                <p className="text-xs text-[#16201c] leading-relaxed font-medium">
+                  {effectiveH2H}
+                </p>
+                <div className="text-[11px] text-[#71807a] pt-1.5 border-t border-[#e4e9e3]">
+                  Tactical setup: <b className="text-[#16201c]">{effectiveDynamic}</b>
+                </div>
+              </div>
+
+              {/* Current Active Selection Card */}
+              <div className="card p-5 bg-[#edf4e9] border border-[#dbe8d6] space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-[10px] uppercase font-black text-emerald-800 tracking-wider bg-white border border-emerald-200 px-2.5 py-0.5 rounded-full inline-block">
-                    Currently Selected on Your Ticket
+                  <span className="pill text-[10px] bg-white border border-[#b9e5b7] text-[#1d5d3d] font-bold">
+                    Currently Selected on Ticket
                   </span>
-                  <span className="text-xs font-black text-emerald-700">
-                    {Math.round(matchPick.probability * 100)}% Win Prob • @{matchPick.odds.toFixed(2)} Odds
+                  <span className="font-mono font-bold text-xs text-[#1d5d3d]">
+                    {Math.round(matchPick.probability * 100)}% Model Chance · @{matchPick.odds.toFixed(2)}x
                   </span>
                 </div>
 
-                <div className="text-lg font-black text-zinc-950">
+                <div className="text-lg font-extrabold text-[#16201c]">
                   {matchPick.market}
                 </div>
 
-                <div className="p-3 bg-white/90 rounded-xl border border-emerald-200/60 text-xs text-zinc-800 leading-relaxed font-medium">
-                  <strong className="text-zinc-950 font-black block mb-0.5 flex items-center gap-1.5">
-                    <i className="fa-solid fa-brain text-emerald-600 text-xs"></i>
-                    AI Evidence & Statistical Proof:
-                  </strong>
+                <div className="p-3 bg-white rounded-xl border border-[#dbe8d6] text-xs text-[#53625b] leading-relaxed">
+                  <strong className="text-[#16201c] block mb-1">Statistical & Tactical Evidence:</strong>
                   {currentRationale}
                 </div>
 
                 <div className="flex justify-end pt-1">
                   <button
                     onClick={() => setActiveTab('booming')}
-                    className="px-4 py-2 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="chip on font-bold text-xs"
                   >
-                    <i className="fa-solid fa-shuffle text-emerald-400 text-xs"></i>
-                    <span>View Booming Alternatives</span>
+                    <span>View Booming Alternatives →</span>
                   </button>
                 </div>
               </div>
             </div>
           ) : (
-            /* ── Curated Booming Alternatives Ranked by Risk Level ──────────────── */
+            /* ── Curated Booming Alternatives ─────────────────────────── */
             <div className="space-y-6">
-              <div className="bg-zinc-50 border border-zinc-200/80 rounded-2xl p-4 flex items-center justify-between">
+              <div className="card p-4 flex items-center justify-between bg-[#fbfcf9]">
                 <div>
-                  <h3 className="text-xs font-black text-zinc-950 uppercase tracking-wider">
-                    Sure Booming Alternatives
+                  <h3 className="text-xs font-extrabold text-[#16201c] uppercase tracking-wider">
+                    Alternative Booming Selections
                   </h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Curated positive-EV selections for this match, ranked strictly by Risk Level.
+                  <p className="fine mt-0.5">
+                    Curated positive-EV lines for this exact fixture. Click any pick to swap it onto your ticket.
                   </p>
                 </div>
-                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-                  {totalBoomingCount} Safe Booming Lines
+                <span className="pill text-[10px] bg-[#e9f7e4] text-[#1d5d3d] border border-[#b9e5b7]">
+                  {totalBoomingCount} Verified Lines
                 </span>
               </div>
 
               {boomingTiers.length === 0 ? (
-                <div className="py-12 text-center text-zinc-400 space-y-2">
-                  <i className="fa-solid fa-shield text-3xl text-zinc-300"></i>
-                  <p className="text-sm font-bold text-zinc-700">No alternate booming lines available</p>
-                  <p className="text-xs text-zinc-500">Current pick already represents the highest quality statistical line.</p>
+                <div className="card p-12 text-center text-[#71807a] space-y-2">
+                  <i className="fa-solid fa-shield text-3xl text-[#84918a]"></i>
+                  <p className="text-sm font-bold text-[#16201c]">No alternative lines needed</p>
+                  <p className="fine">Your current selection is already the safest statistical line for this game.</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-5">
                   {boomingTiers.map((tier) => (
                     <div key={tier.tierName} className="space-y-3">
-                      {/* Tier Header */}
-                      <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-[#e4e9e3]">
                         <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border ${tier.badgeBg} ${tier.badgeBorder} ${tier.color}`}>
-                            <i className={`${tier.icon} text-xs`}></i>
-                            <span>{tier.tierName}</span>
+                          <span className="pill text-xs font-bold bg-[#f4f6f2] text-[#16201c] border border-[#e4e9e3]">
+                            <i className={`${tier.icon} text-xs mr-1.5`}></i>
+                            {tier.tierName}
                           </span>
-                          <span className="text-xs font-semibold text-zinc-400">
-                            {tier.oddsRange} per leg
+                          <span className="fine font-mono">
+                            {tier.oddsRange} / leg
                           </span>
                         </div>
-                        <span className="text-[10px] uppercase font-black text-zinc-400 tracking-wider">
-                          {tier.picks.length} Booming Picks
+                        <span className="fine font-mono">
+                          {tier.picks.length} picks
                         </span>
                       </div>
 
-                      {/* Tier Picks */}
-                      <div className="space-y-2.5">
+                      <div className="card divide-y divide-[#e4e9e3] overflow-hidden">
                         {tier.picks.map((pick) => {
                           const isCurrent = pick.id === matchPick.id
                           const ev = calculateExpectedValue(pick.odds, pick.probability)
@@ -342,62 +329,56 @@ export function MatchIntelligenceModal({
                           return (
                             <div
                               key={pick.id}
-                              className={`p-4 rounded-2xl border transition-all space-y-2.5 ${
-                                isCurrent
-                                  ? 'bg-emerald-50/80 border-emerald-300 shadow-xs'
-                                  : 'bg-white border-zinc-200/80 hover:border-zinc-300 hover:shadow-xs'
+                              className={`p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors ${
+                                isCurrent ? 'bg-[#edf4e9]' : 'hover:bg-[#fafbfa]'
                               }`}
                             >
-                              <div className="flex items-center justify-between flex-wrap gap-2">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-black uppercase text-zinc-400">
-                                      {pick.marketName}
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-mono text-[#84918a] uppercase">
+                                    {pick.marketName}
+                                  </span>
+                                  {pick.badgeLabel && (
+                                    <span className="pill text-[9px] bg-white border border-[#e4e9e3] text-[#53625b]">
+                                      {pick.badgeLabel}
                                     </span>
-                                    {pick.badgeLabel && (
-                                      <span className="text-[9px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded-full">
-                                        {pick.badgeLabel}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-base font-black text-zinc-950 mt-0.5">
-                                    {pick.market}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                  <div className="text-right">
-                                    <div className="text-lg font-black text-zinc-950">
-                                      @{pick.odds.toFixed(2)}
-                                    </div>
-                                    <div className="text-[10px] font-bold text-emerald-600">
-                                      {Math.round(pick.probability * 100)}% Win Prob • {ev > 0 ? `+${(ev * 100).toFixed(1)}%` : `${(ev * 100).toFixed(1)}%`} EV
-                                    </div>
-                                  </div>
-
-                                  {onSelectOutcome && (
-                                    <button
-                                      disabled={isCurrent}
-                                      onClick={() => {
-                                        onSelectOutcome(pick)
-                                        onClose()
-                                      }}
-                                      className={`py-2 px-3.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                                        isCurrent
-                                          ? 'bg-emerald-600 text-white cursor-default'
-                                          : 'bg-zinc-950 text-white hover:bg-zinc-800 active:scale-95 shadow-xs'
-                                      }`}
-                                    >
-                                      {isCurrent ? 'Current Selection' : 'Select Booming Pick'}
-                                    </button>
                                   )}
                                 </div>
+                                <div className="text-base font-extrabold text-[#16201c]">
+                                  {pick.market}
+                                </div>
+                                <p className="text-xs text-[#71807a] leading-relaxed font-normal">
+                                  {rationale}
+                                </p>
                               </div>
 
-                              <p className="text-xs text-zinc-600 leading-relaxed bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-100 font-medium">
-                                <strong className="text-zinc-900 font-bold mr-1">AI Proof:</strong>
-                                {rationale}
-                              </p>
+                              <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-2 shrink-0">
+                                <div className="text-right">
+                                  <div className="font-mono font-extrabold text-lg text-[#16201c]">
+                                    {pick.odds.toFixed(2)}x
+                                  </div>
+                                  <div className="text-[10px] font-mono text-emerald-700 font-bold">
+                                    {Math.round(pick.probability * 100)}% chance · {ev > 0 ? `+${(ev * 100).toFixed(1)}% EV` : `${(ev * 100).toFixed(1)}% EV`}
+                                  </div>
+                                </div>
+
+                                {onSelectOutcome && (
+                                  <button
+                                    disabled={isCurrent}
+                                    onClick={() => {
+                                      onSelectOutcome(pick)
+                                      onClose()
+                                    }}
+                                    className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      isCurrent
+                                        ? 'bg-[#183b2d] text-white cursor-default'
+                                        : 'chip on'
+                                    }`}
+                                  >
+                                    {isCurrent ? 'Current Selection' : 'Swap to this Line'}
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )
                         })}
@@ -410,14 +391,14 @@ export function MatchIntelligenceModal({
           )}
         </div>
 
-        {/* ── Modal Footer ──────────────────────────────────────────────── */}
-        <div className="p-4 px-6 border-t border-zinc-100 flex items-center justify-between bg-zinc-50/60">
-          <span className="text-xs text-zinc-500">
-            Powered by Odds Factory AI Engine • Match ID <span className="font-mono font-bold text-zinc-800">{matchPick.eventId}</span>
+        {/* ── Modal Footer ────────────────────────────────────────────── */}
+        <div className="p-4 px-6 border-t border-[#e4e9e3] flex items-center justify-between bg-[#fbfcf9]">
+          <span className="text-xs text-[#71807a]">
+            Odds Factory Statistical Pipeline · Match #{matchPick.eventId}
           </span>
           <button
             onClick={onClose}
-            className="py-2 px-5 bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl cursor-pointer"
+            className="primary py-2 px-5 text-xs font-bold cursor-pointer"
           >
             Done
           </button>
