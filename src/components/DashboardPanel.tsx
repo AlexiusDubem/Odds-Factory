@@ -4,7 +4,6 @@ import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 import type { Slip } from '../types'
 import { DAILY_SURE_PICKS, type DailySurePick } from '../data/sportybetCompetitions'
-import { phoneAlertsAreEnabled, requestPhoneNotificationPermission } from '../services/notificationService'
 
 interface Props {
   onLoadSlip?: (slip: Slip) => void
@@ -15,19 +14,7 @@ export const DashboardPanel = ({ }: Props) => {
   const [slips, setSlips] = useState<Slip[]>([])
   const [livePicks, setLivePicks] = useState<DailySurePick[]>([])
   const [loading, setLoading] = useState(true)
-  const [pushStatus, setPushStatus] = useState<'idle' | 'enabling' | 'enabled' | 'denied'>(() => phoneAlertsAreEnabled() ? 'enabled' : 'idle')
   const [feedFetchedAt, setFeedFetchedAt] = useState<string | null>(null)
-
-  const handleEnablePush = async () => {
-    setPushStatus('enabling')
-    const res = await requestPhoneNotificationPermission()
-    if (res.success) {
-      setPushStatus('enabled')
-    } else {
-      setPushStatus('denied')
-      alert(res.error || 'Failed to enable notifications')
-    }
-  }
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -128,46 +115,6 @@ export const DashboardPanel = ({ }: Props) => {
           <span className="w-2 h-2 rounded-full bg-[#dfff46] animate-pulse"></span>
           <span>{feedLabel}</span>
         </div>
-      </section>
-
-      {/* ── Mobile Push Notification Alert Banner ──────────────────────── */}
-      <section className="bg-white border border-[#e4e9e3] rounded-[16px] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#e9f7e4] text-[#15966a] flex items-center justify-center text-lg shrink-0">
-            <i className="fa-solid fa-mobile-screen-button"></i>
-          </div>
-          <div>
-            <h4 className="text-xs sm:text-sm font-extrabold text-[#16201c]">Get Banked Picks Direct to Your Phone</h4>
-            <p className="text-[11px] text-[#71807a]">Receive instant lockscreen notifications when daily Over 1.5 and banker multis drop.</p>
-          </div>
-        </div>
-
-        <button
-          onClick={handleEnablePush}
-          disabled={pushStatus === 'enabling' || pushStatus === 'enabled'}
-          className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all shrink-0 cursor-pointer flex items-center justify-center gap-2 ${
-            pushStatus === 'enabled'
-              ? 'bg-[#e9f7e4] text-[#15966a] border border-[#a3e0be]'
-              : 'bg-[#183b2d] hover:bg-[#234e3d] text-[#dfff46]'
-          }`}
-        >
-          {pushStatus === 'enabled' ? (
-            <>
-              <i className="fa-solid fa-check"></i>
-              <span>Phone Alerts Active</span>
-            </>
-          ) : pushStatus === 'enabling' ? (
-            <>
-              <i className="fa-solid fa-circle-notch fa-spin"></i>
-              <span>Connecting Phone…</span>
-            </>
-          ) : (
-            <>
-              <i className="fa-solid fa-bell"></i>
-              <span>Enable Phone Alerts</span>
-            </>
-          )}
-        </button>
       </section>
 
       {/* ── 3 Key Stat Cards ───────────────────────────────────────────── */}
