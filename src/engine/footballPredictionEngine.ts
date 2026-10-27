@@ -87,9 +87,10 @@ export function buildFootballModel(lines: MarketLine[]): FootballModel {
   const usableGroups = [...groups.values()].filter(group => group.length >= 2)
   let best = { home: 1.4, away: 1.1, error: Number.POSITIVE_INFINITY }
 
-  // Grid search is tiny (46 * 41) and avoids unstable closed-form shortcuts.
-  for (let home = 0.5; home <= 3.2; home += 0.06) {
-    for (let away = 0.35; away <= 2.75; away += 0.06) {
+  // Coarse grid search is intentionally bounded: it runs in the browser for
+  // every fixture, so responsiveness matters more than false precision.
+  for (let home = 0.5; home <= 3.2; home += 0.1) {
+    for (let away = 0.35; away <= 2.75; away += 0.1) {
       const probabilities = calculatePoissonProbabilities(home, away)
       let error = 0
       let observations = 0
@@ -131,8 +132,11 @@ export function evaluateCalibratedLine(line: MarketLine, allLines: MarketLine[],
   if (poissonProbability === null || line.odds <= 1) return null
   const key = marketGroup(line)
   const siblings = key ? allLines.filter(item => marketGroup(item) === key && item.odds > 1) : []
-  const fair = siblings.length > 1
-    ? normalizedImplied(siblings)[siblings.indexOf(line)]
+  const siblingIndex = siblings.findIndex(item => item === line || (
+    item.marketName === line.marketName && item.selection === line.selection && item.odds === line.odds
+  ))
+  const fair = siblings.length > 1 && siblingIndex >= 0
+    ? normalizedImplied(siblings)[siblingIndex]
     : 1 / line.odds
   const supplied = line.probability && line.probability > 0
     ? clamp(line.probability > 1 ? line.probability / 100 : line.probability, 0.02, 0.98)

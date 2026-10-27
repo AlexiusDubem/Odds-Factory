@@ -263,13 +263,17 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   // 2. Select the single strongest market per fixture (or NO_QUALIFYING_SELECTION).
   // 3. Assemble ticket to match requested target odds or top N qualified games.
 
-  const handleRunAnalysisAndGenerate = () => {
+  const handleRunAnalysisAndGenerate = async () => {
+    if (isAnalyzing) return
     setIsAnalyzing(true)
     setBookingCode(null)
     setBookingError(null)
     setShareUrl(null)
 
-    setTimeout(() => {
+    // Let React render the loading state before the CPU-heavy scoring begins.
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+
+    try {
       const risk = RISK_CONFIG[riskLevel]
 
       // Step 1: Group all live picks by fixture (eventId)
@@ -284,7 +288,8 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       // Step 2: Independently analyze every fixture
       const evaluatedFixtures: FixtureAnalysisResult[] = []
 
-      for (const [_eventId, markets] of fixtureMap.entries()) {
+      let processedFixtures = 0
+      for (const markets of fixtureMap.values()) {
         const first = markets[0]
 
         // Duration / Timing filter
@@ -315,6 +320,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         )
 
         evaluatedFixtures.push(analysis)
+        processedFixtures++
+
+        // Yield regularly so mobile browsers can paint and handle taps while a
+        // large live fixture feed is being evaluated.
+        if (processedFixtures % 6 === 0) {
+          await new Promise<void>(resolve => setTimeout(resolve, 0))
+        }
       }
 
       setAnalyzedFixtures(evaluatedFixtures)
@@ -344,8 +356,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       setChosenPicks(finalPicks)
       setHasGenerated(true)
+    } catch (error) {
+      console.error('Fixture generation failed:', error)
+      setChosenPicks([])
+      setHasGenerated(true)
+    } finally {
       setIsAnalyzing(false)
-    }, 350)
+    }
   }
 
   // ── Ticket Calculations ───────────────────────────────────────────────────

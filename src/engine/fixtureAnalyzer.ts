@@ -147,6 +147,12 @@ export function analyzeFixtureIndependently(
   const league = first.league
   const kickoff = first.kickoff
   const dataAgeMinutes = first.dataAgeMinutes || 2
+  const marketBook = fixtureMarkets.map(pick => ({
+    marketName: pick.marketName,
+    selection: pick.market,
+    odds: pick.odds,
+    probability: pick.probability,
+  }))
 
   // 1. Filter markets to those matching the user-allowed market families
   const candidateMarkets = fixtureMarkets.filter(m =>
@@ -180,12 +186,7 @@ export function analyzeFixtureIndependently(
 
   // 2. Build one coherent, de-margined score model from the complete market book.
   // This replaces one-line odds shortcuts and prevents a selection from grading itself.
-  const model = buildFootballModel(fixtureMarkets.map(pick => ({
-    marketName: pick.marketName,
-    selection: pick.market,
-    odds: pick.odds,
-    probability: pick.probability,
-  })))
+  const model = buildFootballModel(marketBook)
 
   // 3. Score every candidate market based on:
   // - Mathematical probability (Poisson or de-margined bookmaker)
@@ -207,7 +208,10 @@ export function analyzeFixtureIndependently(
     const mLower = pick.market.toLowerCase()
     const nameLower = pick.marketName.toLowerCase()
 
-    const calibrated = evaluateCalibratedLine({ marketName: pick.marketName, selection: pick.market, odds, probability: pick.probability }, fixtureMarkets.map(item => ({ marketName: item.marketName, selection: item.market, odds: item.odds, probability: item.probability })), model)
+    const line = marketBook.find(item =>
+      item.marketName === pick.marketName && item.selection === pick.market && item.odds === odds
+    ) ?? { marketName: pick.marketName, selection: pick.market, odds, probability: pick.probability }
+    const calibrated = evaluateCalibratedLine(line, marketBook, model)
     if (!calibrated) continue
     const trueProb = calibrated.modelProbability
     const { expectedValue: ev, edge } = calibrated
