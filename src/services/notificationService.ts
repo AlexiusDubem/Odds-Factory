@@ -18,10 +18,14 @@ export async function requestPhoneNotificationPermission(): Promise<{ success: b
       return { success: false, error: 'Firebase messaging is not available on this device.' }
     }
 
-    // Register service worker if not already registered
+    // Keep Firebase's worker out of the root scope. The root scope belongs to
+    // the Vite PWA worker; two workers competing for it causes update/reload
+    // loops on installed apps.
     let registration: ServiceWorkerRegistration | undefined
     if ('serviceWorker' in navigator) {
-      registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      registration = await navigator.serviceWorker.register('/firebase-push/firebase-messaging-sw.js', {
+        scope: '/firebase-push/',
+      })
     }
 
     const vapidKey = (import.meta as any).env?.VITE_FIREBASE_VAPID_KEY

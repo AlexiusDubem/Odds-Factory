@@ -15,14 +15,7 @@ export function UpdatePrompt() {
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(r?: ServiceWorkerRegistration) {
-      // Poll for updates every 60 seconds when the app is open
-      if (r) {
-        setInterval(() => r.update(), 60_000)
-      }
-    },
-  })
+  } = useRegisterSW()
 
   const [dismissed, setDismissed] = useState(false)
 

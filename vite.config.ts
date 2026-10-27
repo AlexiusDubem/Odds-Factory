@@ -8,12 +8,14 @@ export default defineConfig({
     react(), 
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Do not automatically take control of open clients. A prompt lets the
+      // user apply a verified release once, rather than creating reload loops.
+      registerType: 'prompt',
       includeAssets: ['logo.png'],
       workbox: {
         cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true,
+        skipWaiting: false,
+        clientsClaim: false,
         globPatterns: ['**/*.{js,css,html,png,svg}'],
         maximumFileSizeToCacheInBytes: 4000000,
       },
