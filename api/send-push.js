@@ -22,29 +22,68 @@ export default async function handler(req, res) {
     if (decoded.email?.toLowerCase() !== 'alexiusdubem7@gmail.com') {
       return res.status(403).json({ success: false, error: 'Only the administrator can send phone alerts.' })
     }
-    const { title, message, url = '/builder', tokens = [] } = req.body || {}
+    const { title, message, url = '/builder', broadcastId = `broadcast-${Date.now()}` } = req.body || {}
     if (!title || !message) {
       return res.status(400).json({ error: 'Title and message are required for push notification' })
     }
 
-    const uniqueTokens = [...new Set((Array.isArray(tokens) ? tokens : []).filter(token => typeof token === 'string' && token.length > 40))]
-    if (uniqueTokens.length === 0) {
-      return res.status(400).json({ success: false, error: 'No registered phone-alert devices found.' })
-    }
-    const response = await admin.messaging(app).sendEachForMulticast({
-      tokens: uniqueTokens.slice(0, 500),
-      notification: { title, body: message },
-      webpush: {
-        notification: { icon: '/logo.png', badge: '/logo.png' },
-        fcmOptions: { link: url },
-      },
-      data: { title, message, url },
+    const db = admin.firestore(app)
+    const [subscribers, users, userTokens] = await Promise.all([
+      db.collection('push_subscribers').get(),
+      db.collection('users').get(),
+      db.collectionGroup('fcmTokens').get(),
+    ])
+
+    const tokenSet = new Set()
+    subscribers.forEach(doc => {
+      const token = doc.data().token
+      if (typeof token === 'string' && token.length > 40) tokenSet.add(token)
     })
+    users.forEach(doc => {
+      const token = doc.data().fcmToken
+      if (typeof token === 'string' && token.length > 40) tokenSet.add(token)
+    })
+    userTokens.forEach(doc => {
+      const token = doc.data().token
+      if (typeof token === 'string' && token.length > 40) tokenSet.add(token)
+    })
+
+    // Every account receives an in-app inbox record; browser/phone delivery is
+    // additionally attempted for every real FCM device token.
+    const allUsers = users.docs
+    for (let index = 0; index < allUsers.length; index += 400) {
+      const batch = db.batch()
+      allUsers.slice(index, index + 400).forEach(user => {
+        batch.set(user.ref.collection('notifications').doc(broadcastId), {
+          title, message, url, read: false, createdAt: admin.firestore.FieldValue.serverTimestamp(), broadcastId,
+        }, { merge: true })
+      })
+      await batch.commit()
+    }
+
+    let successCount = 0
+    let failureCount = 0
+    const deviceTokens = [...tokenSet]
+    for (let index = 0; index < deviceTokens.length; index += 500) {
+      const response = await admin.messaging(app).sendEachForMulticast({
+        tokens: deviceTokens.slice(index, index + 500),
+        notification: { title, body: message },
+        webpush: {
+          notification: { icon: '/logo.png', badge: '/logo.png' },
+          fcmOptions: { link: url },
+        },
+        data: { title, message, url },
+      })
+      successCount += response.successCount
+      failureCount += response.failureCount
+    }
 
     return res.status(200).json({
       success: true,
-      broadcastedCount: response.successCount,
-      failedCount: response.failureCount,
+      broadcastedCount: successCount,
+      failedCount: failureCount,
+      inAppRecipientCount: allUsers.length,
+      registeredDeviceCount: deviceTokens.length,
       title,
       message,
       url,

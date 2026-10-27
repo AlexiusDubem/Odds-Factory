@@ -1,5 +1,5 @@
 import { getToken } from 'firebase/messaging'
-import { doc, setDoc, getDocs, collection, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { messaging, db, auth } from '../config/firebase'
 
 const PUSH_TOKEN_KEY = 'odds_factory_fcm_token'
@@ -107,11 +107,9 @@ export async function broadcastPhoneNotification(
       sentBy: auth.currentUser?.email || 'admin',
     })
 
-    // 2. Fetch subscriber count
-    const subscribersSnap = await getDocs(collection(db, 'push_subscribers'))
-    const tokens = subscribersSnap.docs.map(d => d.data().token)
-
-    // 3. Send via local server endpoint or proxy
+    // The server reads every saved device token with Admin credentials. Client
+    // reads are deliberately avoided so a partial Firestore result can never
+    // turn a broadcast into a partial phone delivery.
     const idToken = await auth.currentUser?.getIdToken()
     if (!idToken) {
       return { success: false, recipientCount: 0, error: 'Please sign in again before sending phone alerts.' }
@@ -120,7 +118,7 @@ export async function broadcastPhoneNotification(
     let pushRes = await fetch('/api/send-push', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ title, message, url, tokens })
+      body: JSON.stringify({ title, message, url, broadcastId })
     }).catch(() => null)
     const result = pushRes ? await pushRes.json().catch(() => null) : null
     if (!pushRes?.ok || !result?.success) {
