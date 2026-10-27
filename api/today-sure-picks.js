@@ -77,13 +77,15 @@ export default async function handler(req, res) {
     const majorKeywords = [
       'premier league', 'champions league', 'europa league', 'conference league',
       'la liga', 'laliga', 'serie a', 'bundesliga', 'ligue 1', 'copa del rey',
-      'fa cup', 'efl cup', 'carabao cup'
+      'fa cup', 'efl cup', 'carabao cup', 'dfb pokal', 'coppa italia', 'coupe de france',
+      'supercopa', 'super cup', 'world cup', 'euro', 'nations league'
     ]
 
     const secondaryKeywords = [
-      'npfl', 'championship', 'eredivisie', 'primeira liga', 'mls', 'saudi pro league',
-      'brasileiro', 'copa libertadores', 'super lig', 'pro league', 'a-league',
-      'super league', 'league one', 'league two', 'segunda'
+      'championship', 'segunda', 'serie b', '2. bundesliga', 'ligue 2',
+      'eredivisie', 'primeira liga', 'pro league', 'super lig', 'premiership',
+      'super league', 'league one', 'league two', 'mls', 'saudi pro league',
+      'brasileiro', 'copa libertadores', 'copa sudamericana', 'npfl', 'a-league'
     ]
 
     const isSimulatedOrVirtual = (text) => {
@@ -97,7 +99,16 @@ export default async function handler(req, res) {
         lower.includes('efootball') ||
         lower.includes('cyber') ||
         lower.includes('esport') ||
-        lower.includes('fifa')
+        lower.includes('fifa') ||
+        lower.includes('pes ') ||
+        lower.includes('u19') ||
+        lower.includes('u20') ||
+        lower.includes('u21') ||
+        lower.includes('u23') ||
+        lower.includes('youth') ||
+        lower.includes('reserves') ||
+        lower.includes('amateur') ||
+        lower.includes('regional cup')
       )
     }
 
@@ -219,10 +230,15 @@ export default async function handler(req, res) {
         const eventId = e.eventId
 
         const now = Date.now()
-        const diffHours = e.estimateStartTime ? (e.estimateStartTime - now) / (3600 * 1000) : 0
+        // Strict limit: match must be upcoming (at least 5 mins ahead), within maxHours, and not in the past
+        if (e.estimateStartTime) {
+          if (e.estimateStartTime <= now + (5 * 60 * 1000)) continue
+          const diffHours = (e.estimateStartTime - now) / (3600 * 1000)
+          if (diffHours < 0.08 || diffHours > maxHours || diffHours > 168) continue
+        }
 
-        // Strict limit: match must be upcoming (at least 3 mins ahead), within maxHours, and not past 7 days
-        if (e.estimateStartTime && (diffHours < 0.05 || diffHours > maxHours || diffHours > 168)) {
+        // Skip in-play or ended events
+        if (e.status === 'Live' || e.status === 'Ended' || e.matchStatus === 'Live' || e.matchStatus === 'Ended') {
           continue
         }
 

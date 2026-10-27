@@ -10,7 +10,7 @@
  */
 
 import type { DailySurePick } from '../data/sportybetCompetitions'
-import { calculatePoissonProbabilities, estimateLambdaMu, evaluateMarketValue } from './poissonModel'
+import { buildFootballModel, evaluateCalibratedLine } from './footballPredictionEngine'
 
 export type FixtureAnalysisStatus = 'QUALIFIED' | 'NO_QUALIFYING_SELECTION' | 'INSUFFICIENT_DATA'
 
@@ -178,19 +178,14 @@ export function analyzeFixtureIndependently(
     }
   }
 
-  // 2. Compute Poisson Goal Physics for this fixture
-  // Extract Over 2.5 and 1X2 odds if available to reverse-engineer lambda and mu
-  const ou25Pick = fixtureMarkets.find(m => m.specifier?.includes('2.5') || m.market.includes('2.5'))
-  const homeWinPick = fixtureMarkets.find(m => m.marketId === '1' && (m.market.includes('1') || m.market.includes('Home')))
-  const awayWinPick = fixtureMarkets.find(m => m.marketId === '1' && (m.market.includes('2') || m.market.includes('Away')))
-
-  const { lambdaHome, muAway } = estimateLambdaMu({
-    over2_5Odds: ou25Pick?.odds,
-    homeWinOdds: homeWinPick?.odds,
-    awayWinOdds: awayWinPick?.odds,
-  })
-
-  const poisson = calculatePoissonProbabilities(lambdaHome, muAway)
+  // 2. Build one coherent, de-margined score model from the complete market book.
+  // This replaces one-line odds shortcuts and prevents a selection from grading itself.
+  const model = buildFootballModel(fixtureMarkets.map(pick => ({
+    marketName: pick.marketName,
+    selection: pick.market,
+    odds: pick.odds,
+    probability: pick.probability,
+  })))
 
   // 3. Score every candidate market based on:
   // - Mathematical probability (Poisson or de-margined bookmaker)
@@ -212,25 +207,10 @@ export function analyzeFixtureIndependently(
     const mLower = pick.market.toLowerCase()
     const nameLower = pick.marketName.toLowerCase()
 
-    // Map to Poisson probability where appropriate
-    let trueProb = pick.probability > 1 ? pick.probability / 100 : pick.probability
-
-    if (mLower.includes('over 1.5')) {
-      trueProb = Math.max(trueProb, poisson.over1_5)
-    } else if (mLower.includes('over 2.5')) {
-      trueProb = Math.max(trueProb, poisson.over2_5)
-    } else if (mLower.includes('btts') || mLower.includes('gg')) {
-      trueProb = mLower.includes('no') || mLower.includes('ng') ? poisson.bttsNo : poisson.bttsYes
-    } else if (nameLower.includes('double chance') || pick.marketId === '10') {
-      if (mLower.includes('1x') || mLower.includes('home or draw')) trueProb = poisson.homeOrDraw
-      else if (mLower.includes('x2') || mLower.includes('away or draw')) trueProb = poisson.awayOrDraw
-      else if (mLower.includes('12') || mLower.includes('home or away')) trueProb = poisson.homeOrAway
-    } else if (nameLower.includes('draw no bet') || pick.marketId === '11') {
-      if (mLower.includes('home') || mLower.includes('1')) trueProb = poisson.dnbHome
-      else trueProb = poisson.dnbAway
-    }
-
-    const { ev, edge } = evaluateMarketValue(trueProb, odds)
+    const calibrated = evaluateCalibratedLine({ marketName: pick.marketName, selection: pick.market, odds, probability: pick.probability }, fixtureMarkets.map(item => ({ marketName: item.marketName, selection: item.market, odds: item.odds, probability: item.probability })), model)
+    if (!calibrated) continue
+    const trueProb = calibrated.modelProbability
+    const { expectedValue: ev, edge } = calibrated
 
     // Filter out tight under lines that are volatile
     const isRiskyUnder = (mLower.includes('under 1.5') || mLower.includes('under 0.5') || mLower.includes('under 2.5')) && odds > 1.25
@@ -242,6 +222,10 @@ export function analyzeFixtureIndependently(
       disqualification = `Odds @${odds.toFixed(2)} above maximum threshold of @${maxOdds.toFixed(2)}.`
     } else if (trueProb < minProb) {
       disqualification = `Probability ${(trueProb * 100).toFixed(1)}% below required minimum of ${(minProb * 100).toFixed(0)}%.`
+    } else if (!calibrated.hasIndependentSignal) {
+      disqualification = 'No independent performance signal available; market-only estimates are research-only.'
+    } else if (edge < 0.015 || ev < 0.01) {
+      disqualification = `Conservative calibrated edge (${(edge * 100).toFixed(1)}%) does not clear the 1.5% value floor.`
     } else if (isRiskyUnder) {
       disqualification = `Tight under goals line has excessive multi-event variance.`
     }
@@ -298,7 +282,7 @@ export function analyzeFixtureIndependently(
       alternativesConsidered: alternatives,
       evidence: [
         `Evaluated ${evaluated.length} markets for this fixture.`,
-        `Expected match goals estimated at ${poisson.expectedTotalGoals.toFixed(2)} (Home: ${poisson.lambdaHome.toFixed(2)}, Away: ${poisson.muAway.toFixed(2)}).`,
+        `Market-calibrated goal expectancy: ${model.expectedGoals.toFixed(2)} (Home: ${model.lambdaHome.toFixed(2)}, Away: ${model.lambdaAway.toFixed(2)}).`,
         `None of the available markets satisfied the safety and EV requirements.`,
       ],
       riskFlags: ['No market offers acceptable risk/return profile under current constraints.'],
@@ -323,8 +307,8 @@ export function analyzeFixtureIndependently(
     best.calcProb >= 0.78 ? 'HIGH' : best.calcProb >= 0.65 ? 'MODERATE' : 'LOW'
 
   const evidence: string[] = [
-    `Poisson goal expectancy: ${poisson.expectedTotalGoals.toFixed(2)} total goals (${poisson.lambdaHome.toFixed(2)} home / ${poisson.muAway.toFixed(2)} away).`,
-    `Model estimate ${Math.round(best.calcProb * 100)}% vs bookmaker implied ${Math.round((1 / best.pick.odds) * 100)}% (EV ${best.ev >= 0 ? '+' : ''}${(best.ev * 100).toFixed(1)}%).`,
+    `Calibrated Dixon–Coles expectancy: ${model.expectedGoals.toFixed(2)} goals (${model.lambdaHome.toFixed(2)} home / ${model.lambdaAway.toFixed(2)} away), fitted across ${model.marketCoverage} complete market books.`,
+    `Conservative model estimate ${Math.round(best.calcProb * 100)}% vs bookmaker implied ${Math.round((1 / best.pick.odds) * 100)}% (EV ${best.ev >= 0 ? '+' : ''}${(best.ev * 100).toFixed(1)}%).`,
     `Selected from ${candidateMarkets.length} permitted SportyBet lines in [${allowedFamilies.join(', ')}].`,
   ]
 
