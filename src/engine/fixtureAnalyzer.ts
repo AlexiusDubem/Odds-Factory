@@ -226,10 +226,6 @@ export function analyzeFixtureIndependently(
       disqualification = `Odds @${odds.toFixed(2)} above maximum threshold of @${maxOdds.toFixed(2)}.`
     } else if (trueProb < minProb) {
       disqualification = `Probability ${(trueProb * 100).toFixed(1)}% below required minimum of ${(minProb * 100).toFixed(0)}%.`
-    } else if (!calibrated.hasIndependentSignal) {
-      disqualification = 'No independent performance signal available; market-only estimates are research-only.'
-    } else if (edge < 0.015 || ev < 0.01) {
-      disqualification = `Conservative calibrated edge (${(edge * 100).toFixed(1)}%) does not clear the 1.5% value floor.`
     } else if (isRiskyUnder) {
       disqualification = `Tight under goals line has excessive multi-event variance.`
     }
@@ -240,8 +236,9 @@ export function analyzeFixtureIndependently(
     const isDC = pick.marketId === '10' || nameLower.includes('double chance')
     const isOverGoals = mLower.includes('over 1.5') || mLower.includes('over 2.5') || mLower.includes('over 0.5')
     
-    // Reward positive edge heavily (+10 for each 5% edge)
-    let score = (trueProb * 60) + (ev * 40) + (edge * 30)
+    // Safe-ticket mode ranks resilient probability first. Odds from the same
+    // book cannot be used as proof of an independent positive-value edge.
+    let score = (trueProb * 100) + Math.max(0, edge) * 10
 
     if (isOverGoals && trueProb >= 0.70) {
       score += 8 // Reward verified attack/goal expectancy
@@ -312,7 +309,7 @@ export function analyzeFixtureIndependently(
 
   const evidence: string[] = [
     `Calibrated Dixon–Coles expectancy: ${model.expectedGoals.toFixed(2)} goals (${model.lambdaHome.toFixed(2)} home / ${model.lambdaAway.toFixed(2)} away), fitted across ${model.marketCoverage} complete market books.`,
-    `Conservative model estimate ${Math.round(best.calcProb * 100)}% vs bookmaker implied ${Math.round((1 / best.pick.odds) * 100)}% (EV ${best.ev >= 0 ? '+' : ''}${(best.ev * 100).toFixed(1)}%).`,
+    `Conservative model estimate ${Math.round(best.calcProb * 100)}% after market calibration; odds are used for ticket construction, not presented as a standalone value guarantee.`,
     `Selected from ${candidateMarkets.length} permitted SportyBet lines in [${allowedFamilies.join(', ')}].`,
   ]
 
@@ -352,7 +349,7 @@ export function analyzeFixtureIndependently(
     evidence,
     riskFlags,
     dataAgeMinutes,
-    reason: `Strongest statistical support among permitted lines with positive expected value (${(best.edge * 100).toFixed(1)}% edge).`,
+    reason: `Highest conservative probability among permitted lines after calibrated risk checks.`,
   }
 }
 
