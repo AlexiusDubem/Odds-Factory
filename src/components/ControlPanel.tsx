@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { collection, getDocs, doc, deleteDoc, addDoc, serverTimestamp, query, orderBy, limit, updateDoc } from 'firebase/firestore'
 import { auth, db, isFirebaseConfigured } from '../config/firebase'
+import { broadcastPhoneNotification } from '../services/notificationService'
 
 interface UserStats {
   id: string
@@ -50,6 +51,7 @@ export const ControlPanel = () => {
   const [notifTitle, setNotifTitle] = useState('')
   const [notifMessage, setNotifMessage] = useState('')
   const [notifTarget, setNotifTarget] = useState('ALL')
+  const [notifUrl, setNotifUrl] = useState('/builder')
   const [isSending, setIsSending] = useState(false)
   const [broadcastBanner, setBroadcastBanner] = useState<string | null>(null)
 
@@ -280,8 +282,9 @@ export const ControlPanel = () => {
         )
       } catch {}
 
+      const pushResult = await broadcastPhoneNotification(notifTitle.trim(), notifMessage.trim(), notifUrl)
       setBroadcastBanner(`${notifTitle}: ${notifMessage}`)
-      alert('Broadcast alert successfully sent and live across all devices!')
+      alert(`Mobile Push Alert & Broadcast successfully dispatched! (${pushResult.recipientCount} device${pushResult.recipientCount === 1 ? '' : 's'} alerted)`)
       setNotifTitle('')
       setNotifMessage('')
     } catch (err) {
@@ -711,9 +714,23 @@ export const ControlPanel = () => {
                 onChange={(e) => setNotifTarget(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-zinc-400"
               >
-                <option value="ALL">All Users & Visitors (Global)</option>
+                <option value="ALL">All Users & Phones (Global)</option>
                 <option value="registered">Registered Punters Only</option>
                 <option value="guests">Guest Sessions Only</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700">Phone Tap Action (Link)</label>
+              <select
+                value={notifUrl}
+                onChange={(e) => setNotifUrl(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200/80 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-zinc-400"
+              >
+                <option value="/builder">Acca Builder (/builder)</option>
+                <option value="/audit">Slip Auditor (/audit)</option>
+                <option value="/history">Ticket Ledger (/history)</option>
+                <option value="/dashboard">Dashboard (/dashboard)</option>
               </select>
             </div>
           </div>

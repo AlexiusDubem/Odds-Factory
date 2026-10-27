@@ -29,12 +29,18 @@ export interface SlipHealth {
   overallScore: number
 }
 
+export function normalizeProbability(prob: number | undefined | null, fallback = 0.5): number {
+  if (prob === undefined || prob === null || isNaN(prob)) return fallback
+  const normalized = prob > 1 ? prob / 100 : prob
+  return Math.min(0.99, Math.max(0.01, normalized))
+}
+
 // ─── Health calculator ──────────────────────────────────────────────────────
 
 export function calculateSlipHealth(legs: SlipLeg[], combinedOdds: number): SlipHealth {
   if (legs.length === 0) return { riskScore: 0, stabilityScore: 0, confidenceScore: 0, valueScore: 0, overallScore: 0 }
 
-  const combinedProb = legs.reduce((acc, leg) => acc * Math.min(1, Math.max(0.01, leg.probability || 0.5)), 1)
+  const combinedProb = legs.reduce((acc, leg) => acc * normalizeProbability(leg.probability, 0.65), 1)
 
   let risk = (1 - combinedProb) * 100
   if (combinedOdds > 50) risk = Math.min(99, risk + 5)
@@ -194,10 +200,10 @@ export async function analyzeSmartDrops(slip: Slip, goal: OptimizationGoal): Pro
 
     // Ensure EV is properly bounded for individual leg display
     const rawSingleOdds = Math.min(leg.odds || 2.0, 15.0)
-    const rawProb = leg.probability ? (leg.probability > 1 ? leg.probability / 100 : leg.probability) : 0.5
+    const rawProb = normalizeProbability(leg.probability, 0.65)
     const boundedEV = Math.max(-0.85, Math.min(0.50, gEval.ev !== undefined ? gEval.ev : (rawProb * rawSingleOdds - 1)))
-
-    const ssp = OSP > 0 && leg.probability > 0 ? OSP / (leg.probability || 0.5) : 0
+    const ospNorm = OSP > 1 ? OSP / 100 : OSP;
+    const ssp = OSP > 0 && rawProb > 0 ? (ospNorm / rawProb) * 100 : 0
     const sso = OSO > 0 && leg.odds > 0 ? OSO / leg.odds : 0
     const sspIncrease  = ssp - OSP
     const oddsReduction = OSO - sso

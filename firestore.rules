@@ -30,19 +30,26 @@ service cloud.firestore {
         allow write, delete: if isOwner(userId) || isAdmin();
       }
 
-      // Web Push Tokens for notifications
+      // Web Push Tokens for phone notifications
       match /fcmTokens/{tokenId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, write, delete: if isOwner(userId) || isAdmin();
       }
 
-      // User notifications
+      // User notifications — strictly owner or admin
       match /notifications/{notifId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create, write: if isAuthenticated();
+        allow create, write, delete: if isOwner(userId) || isAdmin();
       }
     }
 
-    // Global broadcasts: publicly readable by all punters & visitors, strictly managed by superadmin
+    // Global push subscribers for phone broadcasts
+    match /push_subscribers/{tokenId} {
+      allow read: if isAdmin();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() || isAdmin();
+    }
+
+    // Global broadcasts: readable by all punters, strictly managed by superadmin
     match /broadcasts/{broadcastId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -55,7 +62,7 @@ service cloud.firestore {
     }
 
     match /processed_matches/{matchId} {
-      allow read: if true;
+      allow read: if isAuthenticated() || isAdmin();
       allow write: if isAuthenticated() || isAdmin();
     }
   }

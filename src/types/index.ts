@@ -183,6 +183,9 @@ export interface Slip {
   createdAt: string
   stakePercent: number
   droppedPicks?: any[]
+  status?: 'pending' | 'won' | 'lost'
+  stakeAmount?: number
+  settledAt?: string
 }
 
 export interface BacktestRecord {

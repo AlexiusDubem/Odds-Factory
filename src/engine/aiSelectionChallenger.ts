@@ -62,10 +62,10 @@ export interface MatchPhysics {
 /**
  * Calculates Expected Value using proper market settlement rules
  */
-export function calculateExpectedValue(odds: number, probability: number, isDnb: boolean = false): number {
+export function calculateExpectedValue(odds: number, probability: number, isDnb: boolean = false, drawProbability?: number): number {
   if (isDnb) {
     const pw = probability
-    const pd = 0.26
+    const pd = drawProbability !== undefined ? Math.min(0.38, Math.max(0.18, drawProbability)) : 0.25
     const pl = Math.max(0.01, 1 - pw - pd)
     return Number((pw * (odds - 1) - pl).toFixed(3))
   }

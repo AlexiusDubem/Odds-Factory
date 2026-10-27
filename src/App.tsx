@@ -10,10 +10,10 @@ import { DashboardPanel } from './components/DashboardPanel'
 import { ProfilePanel } from './components/ProfilePanel'
 import { ControlPanel } from './components/ControlPanel'
 import { AccaBuilderPanel } from './components/AccaBuilderPanel'
-import { auth, db, messaging, isFirebaseConfigured } from './config/firebase'
+import { auth, db, isFirebaseConfigured } from './config/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { getToken } from 'firebase/messaging'
+import { requestPhoneNotificationPermission } from './services/notificationService'
 import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { UpdatePrompt } from './components/UpdatePrompt'
 
@@ -71,27 +71,9 @@ function App() {
           console.warn('Telemetry error:', e)
         }
 
-        // Web push token registration
-        try {
-          if ('Notification' in window && Notification.permission === 'granted') {
-            const m = await messaging()
-            if (m) {
-              const token = await getToken(m, { vapidKey: 'YOUR_PUBLIC_VAPID_KEY_HERE' })
-              if (token) {
-                await setDoc(
-                  doc(db, 'users', currentUser.uid, 'fcmTokens', token),
-                  {
-                    token,
-                    createdAt: serverTimestamp(),
-                    device: navigator.userAgent,
-                  },
-                  { merge: true }
-                )
-              }
-            }
-          }
-        } catch (err) {
-          console.error('FCM Token error:', err)
+        // Phone push token sync (if already permitted)
+        if ('Notification' in window && Notification.permission === 'granted') {
+          requestPhoneNotificationPermission().catch(() => {})
         }
       }
     })

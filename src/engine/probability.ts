@@ -36,7 +36,7 @@ export function calculateTrueProbability(input: ProbabilityInput): number {
   }
 
   const finalProb = (deMarginedProb + aiAdjustment + historicalAdjustment) * 100
-  return Math.min(88, Math.max(45, Math.round(finalProb * 10) / 10))
+  return Math.min(96, Math.max(5, Math.round(finalProb * 10) / 10))
 }
 
 const BASE_PROBABILITIES: Record<string, Record<string, number>> = {

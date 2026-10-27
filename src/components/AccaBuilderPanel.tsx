@@ -48,9 +48,9 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     trackColor: '#10B981',
     tiers: [1],
     minOdds: 1.08,
-    maxOdds: 1.25,
-    minProb: 0.78,
-    desc: 'Very small individual odds, highest probability locks. Maximizes ticket survival.',
+    maxOdds: 1.35,
+    minProb: 0.72,
+    desc: 'Highest probability locks: Over 1.5 goals, Double Chance 1X/X2 & Draw No Bet.',
   },
   2: {
     label: 'Safe',
@@ -61,10 +61,10 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     badgeBorder: 'border-teal-200',
     trackColor: '#0D9488',
     tiers: [1, 2],
-    minOdds: 1.20,
-    maxOdds: 1.45,
-    minProb: 0.68,
-    desc: 'Solid banker selections with healthy odds. Best balance for daily accumulators.',
+    minOdds: 1.15,
+    maxOdds: 1.55,
+    minProb: 0.62,
+    desc: 'Classic Over 1.5, Double Chance, and steady home bankers. Best daily accumulator balance.',
   },
   3: {
     label: 'Balanced',
@@ -75,10 +75,10 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     badgeBorder: 'border-blue-200',
     trackColor: '#3B82F6',
     tiers: [1, 2, 3],
-    minOdds: 1.35,
-    maxOdds: 1.65,
-    minProb: 0.58,
-    desc: 'Mix of solid favorites and value opportunities. Good return with controlled risk.',
+    minOdds: 1.25,
+    maxOdds: 1.85,
+    minProb: 0.52,
+    desc: 'Classic Over 2.5 Goals, BTTS Yes, and Match Winner value plays with strong returns.',
   },
   4: {
     label: 'Daring',
@@ -300,14 +300,35 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         return b.probability - a.probability
       })
 
-      // 3. Select exactly numGames (strictly unique eventIds)
-      // Enforce balanced variety: cap Under markets so tickets are not excessively flooded with Under bets
+      // 3. Select exactly numGames with Market Diversification:
+      // Guarantee classic Over 1.5 / Over 2.5 Goals (35-45% of ticket),
+      // Double Chance & DNB (30-35%), and other value lines.
       const usedEvents = new Set<string>()
       const selected: DailySurePick[] = []
       let underPicksCount = 0
       const maxAllowedUnder = numGames >= 7 ? 2 : 1
 
+      // Pass 1: Prioritize Classic Goals (Over 1.5, Over 2.5, BTTS)
+      const targetGoals = marketFamily === 'all' ? Math.max(1, Math.round(numGames * 0.40)) : 0
+      let goalsCount = 0
+
+      if (targetGoals > 0) {
+        for (const pick of candidates) {
+          if (usedEvents.has(pick.eventId)) continue
+          const mLower = (pick.market || '').toLowerCase()
+          const isGoalPick = (mLower.includes('over 1.5') || mLower.includes('over 2.5') || pick.marketFamily === 'goals' || pick.marketFamily === 'btts') && !mLower.includes('under')
+          if (isGoalPick) {
+            selected.push(pick)
+            usedEvents.add(pick.eventId)
+            goalsCount++
+            if (goalsCount >= targetGoals || selected.length >= numGames) break
+          }
+        }
+      }
+
+      // Pass 2: Select Double Chance, Draw No Bet, and Strong Winners
       for (const pick of candidates) {
+        if (selected.length >= numGames) break
         if (usedEvents.has(pick.eventId)) continue
 
         const isUnder =
@@ -321,7 +342,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         selected.push(pick)
         usedEvents.add(pick.eventId)
         if (isUnder) underPicksCount++
-        if (selected.length >= numGames) break
       }
 
       // 4. Fill up if we are short (first from candidates, then allLivePicks, then fallback DAILY_SURE_PICKS)
