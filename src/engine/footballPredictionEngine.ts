@@ -32,10 +32,31 @@ function normalizedImplied(lines: MarketLine[]): number[] {
   return total > 0 ? raw.map(value => value / total) : raw
 }
 
+/** SportyBet labels often look like "Over/Under — Over". Use the outcome side, not the market title. */
+function outcomeSide(line: MarketLine): string {
+  const selection = (line.selection || '').trim()
+  if (selection.includes('—')) return selection.split('—').pop()!.trim()
+  if (selection.includes(' - ')) return selection.split(' - ').pop()!.trim()
+  return selection
+}
+
+function isUnderSelection(line: MarketLine): boolean {
+  const outcome = outcomeSide(line).toLowerCase()
+  const title = (line.marketName || '').toLowerCase()
+  if (/\bunder\b/.test(outcome) && !/\bover\b/.test(outcome)) return true
+  if (/\bover\b/.test(outcome) && !/\bunder\b/.test(outcome)) return false
+  const tokens = outcome.split(/[\s/]+/).filter(Boolean)
+  const last = tokens[tokens.length - 1]
+  if (last === 'under') return true
+  if (last === 'over') return false
+  return /\bunder\b/.test(title) && !/\bover\b/.test(title)
+}
+
 function marketGroup(line: MarketLine): string | null {
   const text = `${line.marketName} ${line.selection}`.toLowerCase()
-  if (line.marketName.toLowerCase().includes('1x2')) return '1x2'
-  if (text.includes('over') || text.includes('under')) {
+  const name = (line.marketName || '').toLowerCase()
+  if (name.includes('1x2') || name.includes('match result') || name.includes('full time')) return '1x2'
+  if (text.includes('over') || text.includes('under') || text.includes('total=')) {
     const total = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
     return total ? `goals:${total}` : null
   }
@@ -45,10 +66,9 @@ function marketGroup(line: MarketLine): string | null {
 
 function lineProbability(line: MarketLine, p: PoissonMarketProbabilities): number | null {
   const text = `${line.marketName} ${line.selection}`.toLowerCase()
-  const selection = line.selection.toLowerCase()
-  // The market title often reads "Over/Under 2.5" for both outcomes, so the
-  // outcome selection—not the shared title—must decide which side is priced.
-  const isUnder = /\bunder\b/.test(selection) || (!/\bover\b/.test(selection) && /\bunder\b/.test(text))
+  const name = (line.marketName || '').toLowerCase()
+  const outcome = outcomeSide(line).toLowerCase()
+  const isUnder = isUnderSelection(line)
   const goalLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
 
   if (goalLine) {
@@ -58,20 +78,23 @@ function lineProbability(line: MarketLine, p: PoissonMarketProbabilities): numbe
     return over === undefined ? null : isUnder ? 1 - over : over
   }
   if (text.includes('both teams') || text.includes('btts') || /\bgg\b|\bng\b/.test(text)) {
-    return /\bno\b|\bng\b/.test(selection) ? p.bttsNo : p.bttsYes
+    return /\bno\b|\bng\b/.test(outcome) ? p.bttsNo : p.bttsYes
   }
-  if (line.marketName.toLowerCase().includes('1x2')) {
-    if (/draw|^x$/.test(selection)) return p.draw
-    if (/away|\b2\b/.test(selection)) return p.awayWin
+  if (name.includes('1x2') || name.includes('match result') || name.includes('full time') || name.includes('winner')) {
+    if (/draw|^x$/.test(outcome)) return p.draw
+    if (/away|\b2\b/.test(outcome)) return p.awayWin
     return p.homeWin
   }
   if (text.includes('double chance')) {
-    if (selection.includes('1x')) return p.homeOrDraw
-    if (selection.includes('x2')) return p.awayOrDraw
-    if (selection.includes('12')) return p.homeOrAway
+    if (/\b1x\b|home or draw|1 or x|or draw/.test(outcome) && !/away or draw|x2|x or 2/.test(outcome)) return p.homeOrDraw
+    if (/\bx2\b|away or draw|x or 2|draw or away/.test(outcome)) return p.awayOrDraw
+    if (/\b12\b|home or away|1 or 2/.test(outcome)) return p.homeOrAway
+    if (outcome.includes('1x')) return p.homeOrDraw
+    if (outcome.includes('x2')) return p.awayOrDraw
+    if (outcome.includes('12')) return p.homeOrAway
   }
   if (text.includes('draw no bet') || text.includes('dnb')) {
-    return /away|\b2\b/.test(selection) ? p.dnbAway : p.dnbHome
+    return /away|\b2\b/.test(outcome) ? p.dnbAway : p.dnbHome
   }
   return null
 }
@@ -139,8 +162,18 @@ export interface CalibratedLineEvaluation {
 }
 
 export function evaluateCalibratedLine(line: MarketLine, allLines: MarketLine[], model: FootballModel): CalibratedLineEvaluation | null {
+  if (line.odds <= 1) return null
+
+  const supplied = line.probability && line.probability > 0
+    ? clamp(line.probability > 1 ? line.probability / 100 : line.probability, 0.02, 0.98)
+    : undefined
+  const implied = clamp(1 / line.odds, 0.02, 0.98)
   const poissonProbability = lineProbability(line, model.probabilities)
-  if (poissonProbability === null || line.odds <= 1) return null
+
+  // Corners, handicaps, and other unmapped SportyBet lines still need a score.
+  // Use the supplied feed probability, then implied odds, rather than dropping the pick.
+  const estimated = poissonProbability ?? supplied ?? implied
+
   const key = marketGroup(line)
   const siblings = key ? allLines.filter(item => marketGroup(item) === key && item.odds > 1) : []
   const siblingIndex = siblings.findIndex(item => item === line || (
@@ -148,16 +181,19 @@ export function evaluateCalibratedLine(line: MarketLine, allLines: MarketLine[],
   ))
   const fair = siblings.length > 1 && siblingIndex >= 0
     ? normalizedImplied(siblings)[siblingIndex]
-    : 1 / line.odds
-  const supplied = line.probability && line.probability > 0
-    ? clamp(line.probability > 1 ? line.probability / 100 : line.probability, 0.02, 0.98)
-    : undefined
-  // Supplied empirical rate is an auxiliary signal; without it, do not pretend
-  // an edge exists merely because we re-fitted the bookmaker's own odds.
+    : implied
   const hasIndependentSignal = supplied !== undefined
-  const base = supplied === undefined ? poissonProbability : poissonProbability * 0.55 + supplied * 0.45
+  const poissonOrEstimate = poissonProbability ?? estimated
+  const base = supplied === undefined ? poissonOrEstimate : poissonOrEstimate * 0.55 + supplied * 0.45
   const modelProbability = clamp(base * 0.70 + fair * 0.30, 0.02, 0.98)
-  const uncertainty = clamp(0.07 + Math.sqrt(model.fitError) * 1.4 + (model.marketCoverage < 2 ? 0.06 : 0) + (!hasIndependentSignal ? 0.05 : 0), 0.05, 0.30)
+  // An unfitted default model (coverage 0, fitError 1) is not 30% of extra
+  // uncertainty — that haircut was rejecting every banker on thin books.
+  const fitPenalty = model.marketCoverage > 0
+    ? Math.sqrt(Math.min(model.fitError, 0.25)) * 1.1
+    : 0.03
+  const coveragePenalty = model.marketCoverage < 2 ? 0.03 : 0
+  const signalPenalty = hasIndependentSignal ? 0 : 0.03
+  const uncertainty = clamp(0.05 + fitPenalty + coveragePenalty + signalPenalty, 0.04, 0.18)
   const conservativeProbability = clamp(modelProbability - uncertainty, 0.02, 0.98)
   return {
     modelProbability: Number(conservativeProbability.toFixed(4)),

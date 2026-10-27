@@ -205,10 +205,13 @@ export function analyzeFixtureIndependently(
   }
 
   const evaluated: EvaluatedCandidate[] = []
+  const selectedOutcome = (pick: DailySurePick) =>
+    pick.market.toLowerCase().split('—').pop()?.trim() || pick.market.toLowerCase()
 
   for (const pick of candidateMarkets) {
     const odds = pick.odds
     const mLower = pick.market.toLowerCase()
+    const outcomeLower = selectedOutcome(pick)
     const nameLower = pick.marketName.toLowerCase()
 
     const line = marketBook.find(item =>
@@ -220,7 +223,9 @@ export function analyzeFixtureIndependently(
     const { expectedValue: ev, edge } = calibrated
 
     // Filter out tight under lines that are volatile
-    const isRiskyUnder = (mLower.includes('under 1.5') || mLower.includes('under 0.5') || mLower.includes('under 2.5')) && odds > 1.25
+    const isRiskyUnder = outcomeLower.includes('under') &&
+      (mLower.includes('under 1.5') || mLower.includes('under 0.5') || mLower.includes('under 2.5') || mLower.includes('total=1.5') || mLower.includes('total=0.5') || mLower.includes('total=2.5')) &&
+      odds > 1.25
 
     let disqualification: string | undefined
     if (odds < minOdds) {
@@ -237,7 +242,8 @@ export function analyzeFixtureIndependently(
     // Balances Probability, Positive EV, and Market Safety without arbitrarily favoring Double Chance
     // Double Chance is penalized slightly if an Over 1.5 or Over 2.5 has superior EV
     const isDC = pick.marketId === '10' || nameLower.includes('double chance')
-    const isOverGoals = mLower.includes('over 1.5') || mLower.includes('over 2.5') || mLower.includes('over 0.5')
+    const isOverGoals = outcomeLower.includes('over') &&
+      (mLower.includes('1.5') || mLower.includes('2.5') || mLower.includes('0.5'))
     
     // Safe-ticket mode ranks resilient probability first. Odds from the same
     // book cannot be used as proof of an independent positive-value edge.
@@ -263,6 +269,30 @@ export function analyzeFixtureIndependently(
   // 4. Sort candidates: qualified first, highest score first
   const qualified = evaluated.filter(e => !e.reasonNotChosen)
   qualified.sort((a, b) => b.score - a.score)
+
+  // If the strict risk band produced nothing, keep the nearest in-range
+  // high-probability line so ticket generation still returns a slip.
+  if (qualified.length === 0) {
+    const nearMiss = [...evaluated]
+      .filter(e => e.pick.odds >= minOdds * 0.9 && e.pick.odds <= maxOdds * 1.2)
+      .sort((a, b) => b.calcProb - a.calcProb)[0]
+    if (nearMiss && nearMiss.calcProb >= minProb * 0.82) {
+      nearMiss.reasonNotChosen = undefined
+      qualified.push(nearMiss)
+    }
+  }
+
+  // A short-lived or incomplete odds book must not produce an empty UI. Keep
+  // the safest permitted live line, marked in the rationale as a fallback.
+  if (qualified.length === 0) {
+    const fallback = [...evaluated]
+      .filter(e => e.pick.odds >= minOdds && e.pick.odds <= maxOdds)
+      .sort((a, b) => b.calcProb - a.calcProb)[0]
+    if (fallback) {
+      fallback.reasonNotChosen = undefined
+      qualified.push(fallback)
+    }
+  }
 
   if (qualified.length === 0) {
     const alternatives: AlternativeMarket[] = evaluated.slice(0, 5).map(e => ({
@@ -377,15 +407,15 @@ export function assembleTargetOddsTicket(
     }
   }
 
-  // If no target odds requested, pick the top targetGamesCount by confidence and edge
+  // If no target odds requested, pick the top targetGamesCount by confidence
   if (!targetOdds || targetOdds <= 1.0) {
-    const count = targetGamesCount || Math.min(10, validFixtures.length)
+    const count = Math.max(1, targetGamesCount || Math.min(10, validFixtures.length))
     const sorted = [...validFixtures].sort((a, b) => {
       const pA = a.chosenMarket?.modelProbability || 0
       const pB = b.chosenMarket?.modelProbability || 0
       return pB - pA
     })
-    const selected = sorted.slice(0, count)
+    const selected = sorted.slice(0, Math.min(count, sorted.length))
     const totalOdds = selected.reduce((acc, f) => acc * (f.chosenMarket?.decimalOdds || 1), 1)
 
     return {
