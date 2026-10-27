@@ -599,7 +599,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       ...(bookingCode ? [`SportyBet Booking Code: ${bookingCode}`] : []),
       '',
       ...chosenPicks.map(
-        (p, i) => `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${p.market} @${p.odds.toFixed(2)} (${p.kickoff})`
+        (p, i) => `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${p.marketName ? `${p.marketName} — ` : ''}${p.market} @${p.odds.toFixed(2)} (${p.kickoff})`
       ),
       '',
       `Generated with Odds Factory AI`,
