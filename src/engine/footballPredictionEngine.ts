@@ -85,12 +85,23 @@ export function buildFootballModel(lines: MarketLine[]): FootballModel {
     groups.set(key, [...(groups.get(key) ?? []), line])
   }
   const usableGroups = [...groups.values()].filter(group => group.length >= 2)
+  if (usableGroups.length === 0) {
+    const probabilities = calculatePoissonProbabilities(1.4, 1.1)
+    return {
+      lambdaHome: probabilities.lambdaHome,
+      lambdaAway: probabilities.muAway,
+      expectedGoals: probabilities.expectedTotalGoals,
+      probabilities,
+      marketCoverage: 0,
+      fitError: 1,
+    }
+  }
   let best = { home: 1.4, away: 1.1, error: Number.POSITIVE_INFINITY }
 
   // Coarse grid search is intentionally bounded: it runs in the browser for
   // every fixture, so responsiveness matters more than false precision.
-  for (let home = 0.5; home <= 3.2; home += 0.1) {
-    for (let away = 0.35; away <= 2.75; away += 0.1) {
+  for (let home = 0.5; home <= 3.2; home += 0.15) {
+    for (let away = 0.35; away <= 2.75; away += 0.15) {
       const probabilities = calculatePoissonProbabilities(home, away)
       let error = 0
       let observations = 0

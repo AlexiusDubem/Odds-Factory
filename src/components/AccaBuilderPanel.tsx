@@ -156,6 +156,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   // ── Generation State ───────────────────────────────────────────────────────
   const [hasGenerated, setHasGenerated] = useState<boolean>(false)
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false)
+  const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number } | null>(null)
   const [chosenPicks, setChosenPicks] = useState<DailySurePick[]>([])
 
   // ── Match Intelligence & AI Challenger State ────────────────────────────────
@@ -269,6 +270,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setBookingCode(null)
     setBookingError(null)
     setShareUrl(null)
+    setAnalysisProgress(null)
 
     // Let React render the loading state before the CPU-heavy scoring begins.
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
@@ -288,8 +290,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       // Step 2: Independently analyze every fixture
       const evaluatedFixtures: FixtureAnalysisResult[] = []
 
+      // A ticket needs a high-quality pool, not every market in a 100-fixture
+      // bookmaker response. This bounded pool keeps generation fast on phones.
+      const fixtureGroups = [...fixtureMap.values()]
+      const poolLimit = Math.max(30, Math.min(60, numGames * 4))
+      const fixturePool = fixtureGroups.slice(0, poolLimit)
       let processedFixtures = 0
-      for (const markets of fixtureMap.values()) {
+      setAnalysisProgress({ current: 0, total: fixturePool.length })
+      for (const markets of fixturePool) {
         const first = markets[0]
 
         // Duration / Timing filter
@@ -321,10 +329,11 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
         evaluatedFixtures.push(analysis)
         processedFixtures++
+        setAnalysisProgress({ current: processedFixtures, total: fixturePool.length })
 
         // Yield regularly so mobile browsers can paint and handle taps while a
         // large live fixture feed is being evaluated.
-        if (processedFixtures % 6 === 0) {
+        if (processedFixtures % 2 === 0) {
           await new Promise<void>(resolve => setTimeout(resolve, 0))
         }
       }
@@ -361,6 +370,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       setChosenPicks([])
       setHasGenerated(true)
     } finally {
+      setAnalysisProgress(null)
       setIsAnalyzing(false)
     }
   }
@@ -964,7 +974,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             {isAnalyzing ? (
               <>
                 <i className="fa-solid fa-circle-notch fa-spin"></i>
-                <span>Auditing live lines…</span>
+                <span>{analysisProgress ? `Auditing ${analysisProgress.current}/${analysisProgress.total} fixtures…` : 'Preparing live lines…'}</span>
               </>
             ) : (
               <>
