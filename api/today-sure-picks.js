@@ -408,6 +408,7 @@ export default async function handler(req, res) {
       count: extractedPicks.length,
       competitionsCount: discoveredCompetitions.length,
       competitions: discoveredCompetitions,
+      fetchedAt: new Date().toISOString(),
       picks: extractedPicks,
     })
   } catch (error) {

@@ -3,7 +3,6 @@ import {
   DAILY_SURE_PICKS,
   type DailySurePick,
   type DiscoveredCompetition,
-  type MarketFamily,
 } from '../data/sportybetCompetitions'
 import type { Slip, SlipLeg } from '../types'
 import { MatchIntelligenceModal } from './MatchIntelligenceModal'
@@ -12,7 +11,12 @@ import {
   generateEvidenceRationale,
   type ChallengeResult,
 } from '../engine/aiSelectionChallenger'
-import { batchGenerateEvidenceRationales } from '../engine/geminiService'
+import {
+  analyzeFixtureIndependently,
+  assembleTargetOddsTicket,
+  type FixtureAnalysisResult,
+  type TargetOddsAssemblyResult
+} from '../engine/fixtureAnalyzer'
 
 interface Props {
   onSendToAudit?: (slip: Slip) => void
@@ -110,17 +114,38 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   },
 }
 
+
+const MARKET_FAMILY_OPTIONS = [
+  { id: 'ALL', label: 'All Markets', icon: 'fa-solid fa-layer-group' },
+  { id: 'goals', label: 'Goals (Over/Under)', icon: 'fa-solid fa-futbol' },
+  { id: 'btts', label: 'BTTS / GG-NG', icon: 'fa-solid fa-handshake' },
+  { id: 'match_result', label: '1X2 Match Winner', icon: 'fa-solid fa-trophy' },
+  { id: 'double_chance', label: 'Double Chance', icon: 'fa-solid fa-shield' },
+  { id: 'dnb', label: 'Draw No Bet', icon: 'fa-solid fa-crosshairs' },
+  { id: 'handicap', label: 'Handicap', icon: 'fa-solid fa-scale-balanced' },
+  { id: 'team_goals', label: 'Team Goals', icon: 'fa-solid fa-bullseye' },
+  { id: 'cleansheet', label: 'Clean Sheet', icon: 'fa-solid fa-hands' },
+  { id: 'corners', label: 'Corners', icon: 'fa-solid fa-flag' },
+  { id: 'cards_bookings', label: 'Cards & Bookings', icon: 'fa-solid fa-square' },
+  { id: 'intervals_halves', label: 'Halves & Intervals', icon: 'fa-solid fa-stopwatch' },
+] as const
+
 export function AccaBuilderPanel({ onSendToAudit }: Props) {
   // Real live picks from SportyBet
   const [allLivePicks, setAllLivePicks] = useState<DailySurePick[]>(DAILY_SURE_PICKS)
   const [discoveredCompetitions, setDiscoveredCompetitions] = useState<DiscoveredCompetition[]>([])
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(true)
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false)
+  const [lastFeedTime, setLastFeedTime] = useState<string | null>(null)
 
   // ── User Conditions ────────────────────────────────────────────────────────
   const [duration, setDuration] = useState<MatchDuration>('today')
   const [leagueScope, setLeagueScope] = useState<LeagueScope>('all')
-  const [marketFamily, setMarketFamily] = useState<MarketFamily>('all')
+  const [selectedMarketFamilies, setSelectedMarketFamilies] = useState<string[]>(['ALL'])
+  const [analyzedFixtures, setAnalyzedFixtures] = useState<FixtureAnalysisResult[]>([])
+  const [assemblyResult, setAssemblyResult] = useState<TargetOddsAssemblyResult | null>(null)
+  const [expandedRationales, setExpandedRationales] = useState<Record<string, boolean>>({})
+  const [showNonQualifying, setShowNonQualifying] = useState<boolean>(false)
   const [numGames, setNumGames] = useState<number>(6)
   const [riskLevel, setRiskLevel] = useState<RiskLevel>(2)
   const [useTargetOdds, setUseTargetOdds] = useState<boolean>(false)
@@ -137,6 +162,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   const [inspectingPick, setInspectingPick] = useState<DailySurePick | null>(null)
   const [isChallenging, setIsChallenging] = useState<boolean>(false)
   const [challengeResults, setChallengeResults] = useState<Record<string, ChallengeResult>>({})
+  const [geminiEnrichingIds, setGeminiEnrichingIds] = useState<Set<string>>(new Set())
 
   // ── Booking Code State ─────────────────────────────────────────────────────
   const [isBooking, setIsBooking] = useState(false)
@@ -183,6 +209,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             if (Array.isArray(data.competitions)) {
               setDiscoveredCompetitions(data.competitions)
             }
+            if (data.fetchedAt) setLastFeedTime(data.fetchedAt)
             setIsLiveConnected(true)
             setIsLoadingLive(false)
             return
@@ -203,13 +230,38 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     fetchLiveSportyBetMatches(duration)
   }, [duration, fetchLiveSportyBetMatches])
 
+
+  const handleToggleMarketFamily = (familyId: string) => {
+    if (familyId === 'ALL') {
+      setSelectedMarketFamilies(['ALL'])
+      return
+    }
+
+    let updated = selectedMarketFamilies.filter(f => f !== 'ALL')
+    if (updated.includes(familyId)) {
+      updated = updated.filter(f => f !== familyId)
+    } else {
+      updated.push(familyId)
+    }
+
+    if (updated.length === 0) {
+      setSelectedMarketFamilies(['ALL'])
+    } else {
+      setSelectedMarketFamilies(updated)
+    }
+  }
+
   const handleDurationChange = (newDur: MatchDuration) => {
     setDuration(newDur)
     setHasGenerated(false)
     fetchLiveSportyBetMatches(newDur)
   }
 
-  // ── The Analysis & Generation Algorithm ───────────────────────────────────
+  // ── Independent Fixture Analysis & Assembly Algorithm ─────────────────────
+  // Core Principle:
+  // 1. Analyze every fixture independently across user-permitted SportyBet markets.
+  // 2. Select the single strongest market per fixture (or NO_QUALIFYING_SELECTION).
+  // 3. Assemble ticket to match requested target odds or top N qualified games.
 
   const handleRunAnalysisAndGenerate = () => {
     setIsAnalyzing(true)
@@ -220,178 +272,80 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setTimeout(() => {
       const risk = RISK_CONFIG[riskLevel]
 
-      // 1. Filter candidates by duration, league preference, market family, and risk band
-      let candidates = allLivePicks.filter((p) => {
-        if (p.hoursFromNow !== undefined) {
-          // Pre-match rule: Match must not have started yet (diffHours >= 0.05 / 3 mins ahead)
-          if (p.hoursFromNow < 0.05) return false
-          if (duration === 'today' && p.hoursFromNow > 24) return false
-          if (duration === '3days' && p.hoursFromNow > 72) return false
+      // Step 1: Group all live picks by fixture (eventId)
+      const fixtureMap = new Map<string, DailySurePick[]>()
+      for (const p of allLivePicks) {
+        if (!fixtureMap.has(p.eventId)) {
+          fixtureMap.set(p.eventId, [])
+        }
+        fixtureMap.get(p.eventId)!.push(p)
+      }
+
+      // Step 2: Independently analyze every fixture
+      const evaluatedFixtures: FixtureAnalysisResult[] = []
+
+      for (const [_eventId, markets] of fixtureMap.entries()) {
+        const first = markets[0]
+
+        // Duration / Timing filter
+        if (first.hoursFromNow !== undefined) {
+          if (first.hoursFromNow < 0.05) continue // Skip started games
+          if (duration === 'today' && first.hoursFromNow > 24) continue
+          if (duration === '3days' && first.hoursFromNow > 72) continue
           if (duration === 'midnight') {
-            if (p.estimateStartTime) {
-              const d = new Date(p.estimateStartTime)
+            if (first.estimateStartTime) {
+              const d = new Date(first.estimateStartTime)
               const watHour = (d.getUTCHours() + 1) % 24
-              const isNightHour = watHour >= 22 || watHour < 6
-              if (!isNightHour) return false
-            } else {
-              const lowerKo = (p.kickoff || '').toLowerCase()
-              const isNightText = ['22:', '23:', '00:', '01:', '02:', '03:', '04:', '05:'].some(h => lowerKo.includes(h))
-              if (!isNightText) return false
+              if (watHour < 22 && watHour >= 6) continue
             }
-            if (p.hoursFromNow > 28) return false
           }
-          if (p.hoursFromNow > 168) return false
         }
 
-        // Exclude tight risky under lines (Under 0.5, 1.5, 2.5) that destroy multi-leg slips
-        const lowerMarket = (p.market || '').toLowerCase()
-        if (lowerMarket.includes('under 0.5') || lowerMarket.includes('under 1.5') || lowerMarket.includes('under 2.5')) return false
+        // League scope filter
+        if (leagueScope === 'major' && first.leagueScope && first.leagueScope !== 'major') continue
+        if (leagueScope === 'small' && first.leagueScope && first.leagueScope === 'major') continue
 
-        if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
-        if (leagueScope === 'small' && p.leagueScope && p.leagueScope === 'major') return false
-        if (marketFamily !== 'all' && p.marketFamily && p.marketFamily !== marketFamily) return false
-        if (p.confidenceTier && !risk.tiers.includes(p.confidenceTier)) return false
-        if (p.odds < risk.minOdds || p.odds > risk.maxOdds) return false
-        if (p.probability < risk.minProb) return false
-        return true
-      })
+        // Independent fixture analysis across user-permitted market families
+        const analysis = analyzeFixtureIndependently(
+          markets,
+          selectedMarketFamilies,
+          risk.minOdds,
+          risk.maxOdds,
+          risk.minProb
+        )
 
-      // Fallback: relax slightly if pool is constrained
-      const isSimulated = (text?: string): boolean => {
-        if (!text) return false
-        const l = String(text).toLowerCase()
-        return l.includes('srl') || l.includes('simulated') || l.includes('virtual') || l.includes('electronic')
+        evaluatedFixtures.push(analysis)
       }
 
-      if (candidates.length < numGames) {
-        candidates = allLivePicks.filter((p) => {
-          if (isSimulated(p.league) || isSimulated(p.matchLabel)) return false
-          if (p.hoursFromNow !== undefined) {
-            if (p.hoursFromNow < 0.05) return false
-            if (duration === 'today' && p.hoursFromNow > 24) return false
-            if (duration === '3days' && p.hoursFromNow > 72) return false
-            if (p.hoursFromNow > 168) return false
+      setAnalyzedFixtures(evaluatedFixtures)
+
+      // Step 3: Assemble combination matching Target Multiplier or Top N Games
+      const target = useTargetOdds ? targetOdds : undefined
+      const assembly = assembleTargetOddsTicket(evaluatedFixtures, target, numGames)
+      setAssemblyResult(assembly)
+
+      // Step 4: Map qualified fixture selections to DailySurePick format
+      const finalPicks: DailySurePick[] = assembly.selectedFixtures
+        .filter(f => f.chosenMarket?.rawPick)
+        .map(f => {
+          const raw = f.chosenMarket!.rawPick
+          return {
+            ...raw,
+            market: f.chosenMarket!.selection,
+            marketName: f.chosenMarket!.sportyBetMarketName,
+            odds: f.chosenMarket!.decimalOdds,
+            probability: f.chosenMarket!.modelProbability,
+            confidenceScore: Math.round(f.chosenMarket!.modelProbability * 100),
+            ev: f.chosenMarket!.ev,
+            edge: f.chosenMarket!.edge,
+            modelRationale: f.reason,
           }
-          const lowerMarket = (p.market || '').toLowerCase()
-          if (lowerMarket.includes('under 0.5') || lowerMarket.includes('under 1.5') || lowerMarket.includes('under 2.5')) return false
-          if (leagueScope === 'major' && p.leagueScope && p.leagueScope !== 'major') return false
-          if (leagueScope === 'small' && p.leagueScope && p.leagueScope === 'major') return false
-          if (marketFamily !== 'all' && p.marketFamily && p.marketFamily !== marketFamily) return false
-          if (p.odds < risk.minOdds * 0.85 || p.odds > risk.maxOdds * 1.25) return false
-          return true
         })
-      }
 
-      if (candidates.length === 0) candidates = allLivePicks
-
-      // 2. Intelligent Candidate Ranking:
-      // Priority 1: Major European Leagues (Premier League, La Liga, Serie A, Bundesliga, Champions League)
-      // Priority 2: High-Cushion Safety Markets (Double Chance 1X/X2, Over 1.5 Goals, Draw No Bet)
-      // Priority 3: Highest Statistical Probability & EV
-      candidates.sort((a, b) => {
-        const scopeA = a.leagueScope === 'major' ? 2 : a.leagueScope === 'small' ? 1 : 0
-        const scopeB = b.leagueScope === 'major' ? 2 : b.leagueScope === 'small' ? 1 : 0
-        if (scopeA !== scopeB) return scopeB - scopeA
-
-        const isCushionA = (a.marketId === '10' || a.marketId === '11' || (a.marketFamily === 'goals' && a.market.includes('Over 1.5'))) ? 1 : 0
-        const isCushionB = (b.marketId === '10' || b.marketId === '11' || (b.marketFamily === 'goals' && b.market.includes('Over 1.5'))) ? 1 : 0
-        if (isCushionA !== isCushionB) return isCushionB - isCushionA
-
-        return b.probability - a.probability
-      })
-
-      // 3. Select exactly numGames with Market Diversification:
-      // Guarantee classic Over 1.5 / Over 2.5 Goals (35-45% of ticket),
-      // Double Chance & DNB (30-35%), and other value lines.
-      const usedEvents = new Set<string>()
-      const selected: DailySurePick[] = []
-      let underPicksCount = 0
-      const maxAllowedUnder = numGames >= 7 ? 2 : 1
-
-      // Pass 1: Prioritize Classic Goals (Over 1.5, Over 2.5, BTTS)
-      const targetGoals = marketFamily === 'all' ? Math.max(1, Math.round(numGames * 0.40)) : 0
-      let goalsCount = 0
-
-      if (targetGoals > 0) {
-        for (const pick of candidates) {
-          if (usedEvents.has(pick.eventId)) continue
-          const mLower = (pick.market || '').toLowerCase()
-          const isGoalPick = (mLower.includes('over 1.5') || mLower.includes('over 2.5') || pick.marketFamily === 'goals' || pick.marketFamily === 'btts') && !mLower.includes('under')
-          if (isGoalPick) {
-            selected.push(pick)
-            usedEvents.add(pick.eventId)
-            goalsCount++
-            if (goalsCount >= targetGoals || selected.length >= numGames) break
-          }
-        }
-      }
-
-      // Pass 2: Select Double Chance, Draw No Bet, and Strong Winners
-      for (const pick of candidates) {
-        if (selected.length >= numGames) break
-        if (usedEvents.has(pick.eventId)) continue
-
-        const isUnder =
-          pick.market.toLowerCase().includes('under') ||
-          (pick.marketName && pick.marketName.toLowerCase().includes('under'))
-
-        if (isUnder && underPicksCount >= maxAllowedUnder) {
-          continue
-        }
-
-        selected.push(pick)
-        usedEvents.add(pick.eventId)
-        if (isUnder) underPicksCount++
-      }
-
-      // 4. Fill up if we are short (first from candidates, then allLivePicks, then fallback DAILY_SURE_PICKS)
-      if (selected.length < numGames) {
-        for (const pick of candidates) {
-          if (!usedEvents.has(pick.eventId)) {
-            selected.push(pick)
-            usedEvents.add(pick.eventId)
-            if (selected.length >= numGames) break
-          }
-        }
-      }
-      if (selected.length < numGames) {
-        for (const pick of allLivePicks) {
-          if (!usedEvents.has(pick.eventId)) {
-            selected.push(pick)
-            usedEvents.add(pick.eventId)
-            if (selected.length >= numGames) break
-          }
-        }
-      }
-      if (selected.length < numGames) {
-        for (const pick of DAILY_SURE_PICKS) {
-          if (!usedEvents.has(pick.eventId)) {
-            selected.push(pick)
-            usedEvents.add(pick.eventId)
-            if (selected.length >= numGames) break
-          }
-        }
-      }
-
-      // Enrich every selected pick with real evidence-backed rationale
-      const enriched = selected.map((p) => ({
-        ...p,
-        modelRationale: generateEvidenceRationale(p, allLivePicks),
-      }))
-
-      setChosenPicks(enriched)
+      setChosenPicks(finalPicks)
       setHasGenerated(true)
       setIsAnalyzing(false)
-
-      // Query Gemini in background to enhance all selected legs with live sports proof
-      batchGenerateEvidenceRationales(enriched).then((geminiMap) => {
-        if (geminiMap && Object.keys(geminiMap).length > 0) {
-          setChosenPicks((prev) =>
-            prev.map((p) => (geminiMap[p.id] ? { ...p, modelRationale: geminiMap[p.id] } : p))
-          )
-        }
-      })
-    }, 450)
+    }, 350)
   }
 
   // ── Ticket Calculations ───────────────────────────────────────────────────
@@ -410,6 +364,89 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
   const potentialPayout = useMemo(() => {
     return Math.round(stake * combinedOdds)
   }, [stake, combinedOdds])
+
+  // ── Gemini Background Enrichment ──────────────────────────────────────────
+  // After statistical analysis generates picks, asynchronously call Gemini per
+  // fixture to get narrative reasoning and update modelRationale in each pick.
+  useEffect(() => {
+    if (!hasGenerated || chosenPicks.length === 0) return
+
+    const enrichWithGemini = async () => {
+      for (const pick of chosenPicks) {
+        // Skip if already enriching this pick
+        if (geminiEnrichingIds.has(pick.id)) continue
+
+        // Find the fixture analysis for this pick
+        const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
+        if (!analysis || !analysis.chosenMarket) continue
+
+        setGeminiEnrichingIds(prev => new Set(prev).add(pick.id))
+
+        try {
+          const payload = {
+            fixture: {
+              id: pick.eventId,
+              home: pick.homeTeam,
+              away: pick.awayTeam,
+              league: pick.league,
+              kickoff: pick.estimateStartTime,
+            },
+            allowedMarketFamilies: selectedMarketFamilies,
+            availableMarkets: analyzedFixtures
+              .find(f => f.fixtureId === pick.eventId)
+              ?.alternativesConsidered?.map(a => ({
+                name: a.market,
+                selection: a.selection,
+                odds: a.decimalOdds,
+                family: a.marketFamily,
+              })) || [],
+            stats: {
+              chosenMarket: analysis.chosenMarket.sportyBetMarketName,
+              chosenSelection: analysis.chosenMarket.selection,
+              chosenOdds: analysis.chosenMarket.decimalOdds,
+              modelProbability: analysis.chosenMarket.modelProbability,
+              ev: analysis.chosenMarket.ev,
+              edge: analysis.chosenMarket.edge,
+              confidence: analysis.chosenMarket.confidence,
+              evidence: analysis.evidence,
+              riskFlags: analysis.riskFlags,
+            },
+          }
+
+          const res = await fetch('/api/fixture-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).catch(() => null)
+
+          if (res && res.ok) {
+            const data = await res.json()
+            if (data.success && data.result?.reason) {
+              // Update the pick's modelRationale with Gemini's narrative
+              setChosenPicks(prev =>
+                prev.map(p =>
+                  p.id === pick.id
+                    ? { ...p, modelRationale: data.result.reason }
+                    : p
+                )
+              )
+            }
+          }
+        } catch {
+          // Silent fail — statistical rationale remains
+        } finally {
+          setGeminiEnrichingIds(prev => {
+            const next = new Set(prev)
+            next.delete(pick.id)
+            return next
+          })
+        }
+      }
+    }
+
+    enrichWithGemini()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasGenerated, chosenPicks.length])
 
   const handleRemovePick = (pickId: string) => {
     setChosenPicks((prev) => prev.filter((p) => p.id !== pickId))
@@ -633,7 +670,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             {isLoadingLive
               ? 'Discovering lines…'
               : isLiveConnected
-              ? `${discoveredCompetitions.length || 36} leagues • ${allLivePicks.length} markets audited`
+              ? `${discoveredCompetitions.length || 36} leagues • ${allLivePicks.length} markets audited${lastFeedTime ? ` · synced ${new Date(lastFeedTime).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}` : ''}`
               : 'Statistical engine ready'}
           </span>
         </div>
@@ -691,32 +728,37 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           </div>
         </div>
 
-        {/* 3. Market Family */}
+        {/* 3. Multi-Select Market Families */}
         <div className="option-group">
           <label>
-            <span>Market family</span>
-            <span className="text-emerald-700 font-mono text-[10px] font-bold">Full Discovery Active</span>
+            <span>Allowed market families (Multi-Select)</span>
+            <span className="text-emerald-700 font-mono text-[10px] font-bold">
+              {selectedMarketFamilies.includes('ALL') ? 'All Production Markets' : `${selectedMarketFamilies.length} Families Permitted`}
+            </span>
           </label>
-          <div className="chips">
-            {([
-              ['all', 'All markets'],
-              ['goals', 'Goals & totals'],
-              ['match_result', 'Match result / DC'],
-              ['btts', 'Both teams score'],
-              ['corners', 'Corners'],
-              ['cards_bookings', 'Cards'],
-              ['cleansheet', 'Clean sheet'],
-              ['intervals_halves', 'Halves & intervals'],
-              ['handicap', 'Handicap'],
-            ] as const).map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setMarketFamily(val)}
-                className={`chip ${marketFamily === val ? 'on' : ''}`}
-              >
-                {label}
-              </button>
+          <div className="chips flex flex-wrap gap-1.5">
+            {MARKET_FAMILY_OPTIONS.map((opt) => {
+              const isSelected = selectedMarketFamilies.includes(opt.id)
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => handleToggleMarketFamily(opt.id)}
+                  className={`chip flex items-center gap-1.5 ${isSelected ? 'on' : ''}`}
+                >
+                  <i className={`${opt.icon} text-[10px]`} />
+                  <span>{opt.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          {/* Active selection preview */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-2 mt-1 border-t border-zinc-100">
+            <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">Permitted for analysis:</span>
+            {selectedMarketFamilies.map((fam) => (
+              <span key={fam} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#e9f7e4] text-[#15966a] border border-[#a3e0be] text-[10px] font-mono font-bold uppercase">
+                <i className="fa-solid fa-check text-[8px]" /> {fam}
+              </span>
             ))}
           </div>
         </div>
@@ -757,6 +799,46 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                   Tickets with {numGames} games have massive returns, but are harder to win! We prioritized safer selections (like Win or Draw and Over 1.5 Goals) to give your ticket the strongest fighting chance. Consider splitting them into smaller tickets to protect your balance.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Rejected Fixtures (No Qualifying Selection) Accordion */}
+          {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length > 0 && (
+            <div className="card p-4 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowNonQualifying(!showNonQualifying)}
+                className="w-full flex items-center justify-between text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-zinc-100 text-zinc-500 inline-grid place-items-center text-xs">
+                    <i className="fa-solid fa-filter-circle-xmark" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-zinc-800">
+                      {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length} Fixtures Rejected (No Qualifying Selection)
+                    </span>
+                    <span className="block text-[10px] text-zinc-500">
+                      Matches evaluated where offered markets failed evidence or EV threshold.
+                    </span>
+                  </div>
+                </div>
+                <i className={`fa-solid ${showNonQualifying ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs text-zinc-400`} />
+              </button>
+
+              {showNonQualifying && (
+                <div className="mt-3 pt-3 border-t border-zinc-100 divide-y divide-zinc-100 text-xs text-zinc-600 animate-in fade-in duration-200">
+                  {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').map((f) => (
+                    <div key={f.fixtureId} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div>
+                        <span className="font-bold text-zinc-800">{f.fixture}</span>
+                        <span className="text-[10px] text-zinc-400 ml-2 font-mono">({f.league})</span>
+                      </div>
+                      <span className="text-[11px] text-amber-700 font-mono">{f.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -805,7 +887,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           </div>
           {useTargetOdds && (
             <div className="chips mt-2">
-              {[5, 10, 20, 50].map((v) => (
+              {[5, 10, 20, 50, 100].map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -907,6 +989,31 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
           </div>
 
+          {/* Target Multiplier Assembly Banner */}
+          {assemblyResult && useTargetOdds && (
+            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in ${
+              assemblyResult.targetStatus === 'EXACT'
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                : 'bg-amber-50/80 border-amber-200 text-amber-950'
+            }`}>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-[10px] uppercase px-2 py-0.5 rounded bg-white border">
+                    {assemblyResult.targetStatus === 'EXACT' ? 'Target Matched' : 'Target Nearest Assembly'}
+                  </span>
+                  <span className="font-bold text-xs sm:text-sm">
+                    Target: {assemblyResult.targetOdds}× • Achieved: {assemblyResult.achievedOdds}×
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-700 leading-relaxed max-w-xl">{assemblyResult.explanation}</p>
+              </div>
+              <div className="font-mono text-left sm:text-right shrink-0">
+                <span className="text-2xl font-extrabold text-zinc-950">{assemblyResult.achievedOdds}×</span>
+                <span className="block text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Combined Multiplier</span>
+              </div>
+            </div>
+          )}
+
           {chosenPicks.length === 0 ? (
             <div className="card p-12 text-center text-[#71807a] space-y-3">
               <i className="fa-solid fa-ticket text-4xl text-[#84918a]"></i>
@@ -962,7 +1069,69 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
                       <p className="text-xs text-[#71807a] leading-relaxed font-normal pt-0.5">
                         {pick.modelRationale}
+                        {geminiEnrichingIds.has(pick.id) && (
+                          <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] text-emerald-600 font-mono animate-pulse">
+                            <i className="fa-solid fa-brain text-[9px]" />
+                            Gemini analysing…
+                          </span>
+                        )}
                       </p>
+
+                      {/* Analysis Rationale & Alternatives Expander */}
+                      {(() => {
+                        const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
+                        const isExpanded = !!expandedRationales[pick.id]
+                        return (
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRationales(prev => ({ ...prev, [pick.id]: !prev[pick.id] }))}
+                              className="text-[11px] font-mono font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <i className={`fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-[9px]`} />
+                              <span>{isExpanded ? 'Hide Analysis Rationale' : 'View Analysis Rationale & Alternatives'}</span>
+                            </button>
+
+                            {isExpanded && analysis && (
+                              <div className="mt-2.5 p-3.5 bg-zinc-50 border border-zinc-200/90 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-200">
+                                <div>
+                                  <span className="font-mono font-bold text-[10px] uppercase text-zinc-500 tracking-wider block mb-1">
+                                    Primary Statistical Evidence:
+                                  </span>
+                                  <ul className="list-disc list-inside text-zinc-700 space-y-1 text-[11px] leading-relaxed">
+                                    {analysis.evidence.map((ev: string, i: number) => (
+                                      <li key={i}>{ev}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+
+                                {analysis.alternativesConsidered && analysis.alternativesConsidered.length > 0 && (
+                                  <div className="pt-2 border-t border-zinc-200/70">
+                                    <span className="font-mono font-bold text-[10px] uppercase text-zinc-500 tracking-wider block mb-1">
+                                      Alternatives Considered & Excluded:
+                                    </span>
+                                    <div className="space-y-1 mt-1">
+                                      {analysis.alternativesConsidered.map((alt: any, i: number) => (
+                                        <div key={i} className="text-[11px] text-zinc-600 flex items-start gap-1.5">
+                                          <span className="font-mono font-bold text-zinc-800 shrink-0">{alt.market} (@{alt.decimalOdds.toFixed(2)}):</span>
+                                          <span className="text-zinc-600">{alt.reasonNotChosen}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {analysis.riskFlags && analysis.riskFlags.length > 0 && (
+                                  <div className="pt-1 text-[11px] text-amber-800 font-mono flex items-center gap-1.5">
+                                    <i className="fa-solid fa-triangle-exclamation text-amber-600" />
+                                    <span>Risk Advisory: {analysis.riskFlags.join(' • ')}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
 
                       {/* AI Challenger Verdict */}
                       {challenge && (

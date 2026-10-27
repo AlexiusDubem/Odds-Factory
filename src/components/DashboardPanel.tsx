@@ -16,6 +16,7 @@ export const DashboardPanel = ({ }: Props) => {
   const [livePicks, setLivePicks] = useState<DailySurePick[]>([])
   const [loading, setLoading] = useState(true)
   const [pushStatus, setPushStatus] = useState<'idle' | 'enabling' | 'enabled' | 'denied'>('idle')
+  const [feedFetchedAt, setFeedFetchedAt] = useState<string | null>(null)
 
   const handleEnablePush = async () => {
     setPushStatus('enabling')
@@ -52,6 +53,8 @@ export const DashboardPanel = ({ }: Props) => {
           const data = await res.json()
           if (data.success && Array.isArray(data.picks) && data.picks.length > 0) {
             setLivePicks(data.picks.slice(0, 5))
+            // Capture real feed timestamp for display
+            if (data.fetchedAt) setFeedFetchedAt(data.fetchedAt)
             setLoading(false)
             return
           }
@@ -70,13 +73,18 @@ export const DashboardPanel = ({ }: Props) => {
   const avgHealth =
     slips.length > 0
       ? (slips.reduce((acc, s) => acc + (s.survivalProbability || 0), 0) / slips.length).toFixed(1)
-      : '74.2'
+      : null
 
   const totalOptimized = slips.length
 
   // Conic gradient degree for the health meter
-  const healthNumber = parseFloat(avgHealth)
+  const healthNumber = avgHealth !== null ? parseFloat(avgHealth) : 0
   const deg = Math.round((healthNumber / 100) * 360)
+
+  // Format the feed timestamp for the live badge
+  const feedLabel = feedFetchedAt
+    ? `Feed synced ${new Date(feedFetchedAt).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}`
+    : 'LIVE SPORTYBET FEED ACTIVE'
 
   return (
     <div className="space-y-7 pb-12 animate-in fade-in duration-200">
@@ -118,7 +126,7 @@ export const DashboardPanel = ({ }: Props) => {
 
         <div className="relative z-10 mt-6 sm:mt-0 sm:absolute sm:right-8 sm:bottom-7 font-mono text-[11px] text-[#dfff46] flex items-center gap-2 self-start sm:self-auto">
           <span className="w-2 h-2 rounded-full bg-[#dfff46] animate-pulse"></span>
-          <span>LIVE SPORTYBET FEED ACTIVE</span>
+          <span>{feedLabel}</span>
         </div>
       </section>
 
@@ -169,7 +177,11 @@ export const DashboardPanel = ({ }: Props) => {
             Ticket health
           </div>
           <div className="text-[25px] font-extrabold tracking-[-1px] text-[#16201c]">
-            {avgHealth} <small className="text-xs font-normal text-[#71807a]">/ 100</small>
+            {avgHealth !== null ? (
+              <>{avgHealth} <small className="text-xs font-normal text-[#71807a]">/ 100</small></>
+            ) : (
+              <span className="text-[18px] text-[#aab8b2]">No data yet</span>
+            )}
           </div>
           <p className="text-[11px] text-[#71807a] m-0">Average quality of saved slips</p>
         </div>
@@ -179,7 +191,15 @@ export const DashboardPanel = ({ }: Props) => {
             Expected edge
           </div>
           <div className="text-[25px] font-extrabold tracking-[-1px] text-[#15966a]">
-            +14.8%
+            {slips.length > 0
+              ? (() => {
+                  const allLegs = slips.flatMap(s => s.legs || [])
+                  const positiveEV = allLegs.filter(l => l.ev && l.ev > 0)
+                  if (positiveEV.length === 0) return '—'
+                  const avg = positiveEV.reduce((a, l) => a + (l.ev || 0), 0) / positiveEV.length
+                  return `+${(avg * 100).toFixed(1)}%`
+                })()
+              : '—'}
           </div>
           <p className="text-[11px] text-[#71807a] m-0">Over bookmaker implied odds</p>
         </div>
@@ -312,10 +332,10 @@ export const DashboardPanel = ({ }: Props) => {
                 <div className="absolute w-[94px] h-[94px] rounded-full bg-white"></div>
                 <div className="absolute inset-0 flex flex-col justify-center items-center text-center">
                   <span className="text-2xl font-extrabold tracking-[-1px] text-[#16201c] leading-none">
-                    {Math.round(healthNumber)}
+                    {avgHealth !== null ? Math.round(healthNumber) : '—'}
                   </span>
                   <small className="font-mono text-[9px] text-[#71807a] uppercase tracking-normal mt-0.5">
-                    HEALTH SCORE
+                    {avgHealth !== null ? 'HEALTH SCORE' : 'NO SLIPS YET'}
                   </small>
                 </div>
               </div>

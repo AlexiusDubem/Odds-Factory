@@ -721,6 +721,7 @@ const server = http.createServer(async (req, res) => {
         count: extractedPicks.length,
         competitionsCount: discoveredCompetitions.length,
         competitions: discoveredCompetitions,
+        fetchedAt: new Date().toISOString(),
         picks: extractedPicks
       }))
     } catch (err) {
@@ -1248,6 +1249,61 @@ Return ONLY a raw JSON object with this exact structure:
       }))
     } catch (err) {
       console.error('Push broadcast error:', err.message)
+      res.writeHead(500)
+      res.end(JSON.stringify({ success: false, error: err.message }))
+    }
+    return
+  }
+
+  // ── POST /fixture-analysis — Independent Fixture-Level Market Analyst ─────────
+  if (req.method === 'POST' && req.url === '/fixture-analysis') {
+    try {
+      const { fixture, allowedMarketFamilies, availableMarkets, stats } = await readBody(req)
+      const GEMINI_FIXTURE_SYSTEM_INSTRUCTION = `You are Odds Factory’s fixture-level market analyst. Analyse each football fixture independently using only the structured data provided. Compare only currently available SportyBet markets within the user’s allowed market families. Select the single market with the strongest evidence for that fixture, or return NO_QUALIFYING_SELECTION if no market is sufficiently supported. Do not invent facts, odds, statistics, injuries, lineups, or markets. Do not favour a market because of its odds or its position in the scraped payload. Explain the chosen market using supplied evidence only. Do not discuss accumulator length, combined ticket probability, stake, or return. Output valid JSON matching the provided schema.`
+
+      const prompt = `Analyze this fixture independently using ONLY the structured payload:
+${JSON.stringify({ fixture, allowedMarketFamilies, availableMarkets, stats })}
+
+Return JSON matching:
+{
+  "fixtureId": "string",
+  "fixture": "Home vs Away",
+  "status": "QUALIFIED | NO_QUALIFYING_SELECTION | INSUFFICIENT_DATA",
+  "allowedMarketFamilies": ["..."],
+  "chosenMarket": {
+    "canonicalMarket": "...",
+    "sportyBetMarketName": "...",
+    "selection": "...",
+    "decimalOdds": 0,
+    "marketFamily": "...",
+    "modelProbability": 0,
+    "confidence": "LOW | MODERATE | HIGH"
+  },
+  "alternativesConsidered": [
+    {
+      "market": "...",
+      "selection": "...",
+      "reasonNotChosen": "..."
+    }
+  ],
+  "evidence": ["..."],
+  "riskFlags": ["..."],
+  "dataAgeMinutes": 0,
+  "reason": "..."
+}`
+
+      let result = null
+      try {
+        const raw = await callGemini(prompt, process.env.GEMINI_API_KEY, true, GEMINI_FIXTURE_SYSTEM_INSTRUCTION)
+        result = JSON.parse(raw)
+      } catch (err) {
+        debug('Gemini fixture analysis fallback:', err.message)
+      }
+
+      res.writeHead(200)
+      res.end(JSON.stringify({ success: true, result }))
+    } catch (err) {
+      console.error('Fixture analysis endpoint error:', err.message)
       res.writeHead(500)
       res.end(JSON.stringify({ success: false, error: err.message }))
     }

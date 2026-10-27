@@ -91,6 +91,18 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/book/, '/book'),
       },
+      // Proxies fixture-level Gemini market analysis
+      '/api/fixture-analysis': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/fixture-analysis/, '/fixture-analysis'),
+      },
+      // Proxies mobile push notification broadcast
+      '/api/send-push': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/send-push/, '/send-push'),
+      },
     },
   },
 })
