@@ -24,8 +24,10 @@ export async function requestPhoneNotificationPermission(): Promise<{ success: b
       registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
     }
 
+    const vapidKey = (import.meta as any).env?.VITE_FIREBASE_VAPID_KEY
     const token = await getToken(msgInstance, {
       serviceWorkerRegistration: registration,
+      ...(vapidKey ? { vapidKey } : {})
     }).catch(err => {
       console.warn('FCM token registration fallback:', err)
       return null
@@ -78,18 +80,28 @@ export async function broadcastPhoneNotification(
     const subscribersSnap = await getDocs(collection(db, 'push_subscribers'))
     const tokens = subscribersSnap.docs.map(d => d.data().token)
 
-    // 3. Send via local server endpoint if running
-    await fetch('/api/local/send-push', {
+    // 3. Send via local server endpoint or proxy
+    let pushRes = await fetch('/api/send-push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, message, url, tokens })
-    }).catch(() => {
-      return fetch('http://localhost:3001/send-push', {
+    }).catch(() => null)
+
+    if (!pushRes || !pushRes.ok) {
+      pushRes = await fetch('/api/local/send-push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, message, url, tokens })
       }).catch(() => null)
-    })
+    }
+
+    if (!pushRes || !pushRes.ok) {
+      await fetch('http://localhost:3001/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, message, url, tokens })
+      }).catch(() => null)
+    }
 
     return { success: true, recipientCount: Math.max(1, tokens.length) }
   } catch (err: any) {
