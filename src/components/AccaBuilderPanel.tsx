@@ -365,88 +365,96 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     return Math.round(stake * combinedOdds)
   }, [stake, combinedOdds])
 
-  // ── Gemini Background Enrichment ──────────────────────────────────────────
-  // After statistical analysis generates picks, asynchronously call Gemini per
-  // fixture to get narrative reasoning and update modelRationale in each pick.
-  useEffect(() => {
-    if (!hasGenerated || chosenPicks.length === 0) return
+  // ── Optional Gemini Rationale Generation (On Demand) ──────────────────────
+  // Available on user request after the statistical fixture analysis completes.
+  const [isEnrichingGemini, setIsEnrichingGemini] = useState<boolean>(false)
 
-    const enrichWithGemini = async () => {
-      for (const pick of chosenPicks) {
-        // Skip if already enriching this pick
-        if (geminiEnrichingIds.has(pick.id)) continue
+  const handleEnrichWithGemini = async () => {
+    if (chosenPicks.length === 0 || isEnrichingGemini) return
+    setIsEnrichingGemini(true)
 
-        // Find the fixture analysis for this pick
-        const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
-        if (!analysis || !analysis.chosenMarket) continue
+    for (const pick of chosenPicks) {
+      const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
+      if (!analysis || !analysis.chosenMarket) continue
 
-        setGeminiEnrichingIds(prev => new Set(prev).add(pick.id))
+      setGeminiEnrichingIds(prev => new Set(prev).add(pick.id))
 
-        try {
-          const payload = {
-            fixture: {
-              id: pick.eventId,
-              home: pick.homeTeam,
-              away: pick.awayTeam,
-              league: pick.league,
-              kickoff: pick.estimateStartTime,
-            },
-            allowedMarketFamilies: selectedMarketFamilies,
-            availableMarkets: analyzedFixtures
-              .find(f => f.fixtureId === pick.eventId)
-              ?.alternativesConsidered?.map(a => ({
-                name: a.market,
-                selection: a.selection,
-                odds: a.decimalOdds,
-                family: a.marketFamily,
-              })) || [],
-            stats: {
-              chosenMarket: analysis.chosenMarket.sportyBetMarketName,
-              chosenSelection: analysis.chosenMarket.selection,
-              chosenOdds: analysis.chosenMarket.decimalOdds,
-              modelProbability: analysis.chosenMarket.modelProbability,
-              ev: analysis.chosenMarket.ev,
-              edge: analysis.chosenMarket.edge,
-              confidence: analysis.chosenMarket.confidence,
-              evidence: analysis.evidence,
-              riskFlags: analysis.riskFlags,
-            },
-          }
+      try {
+        const payload = {
+          fixture: {
+            id: pick.eventId,
+            home: pick.homeTeam,
+            away: pick.awayTeam,
+            league: pick.league,
+            kickoff: pick.estimateStartTime,
+          },
+          allowedMarketFamilies: selectedMarketFamilies,
+          availableMarkets: analysis.alternativesConsidered?.map(a => ({
+            name: a.market,
+            selection: a.selection,
+            odds: a.decimalOdds,
+            family: a.marketFamily,
+          })) || [],
+          stats: {
+            chosenMarket: analysis.chosenMarket.sportyBetMarketName,
+            chosenSelection: analysis.chosenMarket.selection,
+            chosenOdds: analysis.chosenMarket.decimalOdds,
+            modelProbability: analysis.chosenMarket.modelProbability,
+            ev: analysis.chosenMarket.ev,
+            edge: analysis.chosenMarket.edge,
+            confidence: analysis.chosenMarket.confidence,
+            evidence: analysis.evidence,
+            riskFlags: analysis.riskFlags,
+          },
+        }
 
-          const res = await fetch('/api/fixture-analysis', {
+        let res = await fetch('/api/fixture-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => null)
+
+        if (!res || !res.ok) {
+          res = await fetch('/api/local/fixture-analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           }).catch(() => null)
-
-          if (res && res.ok) {
-            const data = await res.json()
-            if (data.success && data.result?.reason) {
-              // Update the pick's modelRationale with Gemini's narrative
-              setChosenPicks(prev =>
-                prev.map(p =>
-                  p.id === pick.id
-                    ? { ...p, modelRationale: data.result.reason }
-                    : p
-                )
-              )
-            }
-          }
-        } catch {
-          // Silent fail — statistical rationale remains
-        } finally {
-          setGeminiEnrichingIds(prev => {
-            const next = new Set(prev)
-            next.delete(pick.id)
-            return next
-          })
         }
+
+        if (!res || !res.ok) {
+          res = await fetch('http://localhost:3001/fixture-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }).catch(() => null)
+        }
+
+        if (res && res.ok) {
+          const data = await res.json()
+          if (data.success && data.result?.reason) {
+            setChosenPicks(prev =>
+              prev.map(p =>
+                p.id === pick.id
+                  ? { ...p, modelRationale: data.result.reason }
+                  : p
+              )
+            )
+          }
+        }
+      } catch {
+        // Fall back to Poisson model evidence
+      } finally {
+        setGeminiEnrichingIds(prev => {
+          const next = new Set(prev)
+          next.delete(pick.id)
+          return next
+        })
       }
     }
 
-    enrichWithGemini()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasGenerated, chosenPicks.length])
+    setIsEnrichingGemini(false)
+  }
 
   const handleRemovePick = (pickId: string) => {
     setChosenPicks((prev) => prev.filter((p) => p.id !== pickId))
@@ -962,6 +970,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleEnrichWithGemini}
+                disabled={isEnrichingGemini}
+                className="chip font-bold text-xs"
+                title="Generate narrative AI reasoning for selections"
+              >
+                <i className={`fa-solid fa-brain text-emerald-600 text-xs ${isEnrichingGemini ? 'animate-pulse' : ''}`}></i>
+                <span>{isEnrichingGemini ? 'Enriching…' : 'AI Explanations'}</span>
+              </button>
               <button
                 onClick={handleRunAIChallenger}
                 disabled={isChallenging}
