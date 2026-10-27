@@ -2,10 +2,24 @@ import { getToken } from 'firebase/messaging'
 import { doc, setDoc, getDocs, collection, serverTimestamp } from 'firebase/firestore'
 import { messaging, db, auth } from '../config/firebase'
 
+const PUSH_TOKEN_KEY = 'odds_factory_fcm_token'
+
+export function phoneAlertsAreEnabled(): boolean {
+  return typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    'Notification' in window &&
+    Notification.permission === 'granted' &&
+    Boolean(localStorage.getItem(PUSH_TOKEN_KEY))
+}
+
 export async function requestPhoneNotificationPermission(): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
     if (!('Notification' in window)) {
       return { success: false, error: 'Push notifications are not supported on this browser.' }
+    }
+
+    if (!window.isSecureContext) {
+      return { success: false, error: 'Phone alerts require the secure HTTPS version of Odds Factory.' }
     }
 
     const permission = await Notification.requestPermission()
@@ -29,15 +43,22 @@ export async function requestPhoneNotificationPermission(): Promise<{ success: b
     }
 
     const vapidKey = (import.meta as any).env?.VITE_FIREBASE_VAPID_KEY
+    if (!vapidKey) {
+      return { success: false, error: 'Phone alerts are not configured yet. Add the Firebase Web Push certificate before enabling alerts.' }
+    }
     const token = await getToken(msgInstance, {
       serviceWorkerRegistration: registration,
-      ...(vapidKey ? { vapidKey } : {})
+      vapidKey,
     }).catch(err => {
-      console.warn('FCM token registration fallback:', err)
+      console.warn('FCM token registration failed:', err)
       return null
     })
 
-    const finalToken = token || `web-subscriber-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    if (!token) {
+      return { success: false, error: 'Firebase could not register this device for phone alerts. Please try again.' }
+    }
+
+    const finalToken = token
     const user = auth.currentUser
 
     // Save to Firestore so admin can broadcast to all subscribers
@@ -51,11 +72,17 @@ export async function requestPhoneNotificationPermission(): Promise<{ success: b
     }, { merge: true })
 
     if (user?.uid) {
+      await setDoc(doc(db, 'users', user.uid), {
+        fcmToken: finalToken,
+        fcmTokenUpdatedAt: serverTimestamp(),
+      }, { merge: true })
       await setDoc(doc(db, 'users', user.uid, 'fcmTokens', finalToken), {
         token: finalToken,
         updatedAt: serverTimestamp(),
       }, { merge: true })
     }
+
+    localStorage.setItem(PUSH_TOKEN_KEY, finalToken)
 
     return { success: true, token: finalToken }
   } catch (err: any) {
@@ -85,29 +112,21 @@ export async function broadcastPhoneNotification(
     const tokens = subscribersSnap.docs.map(d => d.data().token)
 
     // 3. Send via local server endpoint or proxy
+    const idToken = await auth.currentUser?.getIdToken()
+    if (!idToken) {
+      return { success: false, recipientCount: 0, error: 'Please sign in again before sending phone alerts.' }
+    }
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` }
     let pushRes = await fetch('/api/send-push', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ title, message, url, tokens })
     }).catch(() => null)
-
-    if (!pushRes || !pushRes.ok) {
-      pushRes = await fetch('/api/local/send-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, message, url, tokens })
-      }).catch(() => null)
+    const result = pushRes ? await pushRes.json().catch(() => null) : null
+    if (!pushRes?.ok || !result?.success) {
+      return { success: false, recipientCount: 0, error: result?.error || 'Phone alert could not be delivered.' }
     }
-
-    if (!pushRes || !pushRes.ok) {
-      await fetch('http://localhost:3001/send-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, message, url, tokens })
-      }).catch(() => null)
-    }
-
-    return { success: true, recipientCount: Math.max(1, tokens.length) }
+    return { success: true, recipientCount: result.broadcastedCount || 0 }
   } catch (err: any) {
     return { success: false, recipientCount: 0, error: err.message }
   }

@@ -16,13 +16,6 @@ export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Request Web Push Permissions
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-      Notification.requestPermission()
-    }
-  }, [])
-
   useEffect(() => {
     if (!isFirebaseConfigured) return
 

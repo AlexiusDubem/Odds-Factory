@@ -4,7 +4,7 @@ import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore'
 import { auth, db } from '../config/firebase'
 import type { Slip } from '../types'
 import { DAILY_SURE_PICKS, type DailySurePick } from '../data/sportybetCompetitions'
-import { requestPhoneNotificationPermission } from '../services/notificationService'
+import { phoneAlertsAreEnabled, requestPhoneNotificationPermission } from '../services/notificationService'
 
 interface Props {
   onLoadSlip?: (slip: Slip) => void
@@ -15,7 +15,7 @@ export const DashboardPanel = ({ }: Props) => {
   const [slips, setSlips] = useState<Slip[]>([])
   const [livePicks, setLivePicks] = useState<DailySurePick[]>([])
   const [loading, setLoading] = useState(true)
-  const [pushStatus, setPushStatus] = useState<'idle' | 'enabling' | 'enabled' | 'denied'>('idle')
+  const [pushStatus, setPushStatus] = useState<'idle' | 'enabling' | 'enabled' | 'denied'>(() => phoneAlertsAreEnabled() ? 'enabled' : 'idle')
   const [feedFetchedAt, setFeedFetchedAt] = useState<string | null>(null)
 
   const handleEnablePush = async () => {
