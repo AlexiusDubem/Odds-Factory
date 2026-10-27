@@ -147,12 +147,15 @@ export function analyzeFixtureIndependently(
   const league = first.league
   const kickoff = first.kickoff
   const dataAgeMinutes = first.dataAgeMinutes || 2
-  const marketBook = fixtureMarkets.map(pick => ({
-    marketName: pick.marketName,
+  const toMarketLine = (pick: DailySurePick) => ({
+    // SportyBet carries the total line in `specifier` (for example total=1.5).
+    // Keep it in the model input or Over/Under lines cannot be distinguished.
+    marketName: `${pick.marketName} ${pick.specifier || ''}`.trim(),
     selection: pick.market,
     odds: pick.odds,
     probability: pick.probability,
-  }))
+  })
+  const marketBook = fixtureMarkets.map(toMarketLine)
 
   // 1. Filter markets to those matching the user-allowed market families
   const candidateMarkets = fixtureMarkets.filter(m =>
@@ -209,8 +212,8 @@ export function analyzeFixtureIndependently(
     const nameLower = pick.marketName.toLowerCase()
 
     const line = marketBook.find(item =>
-      item.marketName === pick.marketName && item.selection === pick.market && item.odds === odds
-    ) ?? { marketName: pick.marketName, selection: pick.market, odds, probability: pick.probability }
+      item.marketName === toMarketLine(pick).marketName && item.selection === pick.market && item.odds === odds
+    ) ?? toMarketLine(pick)
     const calibrated = evaluateCalibratedLine(line, marketBook, model)
     if (!calibrated) continue
     const trueProb = calibrated.modelProbability
@@ -401,6 +404,7 @@ export function assembleTargetOddsTicket(
     const scoreB = (b.chosenMarket?.modelProbability || 0) * 10 + (b.chosenMarket?.edge || 0) * 20
     return scoreB - scoreA
   })
+  const maxSelections = Math.max(1, targetGamesCount || 20)
 
   let bestCombination: FixtureAnalysisResult[] = []
   let bestRatioDiff = Infinity
@@ -411,6 +415,7 @@ export function assembleTargetOddsTicket(
   let currentOdds = 1.0
 
   for (const f of pool) {
+    if (currentComb.length >= maxSelections) break
     const o = f.chosenMarket?.decimalOdds || 1.0
     currentComb.push(f)
     currentOdds *= o
@@ -432,7 +437,7 @@ export function assembleTargetOddsTicket(
   const n = Math.min(pool.length, 25) // search top 25 candidates
   
   // Try combinations of varying lengths
-  for (let len = 3; len <= Math.min(n, 20); len++) {
+  for (let len = 3; len <= Math.min(n, maxSelections); len++) {
     let testComb = pool.slice(0, len)
     let testOdds = testComb.reduce((acc, item) => acc * (item.chosenMarket?.decimalOdds || 1), 1)
     let diff = Math.abs(Math.log(testOdds) - targetLog)

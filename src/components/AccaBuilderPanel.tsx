@@ -17,6 +17,7 @@ import {
   type FixtureAnalysisResult,
   type TargetOddsAssemblyResult
 } from '../engine/fixtureAnalyzer'
+import { batchGenerateEvidenceRationales } from '../engine/geminiService'
 
 interface Props {
   onSendToAudit?: (slip: Slip) => void
@@ -365,6 +366,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       setChosenPicks(finalPicks)
       setHasGenerated(true)
+
+      // Pick generation stays instant. AI receives the selected evidence in a
+      // background batch and replaces the short model rationale when ready.
+      void batchGenerateEvidenceRationales(finalPicks).then((rationales) => {
+        if (Object.keys(rationales).length === 0) return
+        setChosenPicks(current => current.map(pick => (
+          rationales[pick.id] ? { ...pick, modelRationale: rationales[pick.id] } : pick
+        )))
+      }).catch(() => {})
     } catch (error) {
       console.error('Fixture generation failed:', error)
       setChosenPicks([])
