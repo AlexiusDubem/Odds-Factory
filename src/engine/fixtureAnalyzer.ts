@@ -122,6 +122,16 @@ function toMarketLine(pick: DailySurePick): MarketLine {
   }
 }
 
+
+export function cleanSelectionString(marketName: string, selection: string): string {
+  let s = (selection || '').trim()
+  const m = (marketName || '').trim()
+  if (s.toLowerCase().startsWith(m.toLowerCase())) {
+    s = s.slice(m.length).replace(/^[\s—\-:]+/, '').trim()
+  }
+  return s || selection
+}
+
 /**
  * Analyzes a single football fixture independently across all available SportyBet markets.
  * Never considers accumulator size, total stake, or external slip context.
@@ -243,18 +253,63 @@ export function analyzeFixtureIndependently(
     }
 
     // Evaluation Score:
-    // Balances Probability, Positive EV, and Market Safety without arbitrarily favoring Double Chance
+    // Balances Calibrated Probability, Expected Value, and Accumulator Compounding Efficiency.
+    // Discourages low-odds micro-padding (odds < 1.25) that forces accumulators to stack 20 legs.
     const isDC = pick.marketId === '10' || nameLower.includes('double chance')
-    const isOverGoals = outcomeLower.includes('over') &&
-      (mLower.includes('1.5') || mLower.includes('2.5') || mLower.includes('0.5'))
-    
-    let score = (trueProb * 100) + Math.max(0, edge) * 10
+    const is1X2 = pick.marketId === '1' || nameLower.includes('1x2') || nameLower.includes('winner')
+    const isOverGoals = outcomeLower.includes('over')
+    const isOver1_5 = isOverGoals && (mLower.includes('1.5') || outcomeLower.includes('1.5'))
+    const isOver2_5 = isOverGoals && (mLower.includes('2.5') || outcomeLower.includes('2.5'))
+    const isBTTS = pick.marketFamily === 'btts' || mLower.includes('btts') || mLower.includes('gg')
+    const isCorners = (pick.marketFamily as string) === 'corners' || nameLower.includes('corner')
+    const isDNB = (pick.marketFamily as string) === 'dnb' || nameLower.includes('draw no bet') || nameLower.includes('dnb')
+    const isCleanSheetNo = nameLower.includes('clean sheet') && outcomeLower.includes('no')
+    const isMicroUnder = outcomeLower.includes('under') && (mLower.includes('4.5') || mLower.includes('3.5') || mLower.includes('4'))
 
-    if (isOverGoals && trueProb >= 0.70) {
-      score += 8 // Reward verified attack/goal expectancy
+    // Base score: Calibrated Probability (0-100) + Edge bonus
+    let score = (trueProb * 80) + Math.max(0, edge) * 40 + Math.max(0, ev) * 30
+
+    // Accumulator Efficiency: Boost the sweet spot of solid value odds (1.28 to 1.75)
+    if (odds >= 1.28 && odds <= 1.70) {
+      score += 15 // Healthy odds that build an acca without bloating leg count
     }
-    if (isDC && odds < 1.15) {
-      score -= 5 // Discourage tiny 1.12-1.14 DC lines when stronger value exists
+
+    // Heavy penalty for micro-odds filler traps (odds < 1.22) that destroy accas with 20 legs
+    if (odds < 1.20) {
+      score -= 35
+    } else if (odds < 1.25) {
+      score -= 18
+    }
+
+    // Boost verified high-interest football markets
+    if (isOver1_5 && trueProb >= 0.65) {
+      score += 18 // Classic Over 1.5 goals
+    }
+    if (isOver2_5 && trueProb >= 0.52) {
+      score += 16 // Value Over 2.5 goals
+    }
+    if (isBTTS && trueProb >= 0.52) {
+      score += 15 // Both teams to score
+    }
+    if (is1X2 && trueProb >= 0.55 && odds >= 1.30) {
+      score += 14 // Match winner value
+    }
+    if (isDNB && trueProb >= 0.60) {
+      score += 12 // Draw no bet protection
+    }
+    if (isCorners && trueProb >= 0.62) {
+      score += 12 // Corner line consistency
+    }
+    if (isDC && odds >= 1.22 && trueProb >= 0.70) {
+      score += 10 // Steady double chance
+    }
+
+    // Suppress uninspiring filler markets
+    if (isMicroUnder && odds < 1.25) {
+      score -= 25 // Suppress Under 4.5 @ 1.15
+    }
+    if (isCleanSheetNo && odds < 1.25) {
+      score -= 22 // Suppress Clean Sheet No @ 1.18
     }
 
     evaluated.push({
@@ -354,6 +409,7 @@ export function analyzeFixtureIndependently(
     riskFlags.push('Standard sporting variance applies.')
   }
 
+
   return {
     fixtureId,
     fixture,
@@ -366,7 +422,7 @@ export function analyzeFixtureIndependently(
     chosenMarket: {
       canonicalMarket: best.pick.marketName,
       sportyBetMarketName: best.pick.marketName,
-      selection: best.pick.market,
+      selection: cleanSelectionString(best.pick.marketName, best.pick.market),
       decimalOdds: best.pick.odds,
       marketFamily: best.pick.marketFamily || 'goals',
       modelProbability: Number(best.calcProb.toFixed(4)),
@@ -386,7 +442,7 @@ export function analyzeFixtureIndependently(
 /**
  * Assembles a ticket from independently qualified fixtures to target a user-requested multiplier.
  * Uses subset-product optimization to find the combination closest to targetOdds.
- * When targetOdds > 1.0, does NOT cap selections to targetGamesCount.
+ * When targetOdds > 1.0, enforces optimal accumulator leg limits so slips never devolve into 20-leg micro-odds traps.
  */
 export function assembleTargetOddsTicket(
   qualifiedResults: FixtureAnalysisResult[],
@@ -426,17 +482,18 @@ export function assembleTargetOddsTicket(
   }
 
   // Case B: Target Odds Solver (Target Multiplier requested)
-  // When target odds is active, allow up to 30 independently qualified games so 50x, 100x can be reached!
+  // Optimal accumulator leg constraints prevent 20-leg lottery tickets
   const pool = [...validFixtures].sort((a, b) => {
     const scoreA = (a.chosenMarket?.modelProbability || 0) * 10 + (a.chosenMarket?.edge || 0) * 20
     const scoreB = (b.chosenMarket?.modelProbability || 0) * 10 + (b.chosenMarket?.edge || 0) * 20
     return scoreB - scoreA
   })
 
-  // Dynamic max selections based on target odds
+  // Maximum legs scaled to target odds:
+  // e.g. 20x target requires 6 to 8 games of solid odds (~1.50), NEVER 20 games of 1.15 odds!
   const maxSelections = Math.min(
     pool.length,
-    targetOdds >= 50 ? 30 : targetOdds >= 20 ? 22 : 16
+    targetOdds >= 100 ? 15 : targetOdds >= 50 ? 11 : targetOdds >= 20 ? 8 : targetOdds >= 10 ? 6 : 4
   )
 
   let bestCombination: FixtureAnalysisResult[] = []

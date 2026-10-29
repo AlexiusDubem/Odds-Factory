@@ -54,9 +54,9 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     badgeBorder: 'border-emerald-200',
     trackColor: '#10B981',
     tiers: [1],
-    minOdds: 1.08,
-    maxOdds: 1.35,
-    minProb: 0.72,
+    minOdds: 1.20,
+    maxOdds: 1.40,
+    minProb: 0.68,
     desc: 'Highest probability locks: Over 1.5 goals, Double Chance 1X/X2 & Draw No Bet.',
   },
   2: {
@@ -68,9 +68,9 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     badgeBorder: 'border-teal-200',
     trackColor: '#0D9488',
     tiers: [1, 2],
-    minOdds: 1.15,
-    maxOdds: 1.55,
-    minProb: 0.62,
+    minOdds: 1.28,
+    maxOdds: 1.65,
+    minProb: 0.58,
     desc: 'Classic Over 1.5, Double Chance, and steady home bankers. Best daily accumulator balance.',
   },
   3: {
@@ -82,9 +82,9 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     badgeBorder: 'border-blue-200',
     trackColor: '#3B82F6',
     tiers: [1, 2, 3],
-    minOdds: 1.25,
+    minOdds: 1.35,
     maxOdds: 1.85,
-    minProb: 0.52,
+    minProb: 0.50,
     desc: 'Classic Over 2.5 Goals, BTTS Yes, and Match Winner value plays with strong returns.',
   },
   4: {
@@ -97,8 +97,8 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     trackColor: '#F59E0B',
     tiers: [2, 3],
     minOdds: 1.50,
-    maxOdds: 1.85,
-    minProb: 0.52,
+    maxOdds: 1.95,
+    minProb: 0.46,
     desc: 'Higher odds per match. Allows hitting 10x-20x odds in fewer games.',
   },
   5: {
@@ -111,8 +111,8 @@ const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
     trackColor: '#EF4444',
     tiers: [3],
     minOdds: 1.65,
-    maxOdds: 1.95,
-    minProb: 0.48,
+    maxOdds: 2.15,
+    minProb: 0.44,
     desc: 'Bold straight wins, Over 2.5 and BTTS. Big potential returns for audacious tickets.',
   },
 }
@@ -693,9 +693,14 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       `Stake: ₦${stake.toLocaleString()} • Return: ₦${potentialPayout.toLocaleString()}`,
       ...(bookingCode ? [`SportyBet Booking Code: ${bookingCode}`] : []),
       '',
-      ...chosenPicks.map(
-        (p, i) => `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${p.marketName ? `${p.marketName} — ` : ''}${p.market} @${p.odds.toFixed(2)} (${p.kickoff})`
-      ),
+      ...chosenPicks.map((p, i) => {
+        let sel = (p.market || '').trim()
+        const mName = (p.marketName || '').trim()
+        if (mName && !sel.toLowerCase().includes(mName.toLowerCase())) {
+          sel = `${mName} — ${sel}`
+        }
+        return `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${sel} @${p.odds.toFixed(2)} (${p.kickoff})`
+      }),
       '',
       `Generated with Odds Factory AI`,
     ].join('\n')

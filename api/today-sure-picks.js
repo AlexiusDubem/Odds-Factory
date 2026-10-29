@@ -85,13 +85,49 @@ export default async function handler(req, res) {
       'championship', 'segunda', 'serie b', '2. bundesliga', 'ligue 2',
       'eredivisie', 'primeira liga', 'pro league', 'super lig', 'premiership',
       'super league', 'league one', 'league two', 'mls', 'saudi pro league',
-      'brasileiro', 'copa libertadores', 'copa sudamericana', 'npfl', 'a-league'
+      'brasileiro', 'copa libertadores', 'copa sudamericana', 'npfl', 'a-league',
+      'ekstraklasa', 'veikkausliiga', 'allsvenskan', 'eliteserien', 'superliga',
+      'liga 1', 'primera a', 'liga profesional', 'j1 league', 'k league 1'
     ]
 
-    const isSimulatedOrVirtual = (text) => {
+    const isAmateurOrRubbishLeague = (text) => {
       if (!text) return false
       const lower = String(text).toLowerCase()
       return (
+        // Israeli low tiers
+        lower.includes('alef') ||
+        lower.includes('liga bet') ||
+        lower.includes('liga gimel') ||
+        // Spanish low tiers
+        lower.includes('tercera') ||
+        lower.includes('preferente') ||
+        lower.includes('autonomica') ||
+        lower.includes('division de honor') ||
+        (lower.includes('rfef') && (lower.includes('segunda') || lower.includes('tercera'))) ||
+        // German low tiers
+        lower.includes('oberliga') ||
+        lower.includes('regionalliga') ||
+        lower.includes('landesliga') ||
+        lower.includes('verbandsliga') ||
+        // Italian low tiers
+        lower.includes('serie d') ||
+        lower.includes('eccellenza') ||
+        lower.includes('promozione') ||
+        // French low tiers
+        lower.includes('national 2') ||
+        lower.includes('national 3') ||
+        lower.includes('regional 1') ||
+        lower.includes('ligue 3') ||
+        // English non-league / semi-pro
+        lower.includes('isthmian') ||
+        lower.includes('northern premier') ||
+        lower.includes('southern premier') ||
+        lower.includes('national league north') ||
+        lower.includes('national league south') ||
+        // Dutch lower amateur
+        lower.includes('derde divisie') ||
+        lower.includes('vierde divisie') ||
+        // General amateur/youth/simulated
         lower.includes('srl') ||
         lower.includes('simulated') ||
         lower.includes('virtual') ||
@@ -118,7 +154,7 @@ export default async function handler(req, res) {
     for (const t of tournaments) {
       const name = t.name || 'Unknown Tournament'
       const categoryName = t.categoryName || 'International'
-      if (isSimulatedOrVirtual(name) || isSimulatedOrVirtual(categoryName)) continue
+      if (isAmateurOrRubbishLeague(name) || isAmateurOrRubbishLeague(categoryName)) continue
 
       const tournId = t.tournamentId || `tourn-${t.name}`
       if (seenTournIds.has(tournId)) continue
@@ -214,7 +250,7 @@ export default async function handler(req, res) {
     for (const t of tournaments) {
       const tournamentName = t.name || ''
       const categoryName = t.categoryName || ''
-      if (isSimulatedOrVirtual(tournamentName) || isSimulatedOrVirtual(categoryName)) continue
+      if (isAmateurOrRubbishLeague(tournamentName) || isAmateurOrRubbishLeague(categoryName)) continue
 
       const tournId = t.tournamentId || `tourn-${tournamentName}`
       const lowerT = tournamentName.toLowerCase()
@@ -222,11 +258,19 @@ export default async function handler(req, res) {
       const isMajor = majorKeywords.some((k) => lowerT.includes(k))
       const leagueScope = isMajor ? 'major' : secondaryKeywords.some((k) => lowerT.includes(k)) ? 'small' : 'other'
 
+      // Only allow professional competitions (major or secondary)
+      if (leagueScope === 'other' && !secondaryKeywords.some((k) => lowerT.includes(k)) && !majorKeywords.some((k) => lowerT.includes(k))) {
+        const lowerCat = categoryName.toLowerCase()
+        if (!lowerCat.includes('international') && !lowerCat.includes('world') && !lowerCat.includes('europe') && !lowerT.includes('cup')) {
+          continue
+        }
+      }
+
       for (const e of (t.events || [])) {
         const home = e.homeTeamName || ''
         const away = e.awayTeamName || ''
         const matchLabel = `${home} vs ${away}`
-        if (isSimulatedOrVirtual(home) || isSimulatedOrVirtual(away) || isSimulatedOrVirtual(matchLabel)) continue
+        if (isAmateurOrRubbishLeague(home) || isAmateurOrRubbishLeague(away) || isAmateurOrRubbishLeague(matchLabel)) continue
         const eventId = e.eventId
 
         const now = Date.now()
@@ -311,20 +355,27 @@ export default async function handler(req, res) {
             const oDesc = o.desc || ''
 
             // Filter out stressful/excessive Under markets (Under 0.5, 1.5, 2.5) that bust accumulators
-            // Allow high-cushion safety lines (Under 3.5, Under 4.5, Under 5.5) with high confidence (>=75%)
+            // Also drop micro-odds Unders below 1.22 that act as accumulator filler traps
             const isUnderMarket = oDesc.toLowerCase().includes('under') || mDesc.toLowerCase().includes('under')
             if (isUnderMarket) {
               const fullDesc = `${mDesc} ${oDesc} ${specifier}`.toLowerCase()
               const isRiskyTightUnder = fullDesc.includes('0.5') || fullDesc.includes('1.5') || fullDesc.includes('2.5')
-              if (isRiskyTightUnder || prob < 0.75) {
+              if (isRiskyTightUnder || prob < 0.70 || odds < 1.22) {
                 continue
               }
+            }
+
+            // Discard tiny micro-odds below 1.22 for clean sheet 'No' and low handicaps that pollute the acca
+            if (family === 'cleansheet' && oDesc.toLowerCase().includes('no') && odds < 1.25) {
+              continue
+            }
+            if (family === 'handicap' && odds < 1.22) {
+              continue
             }
 
             // ── Normalization & Tier Classification ──────────────────────────
             let riskTier = 3
             if (mId === '1' && String(o.id) === '3' && odds < 1.70) {
-              // Away favorites often draw away from home — don't classify straight away win as Tier 1 banker
               riskTier = 3;
             }
             if (prob >= 0.75 && odds <= 1.30 && !(mId === '1' && String(o.id) === '3')) {
@@ -398,7 +449,11 @@ export default async function handler(req, res) {
                 badgeLabel = 'Market Play'
             }
 
-            const formattedPickLabel = `${mDesc} — ${oDesc}`
+            let cleanOutcome = (oDesc || '').trim()
+            if (cleanOutcome.toLowerCase().startsWith(mDesc.toLowerCase())) {
+              cleanOutcome = cleanOutcome.slice(mDesc.length).replace(/^[\s—\-:]+/, '').trim()
+            }
+            const formattedPickLabel = cleanOutcome ? `${mDesc} — ${cleanOutcome}` : mDesc
             pushPick(
               formattedPickLabel,
               mDesc,
