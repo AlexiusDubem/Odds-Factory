@@ -2,7 +2,8 @@
  * Poisson Distribution & Goal Expectancy Engine
  *
  * Implements standard bivariate Poisson & Dixon-Coles goal modeling for football.
- * Computes exact probabilities for Over/Under goals, BTTS, 1X2, and Double Chance.
+ * Computes exact probabilities for Over/Under goals, BTTS, 1X2, Double Chance,
+ * Team Goals, Clean Sheets, Scorelines, Corners, and Cards.
  */
 
 // Factorial cache for speed
@@ -24,12 +25,19 @@ export function poissonPmf(k: number, lambda: number): number {
   return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k)
 }
 
+export interface ScorelineProbability {
+  score: string
+  homeGoals: number
+  awayGoals: number
+  probability: number
+}
+
 export interface PoissonMarketProbabilities {
   lambdaHome: number
   muAway: number
   expectedTotalGoals: number
 
-  // Goals
+  // Match Goals
   over0_5: number
   over1_5: number
   over2_5: number
@@ -37,6 +45,20 @@ export interface PoissonMarketProbabilities {
   under1_5: number
   under2_5: number
   under3_5: number
+
+  // Team Goals
+  homeOver0_5: number
+  homeOver1_5: number
+  awayOver0_5: number
+  awayOver1_5: number
+
+  // Clean Sheets
+  homeCleanSheet: number
+  awayCleanSheet: number
+
+  // First Half
+  firstHalfOver0_5: number
+  firstHalfOver1_5: number
 
   // BTTS
   bttsYes: number
@@ -53,6 +75,20 @@ export interface PoissonMarketProbabilities {
   homeOrAway: number    // 12
   dnbHome: number       // Draw No Bet 1
   dnbAway: number       // Draw No Bet 2
+
+  // Corners (Independent Distribution)
+  expectedCorners: number
+  cornersOver8_5: number
+  cornersOver9_5: number
+  cornersOver10_5: number
+
+  // Cards (Independent Distribution)
+  expectedCards: number
+  cardsOver3_5: number
+  cardsOver4_5: number
+
+  // Top plausible scorelines
+  topScorelines: ScorelineProbability[]
 }
 
 /**
@@ -62,14 +98,14 @@ export interface PoissonMarketProbabilities {
 export function calculatePoissonProbabilities(
   lambdaHome: number,
   muAway: number,
-  rho = -0.08 // Dixon-Coles empirical low-scoring interdependence
+  rho = -0.08, // Dixon-Coles empirical low-scoring interdependence
+  cornerExpectancy = 9.4,
+  cardExpectancy = 3.8
 ): PoissonMarketProbabilities {
-  // Guardrails
   const lambda = Math.max(0.3, Math.min(4.5, lambdaHome))
   const mu = Math.max(0.2, Math.min(4.0, muAway))
   const maxGoals = 7
 
-  // Calculate score matrix
   let homeWin = 0
   let draw = 0
   let awayWin = 0
@@ -79,7 +115,17 @@ export function calculatePoissonProbabilities(
   let over2_5 = 0
   let over3_5 = 0
 
+  let homeOver0_5 = 0
+  let homeOver1_5 = 0
+  let awayOver0_5 = 0
+  let awayOver1_5 = 0
+
+  let homeCleanSheet = 0 // Away scores 0
+  let awayCleanSheet = 0 // Home scores 0
+
   let bttsYes = 0
+
+  const allScorelines: ScorelineProbability[] = []
 
   for (let h = 0; h <= maxGoals; h++) {
     for (let a = 0; a <= maxGoals; a++) {
@@ -96,6 +142,15 @@ export function calculatePoissonProbabilities(
         prob *= 1 - rho
       }
 
+      prob = Math.max(0, prob)
+
+      allScorelines.push({
+        score: `${h}-${a}`,
+        homeGoals: h,
+        awayGoals: a,
+        probability: prob,
+      })
+
       // 1X2
       if (h > a) homeWin += prob
       else if (h === a) draw += prob
@@ -107,6 +162,16 @@ export function calculatePoissonProbabilities(
       if (total > 1.5) over1_5 += prob
       if (total > 2.5) over2_5 += prob
       if (total > 3.5) over3_5 += prob
+
+      // Team goals
+      if (h > 0.5) homeOver0_5 += prob
+      if (h > 1.5) homeOver1_5 += prob
+      if (a > 0.5) awayOver0_5 += prob
+      if (a > 1.5) awayOver1_5 += prob
+
+      // Clean sheets
+      if (a === 0) homeCleanSheet += prob
+      if (h === 0) awayCleanSheet += prob
 
       // BTTS
       if (h > 0 && a > 0) bttsYes += prob
@@ -134,6 +199,40 @@ export function calculatePoissonProbabilities(
   const dnbHome = nonDrawSum > 0 ? homeWin / nonDrawSum : 0.5
   const dnbAway = nonDrawSum > 0 ? awayWin / nonDrawSum : 0.5
 
+  // First half expectations (~44% of goals in 1st half)
+  const lambda1H = (lambda + mu) * 0.44
+  const firstHalfOver0_5 = 1 - poissonPmf(0, lambda1H)
+  const firstHalfOver1_5 = Math.max(0, 1 - (poissonPmf(0, lambda1H) + poissonPmf(1, lambda1H)))
+
+  // Independent Corner Distribution (Poisson with 25 terms)
+  let cornersUnder8_5 = 0
+  let cornersUnder9_5 = 0
+  let cornersUnder10_5 = 0
+  for (let c = 0; c <= 25; c++) {
+    const pCorner = poissonPmf(c, cornerExpectancy)
+    if (c <= 8) cornersUnder8_5 += pCorner
+    if (c <= 9) cornersUnder9_5 += pCorner
+    if (c <= 10) cornersUnder10_5 += pCorner
+  }
+
+  // Independent Card Distribution
+  let cardsUnder3_5 = 0
+  let cardsUnder4_5 = 0
+  for (let c = 0; c <= 15; c++) {
+    const pCard = poissonPmf(c, cardExpectancy)
+    if (c <= 3) cardsUnder3_5 += pCard
+    if (c <= 4) cardsUnder4_5 += pCard
+  }
+
+  // Top 5 scorelines sorted by probability
+  const topScorelines = allScorelines
+    .sort((a, b) => b.probability - a.probability)
+    .slice(0, 5)
+    .map(s => ({
+      ...s,
+      probability: Number(s.probability.toFixed(4)),
+    }))
+
   return {
     lambdaHome: Number(lambda.toFixed(2)),
     muAway: Number(mu.toFixed(2)),
@@ -147,6 +246,17 @@ export function calculatePoissonProbabilities(
     under2_5: Number(under2_5.toFixed(4)),
     under3_5: Number(under3_5.toFixed(4)),
 
+    homeOver0_5: Number(homeOver0_5.toFixed(4)),
+    homeOver1_5: Number(homeOver1_5.toFixed(4)),
+    awayOver0_5: Number(awayOver0_5.toFixed(4)),
+    awayOver1_5: Number(awayOver1_5.toFixed(4)),
+
+    homeCleanSheet: Number(homeCleanSheet.toFixed(4)),
+    awayCleanSheet: Number(awayCleanSheet.toFixed(4)),
+
+    firstHalfOver0_5: Number(firstHalfOver0_5.toFixed(4)),
+    firstHalfOver1_5: Number(firstHalfOver1_5.toFixed(4)),
+
     bttsYes: Number(bttsYes.toFixed(4)),
     bttsNo: Number(bttsNo.toFixed(4)),
 
@@ -159,6 +269,17 @@ export function calculatePoissonProbabilities(
     homeOrAway: Number(homeOrAway.toFixed(4)),
     dnbHome: Number(dnbHome.toFixed(4)),
     dnbAway: Number(dnbAway.toFixed(4)),
+
+    expectedCorners: Number(cornerExpectancy.toFixed(1)),
+    cornersOver8_5: Number(Math.max(0, 1 - cornersUnder8_5).toFixed(4)),
+    cornersOver9_5: Number(Math.max(0, 1 - cornersUnder9_5).toFixed(4)),
+    cornersOver10_5: Number(Math.max(0, 1 - cornersUnder10_5).toFixed(4)),
+
+    expectedCards: Number(cardExpectancy.toFixed(1)),
+    cardsOver3_5: Number(Math.max(0, 1 - cardsUnder3_5).toFixed(4)),
+    cardsOver4_5: Number(Math.max(0, 1 - cardsUnder4_5).toFixed(4)),
+
+    topScorelines,
   }
 }
 
@@ -177,10 +298,10 @@ export function estimateLambdaMu(params: {
 }): { lambdaHome: number; muAway: number } {
   // Approach 1: Team goal statistics
   if (params.homeGoalsAvg !== undefined && params.awayConcededAvg !== undefined) {
-    const leagueGoalAvg = 1.35 // typical team goals per match in top leagues
+    const leagueGoalAvg = 1.35
     const homeAttack = params.homeGoalsAvg / leagueGoalAvg
     const awayDefense = params.awayConcededAvg / leagueGoalAvg
-    const homeAdvantage = 1.15 // 15% home turf uplift
+    const homeAdvantage = 1.14 // 14% home turf uplift
 
     const awayAttack = (params.awayGoalsAvg || 1.1) / leagueGoalAvg
     const homeDefense = (params.homeConcededAvg || 1.1) / leagueGoalAvg
@@ -198,11 +319,10 @@ export function estimateLambdaMu(params: {
   let expectedTotal = 2.65
   if (params.over2_5Odds && params.over2_5Odds > 1.05) {
     const impliedOver = (1 / params.over2_5Odds) / 1.06
-    // Approx relationship: over2.5 prob -> total goal expectancy
     expectedTotal = 1.6 + (impliedOver * 2.1)
   }
 
-  let homeRatio = 0.58 // typical home share
+  let homeRatio = 0.58
   if (params.homeWinOdds && params.awayWinOdds) {
     const rawHome = 1 / params.homeWinOdds
     const rawAway = 1 / params.awayWinOdds
@@ -235,7 +355,7 @@ export function evaluateMarketValue(
   return {
     ev: Number(ev.toFixed(4)),
     edge: Number(edge.toFixed(4)),
-    isPositiveEv: ev > 0.02, // 2% minimum edge threshold
+    isPositiveEv: ev > 0.02,
     impliedProb: Number(impliedProb.toFixed(4))
   }
 }

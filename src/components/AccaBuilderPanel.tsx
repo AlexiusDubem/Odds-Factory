@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   DAILY_SURE_PICKS,
+  generateTargetOddsAcca,
   type DailySurePick,
   type DiscoveredCompetition,
 } from '../data/sportybetCompetitions'
@@ -14,6 +15,7 @@ import {
 import {
   analyzeFixtureIndependently,
   assembleTargetOddsTicket,
+  isMarketFamilyAllowed,
   type FixtureAnalysisResult,
   type TargetOddsAssemblyResult
 } from '../engine/fixtureAnalyzer'
@@ -293,19 +295,26 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       // A ticket needs a high-quality pool, not every market in a 100-fixture
       // bookmaker response. This bounded pool keeps generation fast on phones.
-      const fixtureGroups = [...fixtureMap.values()]
-      const poolLimit = Math.max(30, Math.min(60, numGames * 4))
+      const fixtureGroups = [...fixtureMap.values()].sort((a, b) => {
+        const hoursA = a[0]?.hoursFromNow ?? 48
+        const hoursB = b[0]?.hoursFromNow ?? 48
+        if (hoursA !== hoursB) return hoursA - hoursB
+        return b.length - a.length
+      })
+      const poolLimit = Math.max(36, Math.min(90, numGames * 8))
       const fixturePool = fixtureGroups.slice(0, poolLimit)
       let processedFixtures = 0
       setAnalysisProgress({ current: 0, total: fixturePool.length })
       for (const markets of fixturePool) {
         const first = markets[0]
+        if (!first) continue
 
         // Duration / Timing filter
         if (first.hoursFromNow !== undefined) {
           if (first.hoursFromNow < 0.05) continue // Skip started games
           if (duration === 'today' && first.hoursFromNow > 24) continue
           if (duration === '3days' && first.hoursFromNow > 72) continue
+          if (duration === '1week' && first.hoursFromNow > 168) continue
           if (duration === 'midnight') {
             if (first.estimateStartTime) {
               const d = new Date(first.estimateStartTime)
@@ -343,11 +352,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       // Step 3: Assemble combination matching Target Multiplier or Top N Games
       const target = useTargetOdds ? targetOdds : undefined
-      const assembly = assembleTargetOddsTicket(evaluatedFixtures, target, numGames)
+      const gamesLimit = useTargetOdds ? undefined : numGames
+      const assembly = assembleTargetOddsTicket(evaluatedFixtures, target, gamesLimit)
       setAssemblyResult(assembly)
 
       // Step 4: Map qualified fixture selections to DailySurePick format
-      const finalPicks: DailySurePick[] = assembly.selectedFixtures
+      let finalPicks: DailySurePick[] = assembly.selectedFixtures
         .filter(f => f.chosenMarket?.rawPick)
         .map(f => {
           const raw = f.chosenMarket!.rawPick
@@ -364,17 +374,57 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           }
         })
 
+      if (finalPicks.length === 0) {
+        const eligible: DailySurePick[] = []
+        const seenEvents = new Set<string>()
+        for (const pick of allLivePicks) {
+          if (seenEvents.has(pick.eventId)) continue
+          if (pick.hoursFromNow !== undefined) {
+            if (pick.hoursFromNow < 0.05) continue
+            if (duration === 'today' && pick.hoursFromNow > 24) continue
+            if (duration === '3days' && pick.hoursFromNow > 72) continue
+            if (duration === '1week' && pick.hoursFromNow > 168) continue
+          }
+          if (leagueScope === 'major' && pick.leagueScope && pick.leagueScope !== 'major') continue
+          if (leagueScope === 'small' && pick.leagueScope && pick.leagueScope === 'major') continue
+          if (!isMarketFamilyAllowed(pick.marketFamily || '', `${pick.marketName} ${pick.market}`, selectedMarketFamilies)) continue
+          if (pick.odds < risk.minOdds * 0.9 || pick.odds > risk.maxOdds * 1.25) continue
+          seenEvents.add(pick.eventId)
+          eligible.push(pick)
+        }
+        const fallbackTarget = useTargetOdds ? targetOdds : Math.max(2, estimatedOdds)
+        finalPicks = generateTargetOddsAcca(fallbackTarget, eligible, numGames)
+        if (finalPicks.length > 0) {
+          setAssemblyResult({
+            targetOdds: fallbackTarget,
+            achievedOdds: Number(finalPicks.reduce((acc, p) => acc * p.odds, 1).toFixed(2)),
+            targetStatus: 'NEAREST_BELOW',
+            selectedFixtures: evaluatedFixtures.filter(f => finalPicks.some(p => p.eventId === f.fixtureId)),
+            explanation: `Assembled ${finalPicks.length} highest-confidence selections from the live book after the strict fixture filter found no independently qualified combination.`,
+          })
+        }
+      }
+
+      // Finish AI rationales analysis BEFORE presenting the ticket
+      if (finalPicks.length > 0) {
+        try {
+          const timeoutPromise = new Promise<Record<string, string>>((resolve) =>
+            setTimeout(() => resolve({}), 2500)
+          )
+          const rationales = await Promise.race([
+            batchGenerateEvidenceRationales(finalPicks),
+            timeoutPromise,
+          ])
+          if (rationales && Object.keys(rationales).length > 0) {
+            finalPicks = finalPicks.map(p => rationales[p.id] ? { ...p, modelRationale: rationales[p.id] } : p)
+          }
+        } catch {
+          // Model rationale already present from fixture analyzer
+        }
+      }
+
       setChosenPicks(finalPicks)
       setHasGenerated(true)
-
-      // Pick generation stays instant. AI receives the selected evidence in a
-      // background batch and replaces the short model rationale when ready.
-      void batchGenerateEvidenceRationales(finalPicks).then((rationales) => {
-        if (Object.keys(rationales).length === 0) return
-        setChosenPicks(current => current.map(pick => (
-          rationales[pick.id] ? { ...pick, modelRationale: rationales[pick.id] } : pick
-        )))
-      }).catch(() => {})
     } catch (error) {
       console.error('Fixture generation failed:', error)
       setChosenPicks([])
@@ -1071,7 +1121,10 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           {chosenPicks.length === 0 ? (
             <div className="card p-12 text-center text-[#71807a] space-y-3">
               <i className="fa-solid fa-ticket text-4xl text-[#84918a]"></i>
-              <p className="text-sm font-bold text-[#16201c]">All games removed</p>
+              <p className="text-sm font-bold text-[#16201c]">No qualifying selections</p>
+              <p className="text-xs text-[#71807a] max-w-md mx-auto leading-relaxed">
+                {assemblyResult?.explanation || 'No fixtures cleared the current risk, market, and timing filters. Widen the market families, raise the risk level, or extend the timeframe, then generate again.'}
+              </p>
               <button
                 onClick={handleRunAnalysisAndGenerate}
                 className="primary py-2.5 px-5 text-xs mx-auto"
@@ -1306,7 +1359,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       {/* ── Dottaa-style Booking Code Modal / Bottom Sheet ─────────────────── */}
       {showCodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white border border-zinc-200 rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 relative animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-zinc-200 rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 relative animate-in zoom-in-95 duration-200 max-h-[88vh] overflow-y-auto">
             {/* Close Button */}
             <button
               onClick={() => setShowCodeModal(false)}
@@ -1404,9 +1457,13 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                 <h3 className="text-lg font-black text-zinc-950">
                   Odds Just Shifted on SportyBet
                 </h3>
-                <p className="text-xs text-zinc-600 leading-relaxed bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                  {bookingError || 'One of these matches just kicked off or its odds were adjusted on SportyBet. Tap Re-Roll below to get an active, ready-to-book ticket immediately!'}
-                </p>
+                <div className="max-h-32 overflow-y-auto rounded-xl">
+                  <p className="text-xs text-zinc-600 leading-relaxed bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                    {bookingError
+                      ? (bookingError.length > 250 ? bookingError.slice(0, 250) + '…' : bookingError)
+                      : 'One of these matches just kicked off or its odds were adjusted on SportyBet. Tap Re-Roll below to get an active, ready-to-book ticket immediately!'}
+                  </p>
+                </div>
                 <button
                   onClick={() => {
                     setShowCodeModal(false)

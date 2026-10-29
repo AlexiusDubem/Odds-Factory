@@ -3,8 +3,9 @@
  *
  * The bookmaker book is treated as an input, never as an edge by itself. We
  * first remove its margin, infer a coherent Dixon-Coles score distribution,
- * and then shrink every model estimate back toward the fair market. This makes
- * the engine deliberately conservative when team-level data is unavailable.
+ * and then shrink every model estimate back toward the fair market.
+ * Includes dedicated evaluation for Match Result, Goals, BTTS, Clean Sheets,
+ * Team Totals, Corners, Cards, and Half-Time markets.
  */
 import { calculatePoissonProbabilities, type PoissonMarketProbabilities } from './poissonModel'
 
@@ -55,12 +56,21 @@ function isUnderSelection(line: MarketLine): boolean {
 function marketGroup(line: MarketLine): string | null {
   const text = `${line.marketName} ${line.selection}`.toLowerCase()
   const name = (line.marketName || '').toLowerCase()
-  if (name.includes('1x2') || name.includes('match result') || name.includes('full time')) return '1x2'
+  if (name.includes('1x2') || name.includes('match result') || name.includes('full time') || name.includes('2-up')) return '1x2'
+  if (text.includes('corner')) {
+    const total = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    return total ? `corners:${total}` : 'corners'
+  }
+  if (text.includes('booking') || text.includes('card')) {
+    const total = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    return total ? `cards:${total}` : 'cards'
+  }
   if (text.includes('over') || text.includes('under') || text.includes('total=')) {
     const total = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
     return total ? `goals:${total}` : null
   }
   if (text.includes('both teams') || text.includes('btts') || /\bgg\b|\bng\b/.test(text)) return 'btts'
+  if (text.includes('clean sheet')) return 'cleansheet'
   return null
 }
 
@@ -69,22 +79,84 @@ function lineProbability(line: MarketLine, p: PoissonMarketProbabilities): numbe
   const name = (line.marketName || '').toLowerCase()
   const outcome = outcomeSide(line).toLowerCase()
   const isUnder = isUnderSelection(line)
-  const goalLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
 
+  // 1. Corners (Independent distribution)
+  if (text.includes('corner')) {
+    const cornerLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    const lineNum = cornerLine ? parseFloat(cornerLine) : 9.5
+    let probOver = p.cornersOver9_5
+    if (lineNum <= 8.5) probOver = p.cornersOver8_5
+    else if (lineNum >= 10.5) probOver = p.cornersOver10_5
+    return isUnder ? 1 - probOver : probOver
+  }
+
+  // 2. Cards & Bookings (Independent distribution)
+  if (text.includes('booking') || text.includes('card')) {
+    const cardLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    const lineNum = cardLine ? parseFloat(cardLine) : 3.5
+    const probOver = lineNum >= 4.5 ? p.cardsOver4_5 : p.cardsOver3_5
+    return isUnder ? 1 - probOver : probOver
+  }
+
+  // 3. Team Goals (Home Over/Under, Away Over/Under)
+  if (text.includes('home') && (text.includes('over') || text.includes('under') || text.includes('total'))) {
+    const goalLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    const lineNum = goalLine ? parseFloat(goalLine) : 0.5
+    const over = lineNum >= 1.5 ? p.homeOver1_5 : p.homeOver0_5
+    return isUnder ? 1 - over : over
+  }
+  if (text.includes('away') && (text.includes('over') || text.includes('under') || text.includes('total'))) {
+    const goalLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    const lineNum = goalLine ? parseFloat(goalLine) : 0.5
+    const over = lineNum >= 1.5 ? p.awayOver1_5 : p.awayOver0_5
+    return isUnder ? 1 - over : over
+  }
+
+  // 4. Clean Sheets
+  if (text.includes('clean sheet')) {
+    if (text.includes('home')) {
+      return /\bno\b/.test(outcome) ? 1 - p.homeCleanSheet : p.homeCleanSheet
+    }
+    if (text.includes('away')) {
+      return /\bno\b/.test(outcome) ? 1 - p.awayCleanSheet : p.awayCleanSheet
+    }
+  }
+
+  // 5. Half-Time / 1st Half Goals
+  if (text.includes('1st half') || text.includes('first half') || text.includes('half time')) {
+    const goalLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
+    const lineNum = goalLine ? parseFloat(goalLine) : 0.5
+    const over = lineNum >= 1.5 ? p.firstHalfOver1_5 : p.firstHalfOver0_5
+    return isUnder ? 1 - over : over
+  }
+
+  // 6. Match Total Goals
+  const goalLine = text.match(/(?:total=|over\s*|under\s*)(\d+(?:\.\d+)?)/)?.[1]
   if (goalLine) {
     const lineNumber = Number(goalLine)
-    const probabilityForOver: Record<number, number> = { 0.5: p.over0_5, 1.5: p.over1_5, 2.5: p.over2_5, 3.5: p.over3_5 }
+    const probabilityForOver: Record<number, number> = {
+      0.5: p.over0_5,
+      1.5: p.over1_5,
+      2.5: p.over2_5,
+      3.5: p.over3_5
+    }
     const over = probabilityForOver[lineNumber]
     return over === undefined ? null : isUnder ? 1 - over : over
   }
+
+  // 7. BTTS / GG-NG
   if (text.includes('both teams') || text.includes('btts') || /\bgg\b|\bng\b/.test(text)) {
     return /\bno\b|\bng\b/.test(outcome) ? p.bttsNo : p.bttsYes
   }
-  if (name.includes('1x2') || name.includes('match result') || name.includes('full time') || name.includes('winner')) {
+
+  // 8. 1X2 Match Winner
+  if (name.includes('1x2') || name.includes('match result') || name.includes('full time') || name.includes('winner') || name.includes('2-up')) {
     if (/draw|^x$/.test(outcome)) return p.draw
     if (/away|\b2\b/.test(outcome)) return p.awayWin
     return p.homeWin
   }
+
+  // 9. Double Chance
   if (text.includes('double chance')) {
     if (/\b1x\b|home or draw|1 or x|or draw/.test(outcome) && !/away or draw|x2|x or 2/.test(outcome)) return p.homeOrDraw
     if (/\bx2\b|away or draw|x or 2|draw or away/.test(outcome)) return p.awayOrDraw
@@ -93,9 +165,12 @@ function lineProbability(line: MarketLine, p: PoissonMarketProbabilities): numbe
     if (outcome.includes('x2')) return p.awayOrDraw
     if (outcome.includes('12')) return p.homeOrAway
   }
+
+  // 10. Draw No Bet
   if (text.includes('draw no bet') || text.includes('dnb')) {
     return /away|\b2\b/.test(outcome) ? p.dnbAway : p.dnbHome
   }
+
   return null
 }
 
@@ -121,8 +196,7 @@ export function buildFootballModel(lines: MarketLine[]): FootballModel {
   }
   let best = { home: 1.4, away: 1.1, error: Number.POSITIVE_INFINITY }
 
-  // Coarse grid search is intentionally bounded: it runs in the browser for
-  // every fixture, so responsiveness matters more than false precision.
+  // Coarse grid search bounded for interactive performance
   for (let home = 0.5; home <= 3.2; home += 0.15) {
     for (let away = 0.35; away <= 2.75; away += 0.15) {
       const probabilities = calculatePoissonProbabilities(home, away)
@@ -170,8 +244,7 @@ export function evaluateCalibratedLine(line: MarketLine, allLines: MarketLine[],
   const implied = clamp(1 / line.odds, 0.02, 0.98)
   const poissonProbability = lineProbability(line, model.probabilities)
 
-  // Corners, handicaps, and other unmapped SportyBet lines still need a score.
-  // Use the supplied feed probability, then implied odds, rather than dropping the pick.
+  // Use Poisson if mapped, else supplied feed probability, then implied odds
   const estimated = poissonProbability ?? supplied ?? implied
 
   const key = marketGroup(line)
@@ -186,8 +259,7 @@ export function evaluateCalibratedLine(line: MarketLine, allLines: MarketLine[],
   const poissonOrEstimate = poissonProbability ?? estimated
   const base = supplied === undefined ? poissonOrEstimate : poissonOrEstimate * 0.55 + supplied * 0.45
   const modelProbability = clamp(base * 0.70 + fair * 0.30, 0.02, 0.98)
-  // An unfitted default model (coverage 0, fitError 1) is not 30% of extra
-  // uncertainty — that haircut was rejecting every banker on thin books.
+
   const fitPenalty = model.marketCoverage > 0
     ? Math.sqrt(Math.min(model.fitError, 0.25)) * 1.1
     : 0.03
@@ -195,6 +267,7 @@ export function evaluateCalibratedLine(line: MarketLine, allLines: MarketLine[],
   const signalPenalty = hasIndependentSignal ? 0 : 0.03
   const uncertainty = clamp(0.05 + fitPenalty + coveragePenalty + signalPenalty, 0.04, 0.18)
   const conservativeProbability = clamp(modelProbability - uncertainty, 0.02, 0.98)
+
   return {
     modelProbability: Number(conservativeProbability.toFixed(4)),
     fairMarketProbability: Number(fair.toFixed(4)),

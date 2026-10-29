@@ -12,6 +12,7 @@
  */
 
 import type { DailySurePick } from '../data/sportybetCompetitions'
+import { buildFootballModel, evaluateCalibratedLine } from './footballPredictionEngine'
 
 export type ChallengeAction = 'KEEP' | 'REPLACE' | 'REVIEW' | 'REMOVE'
 
@@ -211,27 +212,58 @@ export function getBoomingAlternatives(
     (p) => p.eventId === currentPick.eventId && p.id !== currentPick.id
   )
 
-  // Filter ONLY sure booming picks (positive EV or high probability, reasonable odds <= 2.10)
-  const qualified = matchMarkets.filter((p) => {
-    const ev = calculateExpectedValue(p.odds, p.probability)
-    return p.odds >= 1.08 && p.odds <= 2.10 && (p.probability >= 0.52 || ev >= 0.02)
+  // Build model for this event's lines
+  const marketLines = matchMarkets.map(p => ({
+    marketName: p.marketName,
+    selection: p.market,
+    odds: p.odds,
+    probability: p.probability,
+  }))
+  const model = buildFootballModel(marketLines)
+
+  // Calibrate each candidate pick and filter out risky under lines
+  const calibratedPicks = matchMarkets.map(p => {
+    const line = {
+      marketName: p.marketName,
+      selection: p.market,
+      odds: p.odds,
+      probability: p.probability,
+    }
+    const evalResult = evaluateCalibratedLine(line, marketLines, model)
+    const prob = evalResult ? evalResult.modelProbability : (p.probability > 1 ? p.probability / 100 : p.probability)
+    const ev = evalResult ? evalResult.expectedValue : calculateExpectedValue(p.odds, prob)
+    const edge = evalResult ? evalResult.edge : (prob - (1 / p.odds))
+    return {
+      ...p,
+      probability: prob,
+      ev,
+      edge,
+      confidenceScore: Math.round(prob * 100),
+    }
+  }).filter((p) => {
+    const mLower = p.market.toLowerCase()
+    const nameLower = p.marketName.toLowerCase()
+    // Discard volatile low under lines (Under 0.5/1.5/2.5) that easily bust slips
+    const isRiskyUnder = (mLower.includes('under') || nameLower.includes('under')) &&
+      (mLower.includes('0.5') || mLower.includes('1.5') || mLower.includes('2.5'))
+    return !isRiskyUnder && p.odds >= 1.08 && p.odds <= 2.15 && (p.probability >= 0.50 || (p.ev && p.ev >= 0.01))
   })
 
   // Group into 4 risk tiers
-  const ultraSafe = qualified
-    .filter((p) => p.probability >= 0.78 && p.odds <= 1.28)
+  const ultraSafe = calibratedPicks
+    .filter((p) => p.probability >= 0.76 && p.odds <= 1.32)
     .sort((a, b) => b.probability - a.probability)
 
-  const safe = qualified
-    .filter((p) => p.probability >= 0.66 && p.probability < 0.78 && p.odds <= 1.48)
+  const safe = calibratedPicks
+    .filter((p) => p.probability >= 0.64 && p.probability < 0.76 && p.odds <= 1.55)
     .sort((a, b) => b.probability - a.probability)
 
-  const balanced = qualified
-    .filter((p) => p.probability >= 0.56 && p.probability < 0.66 && p.odds <= 1.70)
+  const balanced = calibratedPicks
+    .filter((p) => p.probability >= 0.54 && p.probability < 0.64 && p.odds <= 1.78)
     .sort((a, b) => b.probability - a.probability)
 
-  const daring = qualified
-    .filter((p) => p.probability >= 0.48 && p.probability < 0.56 && p.odds <= 2.05)
+  const daring = calibratedPicks
+    .filter((p) => p.probability >= 0.46 && p.probability < 0.54 && p.odds <= 2.15)
     .sort((a, b) => b.probability - a.probability)
 
   const tiers: BoomingPickTier[] = []
@@ -244,7 +276,7 @@ export function getBoomingAlternatives(
       color: 'text-emerald-700',
       badgeBg: 'bg-emerald-50',
       badgeBorder: 'border-emerald-200',
-      oddsRange: '~1.08–1.28x',
+      oddsRange: '~1.08–1.32x',
       picks: ultraSafe.slice(0, 4),
     })
   }
@@ -257,7 +289,7 @@ export function getBoomingAlternatives(
       color: 'text-teal-700',
       badgeBg: 'bg-teal-50',
       badgeBorder: 'border-teal-200',
-      oddsRange: '~1.25–1.48x',
+      oddsRange: '~1.25–1.55x',
       picks: safe.slice(0, 4),
     })
   }
@@ -270,7 +302,7 @@ export function getBoomingAlternatives(
       color: 'text-blue-700',
       badgeBg: 'bg-blue-50',
       badgeBorder: 'border-blue-200',
-      oddsRange: '~1.40–1.70x',
+      oddsRange: '~1.40–1.78x',
       picks: balanced.slice(0, 4),
     })
   }
@@ -283,7 +315,7 @@ export function getBoomingAlternatives(
       color: 'text-amber-700',
       badgeBg: 'bg-amber-50',
       badgeBorder: 'border-amber-200',
-      oddsRange: '~1.65–2.05x',
+      oddsRange: '~1.65–2.15x',
       picks: daring.slice(0, 4),
     })
   }

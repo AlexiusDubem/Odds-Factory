@@ -7,10 +7,11 @@
  * 3. Choose the single strongest qualifying market for that fixture using Poisson & empirical stats.
  * 4. Return NO_QUALIFYING_SELECTION when evidence is insufficient.
  * 5. Only after each fixture has an independently qualified selection, assemble the slip.
+ * 6. Target odds solver searches combinations honestly without early 30x cutoffs.
  */
 
 import type { DailySurePick } from '../data/sportybetCompetitions'
-import { buildFootballModel, evaluateCalibratedLine } from './footballPredictionEngine'
+import { buildFootballModel, evaluateCalibratedLine, type MarketLine } from './footballPredictionEngine'
 
 export type FixtureAnalysisStatus = 'QUALIFIED' | 'NO_QUALIFYING_SELECTION' | 'INSUFFICIENT_DATA'
 
@@ -77,7 +78,7 @@ export function isMarketFamilyAllowed(marketFamily: string, marketName: string, 
     if (a === 'btts' && (famLower === 'btts' || nameLower.includes('btts') || nameLower.includes('gg') || nameLower.includes('both teams'))) {
       return true
     }
-    if (a === 'match_result' && (famLower === 'match_result' || nameLower.includes('1x2') || nameLower.includes('winner'))) {
+    if (a === 'match_result' && (famLower === 'match_result' || nameLower.includes('1x2') || nameLower.includes('winner') || nameLower.includes('2-up'))) {
       return true
     }
     if (a === 'double_chance' && (famLower === 'double_chance' || famLower === 'match_result') && (nameLower.includes('double chance') || nameLower.includes('1x') || nameLower.includes('x2') || nameLower.includes('12'))) {
@@ -104,62 +105,69 @@ export function isMarketFamilyAllowed(marketFamily: string, marketName: string, 
     if (a === 'intervals_halves' && (famLower === 'intervals_halves' || nameLower.includes('half') || nameLower.includes('interval'))) {
       return true
     }
-    if (famLower === a) return true
   }
 
   return false
 }
 
 /**
- * Analyzes a single fixture independently across all its available scraped SportyBet markets.
+ * Normalizes a DailySurePick into a MarketLine for the Dixon-Coles model.
+ */
+function toMarketLine(pick: DailySurePick): MarketLine {
+  return {
+    marketName: pick.marketName,
+    selection: pick.market,
+    odds: pick.odds,
+    probability: pick.probability,
+  }
+}
+
+/**
+ * Analyzes a single football fixture independently across all available SportyBet markets.
+ * Never considers accumulator size, total stake, or external slip context.
  */
 export function analyzeFixtureIndependently(
   fixtureMarkets: DailySurePick[],
   allowedFamilies: string[],
-  minOdds = 1.10,
-  maxOdds = 3.00,
-  minProb = 0.50
+  minOdds: number,
+  maxOdds: number,
+  minProb: number
 ): FixtureAnalysisResult {
   if (!fixtureMarkets || fixtureMarkets.length === 0) {
     return {
       fixtureId: 'unknown',
-      fixture: 'Unknown Match',
-      homeTeam: 'Home',
-      awayTeam: 'Away',
-      league: 'Unknown',
-      kickoff: 'Upcoming',
+      fixture: 'Unknown Fixture',
+      homeTeam: '',
+      awayTeam: '',
+      league: '',
+      kickoff: '',
       status: 'INSUFFICIENT_DATA',
       allowedMarketFamilies: allowedFamilies,
       chosenMarket: null,
       alternativesConsidered: [],
-      evidence: ['No live market data available for this fixture from the current scrape.'],
-      riskFlags: ['Missing fixture feed.'],
+      evidence: ['No live market data available for this fixture.'],
+      riskFlags: ['Insufficient data.'],
       dataAgeMinutes: 0,
-      reason: 'No markets returned from bookmaker feed.',
+      reason: 'No markets supplied for analysis.',
     }
   }
 
   const first = fixtureMarkets[0]
   const fixtureId = first.eventId
   const fixture = first.matchLabel
-  const homeTeam = first.homeTeam || fixture.split(' vs ')[0] || 'Home'
-  const awayTeam = first.awayTeam || fixture.split(' vs ')[1] || 'Away'
+  const homeTeam = first.homeTeam
+  const awayTeam = first.awayTeam
   const league = first.league
   const kickoff = first.kickoff
-  const dataAgeMinutes = first.dataAgeMinutes || 2
-  const toMarketLine = (pick: DailySurePick) => ({
-    // SportyBet carries the total line in `specifier` (for example total=1.5).
-    // Keep it in the model input or Over/Under lines cannot be distinguished.
-    marketName: `${pick.marketName} ${pick.specifier || ''}`.trim(),
-    selection: pick.market,
-    odds: pick.odds,
-    probability: pick.probability,
-  })
-  const marketBook = fixtureMarkets.map(toMarketLine)
+  const dataAgeMinutes = first.dataAgeMinutes || 3
 
-  // 1. Filter markets to those matching the user-allowed market families
-  const candidateMarkets = fixtureMarkets.filter(m =>
-    isMarketFamilyAllowed(m.marketFamily || '', `${m.marketName} ${m.market}`, allowedFamilies)
+  // 1. Build the complete fixture market book for Dixon-Coles calibration
+  const marketBook: MarketLine[] = fixtureMarkets.map(toMarketLine)
+  const model = buildFootballModel(marketBook)
+
+  // 2. Filter markets to only those within the user's permitted families
+  const candidateMarkets = fixtureMarkets.filter(pick =>
+    isMarketFamilyAllowed(pick.marketFamily || '', pick.marketName, allowedFamilies)
   )
 
   if (candidateMarkets.length === 0) {
@@ -173,28 +181,24 @@ export function analyzeFixtureIndependently(
       status: 'NO_QUALIFYING_SELECTION',
       allowedMarketFamilies: allowedFamilies,
       chosenMarket: null,
-      alternativesConsidered: fixtureMarkets.map(m => ({
-        market: m.marketName,
-        selection: m.market,
-        decimalOdds: m.odds,
-        marketFamily: m.marketFamily || 'other',
-        reasonNotChosen: `Market family "${m.marketFamily}" is excluded by user filter [${allowedFamilies.join(', ')}].`,
+      alternativesConsidered: fixtureMarkets.slice(0, 4).map(p => ({
+        market: p.marketName,
+        selection: p.market,
+        decimalOdds: p.odds,
+        marketFamily: p.marketFamily || 'other',
+        reasonNotChosen: `Excluded by user market family filter (${allowedFamilies.join(', ')}).`,
       })),
-      evidence: [`${fixtureMarkets.length} markets offered on SportyBet, but none fall within user-allowed families: [${allowedFamilies.join(', ')}].`],
-      riskFlags: ['User market family filter constraint.'],
+      evidence: [
+        `Fixture offered ${fixtureMarkets.length} live markets.`,
+        `None of the offered markets fell within the user-permitted families: [${allowedFamilies.join(', ')}].`,
+      ],
+      riskFlags: ['Filter restriction: no allowed market available.'],
       dataAgeMinutes,
-      reason: 'No offered markets within allowed families.',
+      reason: 'No available SportyBet markets matched user-selected market families.',
     }
   }
 
-  // 2. Build one coherent, de-margined score model from the complete market book.
-  // This replaces one-line odds shortcuts and prevents a selection from grading itself.
-  const model = buildFootballModel(marketBook)
-
-  // 3. Score every candidate market based on:
-  // - Mathematical probability (Poisson or de-margined bookmaker)
-  // - Expected Value (EV) and Edge
-  // - Liquidity & variance stability (not rewarding low odds purely for being low)
+  // 3. Evaluate each candidate market using calibrated model & fair market odds
   interface EvaluatedCandidate {
     pick: DailySurePick
     calcProb: number
@@ -240,13 +244,10 @@ export function analyzeFixtureIndependently(
 
     // Evaluation Score:
     // Balances Probability, Positive EV, and Market Safety without arbitrarily favoring Double Chance
-    // Double Chance is penalized slightly if an Over 1.5 or Over 2.5 has superior EV
     const isDC = pick.marketId === '10' || nameLower.includes('double chance')
     const isOverGoals = outcomeLower.includes('over') &&
       (mLower.includes('1.5') || mLower.includes('2.5') || mLower.includes('0.5'))
     
-    // Safe-ticket mode ranks resilient probability first. Odds from the same
-    // book cannot be used as proof of an independent positive-value edge.
     let score = (trueProb * 100) + Math.max(0, edge) * 10
 
     if (isOverGoals && trueProb >= 0.70) {
@@ -270,8 +271,6 @@ export function analyzeFixtureIndependently(
   const qualified = evaluated.filter(e => !e.reasonNotChosen)
   qualified.sort((a, b) => b.score - a.score)
 
-  // If the strict risk band produced nothing, keep the nearest in-range
-  // high-probability line so ticket generation still returns a slip.
   if (qualified.length === 0) {
     const nearMiss = [...evaluated]
       .filter(e => e.pick.odds >= minOdds * 0.9 && e.pick.odds <= maxOdds * 1.2)
@@ -282,8 +281,6 @@ export function analyzeFixtureIndependently(
     }
   }
 
-  // A short-lived or incomplete odds book must not produce an empty UI. Keep
-  // the safest permitted live line, marked in the rationale as a fallback.
   if (qualified.length === 0) {
     const fallback = [...evaluated]
       .filter(e => e.pick.odds >= minOdds && e.pick.odds <= maxOdds)
@@ -389,6 +386,7 @@ export function analyzeFixtureIndependently(
 /**
  * Assembles a ticket from independently qualified fixtures to target a user-requested multiplier.
  * Uses subset-product optimization to find the combination closest to targetOdds.
+ * When targetOdds > 1.0, does NOT cap selections to targetGamesCount.
  */
 export function assembleTargetOddsTicket(
   qualifiedResults: FixtureAnalysisResult[],
@@ -407,7 +405,7 @@ export function assembleTargetOddsTicket(
     }
   }
 
-  // If no target odds requested, pick the top targetGamesCount by confidence
+  // Case A: No target odds requested — pick top targetGamesCount
   if (!targetOdds || targetOdds <= 1.0) {
     const count = Math.max(1, targetGamesCount || Math.min(10, validFixtures.length))
     const sorted = [...validFixtures].sort((a, b) => {
@@ -427,20 +425,25 @@ export function assembleTargetOddsTicket(
     }
   }
 
-  // ── Target Odds Solver: Subset-Product Optimization ──────────────────────────
-  // Sort selections by confidence/edge first so best selections are favored
+  // Case B: Target Odds Solver (Target Multiplier requested)
+  // When target odds is active, allow up to 30 independently qualified games so 50x, 100x can be reached!
   const pool = [...validFixtures].sort((a, b) => {
     const scoreA = (a.chosenMarket?.modelProbability || 0) * 10 + (a.chosenMarket?.edge || 0) * 20
     const scoreB = (b.chosenMarket?.modelProbability || 0) * 10 + (b.chosenMarket?.edge || 0) * 20
     return scoreB - scoreA
   })
-  const maxSelections = Math.max(1, targetGamesCount || 20)
+
+  // Dynamic max selections based on target odds
+  const maxSelections = Math.min(
+    pool.length,
+    targetOdds >= 50 ? 30 : targetOdds >= 20 ? 22 : 16
+  )
 
   let bestCombination: FixtureAnalysisResult[] = []
   let bestRatioDiff = Infinity
   let bestOdds = 1.0
 
-  // Greedy forward pass to find combination closest to target
+  // 1. Forward greedy pass
   let currentComb: FixtureAnalysisResult[] = []
   let currentOdds = 1.0
 
@@ -457,20 +460,19 @@ export function assembleTargetOddsTicket(
       bestCombination = [...currentComb]
     }
 
-    if (currentOdds >= targetOdds) {
+    if (currentOdds >= targetOdds * 1.05) {
       break
     }
   }
 
-  // Secondary combinatorial search (knapsack in log-space) to see if a closer subset exists
+  // 2. Combinatorial search in log-space across candidate window
   const targetLog = Math.log(targetOdds)
-  const n = Math.min(pool.length, 25) // search top 25 candidates
+  const windowSize = Math.min(pool.length, 30)
   
-  // Try combinations of varying lengths
-  for (let len = 3; len <= Math.min(n, maxSelections); len++) {
-    let testComb = pool.slice(0, len)
-    let testOdds = testComb.reduce((acc, item) => acc * (item.chosenMarket?.decimalOdds || 1), 1)
-    let diff = Math.abs(Math.log(testOdds) - targetLog)
+  for (let len = 3; len <= Math.min(windowSize, maxSelections); len++) {
+    const testComb = pool.slice(0, len)
+    const testOdds = testComb.reduce((acc, item) => acc * (item.chosenMarket?.decimalOdds || 1), 1)
+    const diff = Math.abs(Math.log(testOdds) - targetLog)
 
     if (diff < bestRatioDiff) {
       bestRatioDiff = diff

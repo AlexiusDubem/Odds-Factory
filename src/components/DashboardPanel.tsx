@@ -35,15 +35,21 @@ export const DashboardPanel = ({ }: Props) => {
 
       // 2. Fetch live SportyBet sure picks
       try {
-        const res = await fetch('/api/today-sure-picks?duration=today').catch(() => null)
-        if (res && res.ok) {
-          const data = await res.json()
-          if (data.success && Array.isArray(data.picks) && data.picks.length > 0) {
-            setLivePicks(data.picks.slice(0, 5))
-            // Capture real feed timestamp for display
-            if (data.fetchedAt) setFeedFetchedAt(data.fetchedAt)
-            setLoading(false)
-            return
+        const endpoints = [
+          '/api/local/today-sure-picks?duration=today',
+          '/api/today-sure-picks?duration=today',
+          'http://localhost:3001/today-sure-picks?duration=today',
+        ]
+        for (const url of endpoints) {
+          const res = await fetch(url).catch(() => null)
+          if (res && res.ok) {
+            const data = await res.json()
+            if (data.success && Array.isArray(data.picks) && data.picks.length > 0) {
+              setLivePicks(data.picks.slice(0, 5))
+              if (data.fetchedAt) setFeedFetchedAt(data.fetchedAt)
+              setLoading(false)
+              return
+            }
           }
         }
       } catch {

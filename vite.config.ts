@@ -93,6 +93,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/book/, '/book'),
       },
+      '/api/today-sure-picks': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/today-sure-picks/, '/today-sure-picks'),
+      },
       // Proxies fixture-level Gemini market analysis
       '/api/fixture-analysis': {
         target: 'http://localhost:3001',

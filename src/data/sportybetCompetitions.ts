@@ -1864,32 +1864,48 @@ export const DAILY_SURE_PICKS: DailySurePick[] = [
 // ── Target Odds Acca Generator Algorithm ─────────────────────────────────────
 // Selects the optimal combination of picks to hit the target odds with maximum survival probability.
 
-export function generateTargetOddsAcca(targetOdds: number, availablePicks: DailySurePick[]): DailySurePick[] {
+export function generateTargetOddsAcca(
+  targetOdds: number,
+  availablePicks: DailySurePick[],
+  maxLegs = 20,
+): DailySurePick[] {
   if (availablePicks.length === 0) return []
 
-  // Sort picks primarily by probability and EV (highest confidence first)
-  const sorted = [...availablePicks].sort((a, b) => (b.probability * (1 + b.ev)) - (a.probability * (1 + a.ev)))
+  const uniqueByEvent = new Map<string, DailySurePick>()
+  for (const pick of availablePicks) {
+    const existing = uniqueByEvent.get(pick.eventId)
+    if (!existing || pick.probability > existing.probability) {
+      uniqueByEvent.set(pick.eventId, pick)
+    }
+  }
 
-  // 1. Try greedy selection with bounded multiplier
+  const sorted = [...uniqueByEvent.values()].sort(
+    (a, b) => b.probability * (1 + b.ev) - a.probability * (1 + a.ev),
+  )
+
+  const cap = Math.max(1, maxLegs)
   let currentOdds = 1.0
   const selected: DailySurePick[] = []
 
   for (const pick of sorted) {
-    if (currentOdds * pick.odds <= targetOdds * 1.15) {
+    if (selected.length >= cap) break
+    if (currentOdds * pick.odds <= targetOdds * 1.2) {
       selected.push(pick)
       currentOdds *= pick.odds
     }
-    // If we're close enough (within 10% of target), we can stop
-    if (currentOdds >= targetOdds * 0.92) {
-      break
-    }
+    if (currentOdds >= targetOdds * 0.92) break
   }
 
-  // If no picks selected or still under, take at least top picks
   if (selected.length === 0 && sorted.length > 0) {
-    selected.push(sorted[0])
-    if (sorted.length > 1 && sorted[0].odds * sorted[1].odds <= targetOdds * 1.3) {
-      selected.push(sorted[1])
+    return sorted.slice(0, Math.min(cap, Math.max(2, Math.min(6, sorted.length))))
+  }
+
+  if (selected.length < Math.min(2, cap) && sorted.length > selected.length) {
+    for (const pick of sorted) {
+      if (selected.length >= cap) break
+      if (!selected.some(s => s.eventId === pick.eventId)) {
+        selected.push(pick)
+      }
     }
   }
 
