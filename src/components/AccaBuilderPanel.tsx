@@ -301,7 +301,11 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         if (hoursA !== hoursB) return hoursA - hoursB
         return b.length - a.length
       })
-      const poolLimit = Math.max(36, Math.min(90, numGames * 8))
+      // Scale pool with duration so 3-day / 1-week requests don't get cut
+      // to today-only fixtures (which sort first by hoursFromNow).
+      const durationPoolMultiplier =
+        duration === '1week' ? 22 : duration === '3days' ? 15 : duration === 'midnight' ? 12 : 8
+      const poolLimit = Math.max(60, Math.min(160, numGames * durationPoolMultiplier))
       const fixturePool = fixtureGroups.slice(0, poolLimit)
       let processedFixtures = 0
       setAnalysisProgress({ current: 0, total: fixturePool.length })
@@ -384,6 +388,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             if (duration === 'today' && pick.hoursFromNow > 24) continue
             if (duration === '3days' && pick.hoursFromNow > 72) continue
             if (duration === '1week' && pick.hoursFromNow > 168) continue
+          }
+          // Midnight filter — only night-window games (10 PM – 6 AM WAT)
+          if (duration === 'midnight' && pick.estimateStartTime) {
+            const _d = new Date(pick.estimateStartTime)
+            const _watHour = (_d.getUTCHours() + 1) % 24
+            if (_watHour < 22 && _watHour >= 6) continue
           }
           if (leagueScope === 'major' && pick.leagueScope && pick.leagueScope !== 'major') continue
           if (leagueScope === 'small' && pick.leagueScope && pick.leagueScope === 'major') continue

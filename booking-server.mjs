@@ -330,9 +330,10 @@ const server = http.createServer(async (req, res) => {
 
       const urlObj = new URL(req.url, 'http://localhost:3001')
       const durationParam = (urlObj.searchParams.get('duration') || 'today').toLowerCase()
+      const isMidnightMode = durationParam === 'midnight'
 
       let timeline = '24'
-      let maxHours = 24
+      let maxHours = isMidnightMode ? 28 : 24
       if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
         timeline = '72'
         maxHours = 72
@@ -594,6 +595,13 @@ const server = http.createServer(async (req, res) => {
           // Skip in-play or ended events
           if (e.status === 'Live' || e.status === 'Ended' || e.matchStatus === 'Live' || e.matchStatus === 'Ended') {
             continue
+          }
+
+          if (isMidnightMode && e.estimateStartTime) {
+            const d = new Date(e.estimateStartTime)
+            const watHour = (d.getUTCHours() + 1) % 24
+            const isNight = watHour >= 22 || watHour < 6
+            if (!isNight) continue
           }
 
           const ko = formatKickoff(e.estimateStartTime)
