@@ -566,9 +566,14 @@ const server = http.createServer(async (req, res) => {
           const favored = oLower.includes('1') || oLower.includes('home') ? home : away
           return `${favored} carries superior attacking momentum; backed with SportyBet 2UP early payout for an instant auto-win if they go 2 goals ahead.`
         }
-        if (mLower.includes('double chance') || oLower.includes('1x') || oLower.includes('x2')) {
-          const team = oLower.includes('1x') ? home : oLower.includes('x2') ? away : home
-          return `${team} holds structural tactical dominance and solid defensive organization; Double Chance guarantees supreme insurance against a stalemate.`
+        if (mLower.includes('double chance') || oLower.includes('double chance') || oLower.includes('draw or away') || oLower.includes('home or draw') || oLower.includes('home or away')) {
+          if (oLower.includes('draw or away') || oLower.includes('x2') || oLower.includes('away or draw')) {
+            return `${away} holds superior tactical depth and away resilience; Double Chance (Draw or Away) provides ironclad insurance against a draw.`
+          }
+          if (oLower.includes('home or draw') || oLower.includes('1x') || oLower.includes('draw or home')) {
+            return `${home} is undefeated and structurally resolute on home turf; Double Chance (Home or Draw) secures maximum safety.`
+          }
+          return `Both ${home} and ${away} play high-tempo attacking football with low draw propensity; Double Chance (12) guarantees a win if either side takes all three points.`
         }
         if (oLower.includes('over 1.5') || (mLower.includes('over/under') && oLower.includes('over') && oLower.includes('1.5'))) {
           return `Both ${home} and ${away} display positive transitional play with regular goal creation; Over 1.5 is an elite accumulator foundation.`

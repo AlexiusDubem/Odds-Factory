@@ -15,9 +15,13 @@ export function buildFootballPunditRationale(
     return `${team} holds decisive attacking form; backed with SportyBet 2UP for early cash-out settlement if they lead by 2 goals.`
   }
   if (pick.marketId === '10' || nameLower.includes('double chance')) {
-    const is1X = mLower.includes('1x')
-    const team = is1X ? homeTeam : awayTeam
-    return `${team} is structurally resilient and tough to break down; Double Chance provides maximum safety against a draw.`
+    if (mLower.includes('draw or away') || mLower.includes('x2') || mLower.includes('away or draw')) {
+      return `${awayTeam} holds superior tactical depth and away resilience; Double Chance (Draw or Away) provides ironclad insurance.`
+    }
+    if (mLower.includes('home or draw') || mLower.includes('1x') || mLower.includes('draw or home')) {
+      return `${homeTeam} is undefeated and structurally resolute on home turf; Double Chance (Home or Draw) secures maximum safety against a draw.`
+    }
+    return `Both ${homeTeam} and ${awayTeam} play high-tempo attacking football with low draw propensity; Double Chance (12) guarantees a win if either side takes all three points.`
   }
   if (mLower.includes('over 1.5') || (nameLower.includes('over') && mLower.includes('1.5'))) {
     return `Both sides average strong chance-creation with high transitional pace; Over 1.5 goals is an elite accumulator banker.`
@@ -283,20 +287,29 @@ export function analyzeFixtureIndependently(
     const trueProb = calibrated.modelProbability
     const { expectedValue: ev, edge } = calibrated
 
-    // Filter out tight under lines that are volatile
-    const isRiskyUnder = outcomeLower.includes('under') &&
-      (mLower.includes('under 1.5') || mLower.includes('under 0.5') || mLower.includes('under 2.5') || mLower.includes('total=1.5') || mLower.includes('total=0.5') || mLower.includes('total=2.5')) &&
-      odds > 1.25
+    // Strict Punter Market Rules: Disqualify ALL Unders, Handicaps, Clean Sheets, and DNBs!
+    const isUnder = outcomeLower.includes('under') || mLower.includes('under') || nameLower.includes('under')
+    const isHandicap = (pick.marketFamily as string) === 'handicap' || nameLower.includes('handicap') || mLower.includes('handicap') || outcomeLower.includes('handicap')
+    const isCleanSheet = nameLower.includes('clean sheet') || mLower.includes('clean sheet')
+    const isDNB = (pick.marketFamily as string) === 'dnb' || nameLower.includes('draw no bet') || nameLower.includes('dnb')
 
     let disqualification: string | undefined
-    if (odds < minOdds) {
+    if (isUnder) {
+      disqualification = 'Under goals markets are excluded from accumulator slips.'
+    } else if (isHandicap) {
+      disqualification = 'Handicap markets are excluded from accumulator slips.'
+    } else if (isCleanSheet) {
+      disqualification = 'Clean sheet markets are excluded from accumulator slips.'
+    } else if (isDNB) {
+      disqualification = 'Draw No Bet is excluded from accumulator slips.'
+    } else if (odds < 1.20) {
+      disqualification = `Odds @${odds.toFixed(2)} are below minimum banker threshold of 1.20.`
+    } else if (odds < minOdds) {
       disqualification = `Odds @${odds.toFixed(2)} below minimum threshold of @${minOdds.toFixed(2)}.`
     } else if (odds > maxOdds) {
       disqualification = `Odds @${odds.toFixed(2)} above maximum threshold of @${maxOdds.toFixed(2)}.`
     } else if (trueProb < minProb) {
       disqualification = `Probability ${(trueProb * 100).toFixed(1)}% below required minimum of ${(minProb * 100).toFixed(0)}%.`
-    } else if (isRiskyUnder) {
-      disqualification = `Tight under goals line has excessive multi-event variance.`
     }
 
     // Evaluation Score:
@@ -310,10 +323,6 @@ export function analyzeFixtureIndependently(
     const isOver2_5 = isOverGoals && (mLower.includes('2.5') || outcomeLower.includes('2.5'))
     const isBTTS = pick.marketFamily === 'btts' || mLower.includes('btts') || mLower.includes('gg') || nameLower.includes('gg')
     const isCorners = (pick.marketFamily as string) === 'corners' || nameLower.includes('corner')
-    const isDNB = (pick.marketFamily as string) === 'dnb' || nameLower.includes('draw no bet') || nameLower.includes('dnb')
-    const isHandicap = (pick.marketFamily as string) === 'handicap' || nameLower.includes('handicap') || mLower.includes('handicap')
-    const isCleanSheet = nameLower.includes('clean sheet') || mLower.includes('clean sheet')
-    const isMicroUnder = outcomeLower.includes('under') && (mLower.includes('4.5') || mLower.includes('3.5') || mLower.includes('4') || mLower.includes('5'))
 
     // Base score: Calibrated Probability (0-100) + Edge bonus
     let score = (trueProb * 80) + Math.max(0, edge) * 45 + Math.max(0, ev) * 35
@@ -353,19 +362,7 @@ export function analyzeFixtureIndependently(
       score += 20 // Both teams to score (GG)
     }
 
-    // ── Suppress & Demote Non-Standard / Obscure Markets ────────────────────
-    if (isDNB) {
-      score -= 15 // Demote DNB unless no DC/1X2 available
-    }
-    if (isHandicap) {
-      score -= 28 // Demote obscure Asian Handicaps (e.g. +1.0 @ 1.15)
-    }
-    if (isCleanSheet) {
-      score -= 25 // Demote Clean Sheet markets
-    }
-    if (isMicroUnder && odds < 1.25) {
-      score -= 30 // Suppress Under 4.5 / 5.5 micro odds
-    }
+
 
     evaluated.push({
       pick,
@@ -517,15 +514,33 @@ export function assembleTargetOddsTicket(
     }
   }
 
+  const getCompPriority = (league: string = '') => {
+    const l = league.toLowerCase()
+    if (l.includes('uefa champions league') || (l.includes('champions league') && !l.includes('afc') && !l.includes('caf') && !l.includes('concacaf'))) return 1200
+    if (l.includes('europa league')) return 1000
+    if (l.includes('conference league')) return 900
+    if (l.includes('premier league') && !l.includes('northern') && !l.includes('southern')) return 850
+    if (l.includes('la liga') || l.includes('serie a') || l.includes('bundesliga') || l.includes('ligue 1')) return 800
+    if (l.includes('copa del rey') || l.includes('fa cup') || l.includes('dfb pokal') || l.includes('coppa italia')) return 650
+    if (l.includes('npfl') || l.includes('eredivisie') || l.includes('primeira liga')) return 500
+    if (l.includes('afc') || l.includes('caf')) return 200
+    return 100
+  }
+
+  const pool = [...validFixtures].sort((a, b) => {
+    const pA = getCompPriority(a.league)
+    const pB = getCompPriority(b.league)
+    if (pA !== pB) return pB - pA
+
+    const scoreA = (a.chosenMarket?.modelProbability || 0) * 50 + (a.chosenMarket?.edge || 0) * 20
+    const scoreB = (b.chosenMarket?.modelProbability || 0) * 50 + (b.chosenMarket?.edge || 0) * 20
+    return scoreB - scoreA
+  })
+
   // Case A: No target odds requested — pick top targetGamesCount
   if (!targetOdds || targetOdds <= 1.0) {
-    const count = Math.max(1, targetGamesCount || Math.min(10, validFixtures.length))
-    const sorted = [...validFixtures].sort((a, b) => {
-      const pA = a.chosenMarket?.modelProbability || 0
-      const pB = b.chosenMarket?.modelProbability || 0
-      return pB - pA
-    })
-    const selected = sorted.slice(0, Math.min(count, sorted.length))
+    const count = Math.max(1, targetGamesCount || Math.min(10, pool.length))
+    const selected = pool.slice(0, Math.min(count, pool.length))
     const totalOdds = selected.reduce((acc, f) => acc * (f.chosenMarket?.decimalOdds || 1), 1)
 
     return {
@@ -533,16 +548,11 @@ export function assembleTargetOddsTicket(
       achievedOdds: Number(totalOdds.toFixed(2)),
       targetStatus: 'EXACT',
       selectedFixtures: selected,
-      explanation: `Assembled top ${selected.length} independently qualified selections based on probability and statistical edge.`,
+      explanation: `Assembled top ${selected.length} headline selections from tonight's premier competitions based on squad form and tactical superiority.`,
     }
   }
 
   // Case B: Target Odds Solver (Target Multiplier requested)
-  const pool = [...validFixtures].sort((a, b) => {
-    const scoreA = (a.chosenMarket?.modelProbability || 0) * 12 + (a.chosenMarket?.edge || 0) * 20
-    const scoreB = (b.chosenMarket?.modelProbability || 0) * 12 + (b.chosenMarket?.edge || 0) * 20
-    return scoreB - scoreA
-  })
 
   // Dynamic maximum legs to genuinely reach target odds:
   // Allows up to 25 legs so safe banker odds (1.25 - 1.35) can reach 10x, 20x, 50x without artificial truncation!

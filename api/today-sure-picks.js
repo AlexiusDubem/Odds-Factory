@@ -256,9 +256,14 @@ export default async function handler(req, res) {
         const favored = oLower.includes('1') || oLower.includes('home') ? home : away
         return `${favored} carries superior attacking momentum; backed with SportyBet 2UP early payout for an instant auto-win if they go 2 goals ahead.`
       }
-      if (mLower.includes('double chance') || oLower.includes('1x') || oLower.includes('x2')) {
-        const team = oLower.includes('1x') ? home : oLower.includes('x2') ? away : home
-        return `${team} holds structural tactical dominance and solid defensive organization; Double Chance guarantees supreme insurance against a stalemate.`
+      if (mLower.includes('double chance') || oLower.includes('double chance') || oLower.includes('draw or away') || oLower.includes('home or draw') || oLower.includes('home or away')) {
+        if (oLower.includes('draw or away') || oLower.includes('x2') || oLower.includes('away or draw')) {
+          return `${away} holds superior tactical depth and away resilience; Double Chance (Draw or Away) provides ironclad insurance against a draw.`
+        }
+        if (oLower.includes('home or draw') || oLower.includes('1x') || oLower.includes('draw or home')) {
+          return `${home} is undefeated and structurally resolute on home turf; Double Chance (Home or Draw) secures maximum safety.`
+        }
+        return `Both ${home} and ${away} play high-tempo attacking football with low draw propensity; Double Chance (12) guarantees a win if either side takes all three points.`
       }
       if (oLower.includes('over 1.5') || (mLower.includes('over/under') && oLower.includes('over') && oLower.includes('1.5'))) {
         return `Both ${home} and ${away} display positive transitional play with regular goal creation; Over 1.5 is an elite accumulator foundation.`
@@ -422,19 +427,19 @@ export default async function handler(req, res) {
             const prob = parseFloat(o.probability) || 1 / odds
             const oDesc = o.desc || ''
 
-            // Filter out stressful/excessive Under markets (Under 0.5, 1.5, 2.5) that bust accumulators
-            // Also drop micro-odds Unders below 1.22 that act as accumulator filler traps
+            // Strictly exclude ALL Under markets! Normal punters bet on positive action (Overs, Wins, DC, GG, Corners)
             const isUnderMarket = oDesc.toLowerCase().includes('under') || mDesc.toLowerCase().includes('under')
             if (isUnderMarket) {
-              const fullDesc = `${mDesc} ${oDesc} ${specifier}`.toLowerCase()
-              const isRiskyTightUnder = fullDesc.includes('0.5') || fullDesc.includes('1.5') || fullDesc.includes('2.5')
-              if (isRiskyTightUnder || prob < 0.70 || odds < 1.22) {
-                continue
-              }
+              continue
+            }
+            if (odds < 1.20) {
+              continue
             }
 
-            // Strictly exclude obscure handicaps, cleansheets, and booking traps
-            if (family === 'handicap' || family === 'cleansheet' || family === 'cards_bookings' || family === 'intervals_halves') {
+            // Strictly exclude obscure handicaps, corner handicaps, cleansheets, and booking traps
+            if (family === 'handicap' || family === 'cleansheet' || family === 'cards_bookings' || family === 'intervals_halves' ||
+                mDesc.toLowerCase().includes('handicap') || oDesc.toLowerCase().includes('handicap') ||
+                mDesc.toLowerCase().includes('draw no bet') || oDesc.toLowerCase().includes('dnb')) {
               continue
             }
 
