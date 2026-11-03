@@ -253,63 +253,71 @@ export function analyzeFixtureIndependently(
     }
 
     // Evaluation Score:
-    // Balances Calibrated Probability, Expected Value, and Accumulator Compounding Efficiency.
-    // Discourages low-odds micro-padding (odds < 1.25) that forces accumulators to stack 20 legs.
+    // Prioritizes core football markets that punters actually bet on:
+    // 1X2, 1X2 - 2UP (Early Payout), Double Chance, Over 1.5/2.5 Goals, GG/BTTS, and Corners!
+    const is2UP = pick.marketId === '60100' || nameLower.includes('2up') || nameLower.includes('2-up')
+    const is1X2 = pick.marketId === '1' || nameLower.includes('1x2') || (nameLower.includes('winner') && !nameLower.includes('corner'))
     const isDC = pick.marketId === '10' || nameLower.includes('double chance')
-    const is1X2 = pick.marketId === '1' || nameLower.includes('1x2') || nameLower.includes('winner')
     const isOverGoals = outcomeLower.includes('over')
     const isOver1_5 = isOverGoals && (mLower.includes('1.5') || outcomeLower.includes('1.5'))
     const isOver2_5 = isOverGoals && (mLower.includes('2.5') || outcomeLower.includes('2.5'))
-    const isBTTS = pick.marketFamily === 'btts' || mLower.includes('btts') || mLower.includes('gg')
+    const isBTTS = pick.marketFamily === 'btts' || mLower.includes('btts') || mLower.includes('gg') || nameLower.includes('gg')
     const isCorners = (pick.marketFamily as string) === 'corners' || nameLower.includes('corner')
     const isDNB = (pick.marketFamily as string) === 'dnb' || nameLower.includes('draw no bet') || nameLower.includes('dnb')
-    const isCleanSheetNo = nameLower.includes('clean sheet') && outcomeLower.includes('no')
-    const isMicroUnder = outcomeLower.includes('under') && (mLower.includes('4.5') || mLower.includes('3.5') || mLower.includes('4'))
+    const isHandicap = (pick.marketFamily as string) === 'handicap' || nameLower.includes('handicap') || mLower.includes('handicap')
+    const isCleanSheet = nameLower.includes('clean sheet') || mLower.includes('clean sheet')
+    const isMicroUnder = outcomeLower.includes('under') && (mLower.includes('4.5') || mLower.includes('3.5') || mLower.includes('4') || mLower.includes('5'))
 
     // Base score: Calibrated Probability (0-100) + Edge bonus
-    let score = (trueProb * 80) + Math.max(0, edge) * 40 + Math.max(0, ev) * 30
+    let score = (trueProb * 80) + Math.max(0, edge) * 45 + Math.max(0, ev) * 35
 
-    // Accumulator Efficiency: Boost the sweet spot of solid value odds (1.28 to 1.75)
-    if (odds >= 1.28 && odds <= 1.70) {
-      score += 15 // Healthy odds that build an acca without bloating leg count
+    // Sweet spot of solid punter odds (1.25 to 1.85)
+    if (odds >= 1.25 && odds <= 1.75) {
+      score += 20 // Ideal building block odds
     }
 
-    // Heavy penalty for micro-odds filler traps (odds < 1.22) that destroy accas with 20 legs
+    // Heavy penalty for micro-odds filler traps (< 1.22)
     if (odds < 1.20) {
       score -= 35
     } else if (odds < 1.25) {
-      score -= 18
+      score -= 15
     }
 
-    // Boost verified high-interest football markets
+    // ── Massive Boost for High-Confidence Core Punter Markets ───────────────
+    if (is2UP && trueProb >= 0.52) {
+      score += 28 // 1X2 2UP Early Payout — premier SportyBet market
+    }
+    if (isDC && trueProb >= 0.68) {
+      score += 26 // Double Chance 1X / X2 — highest survival rate
+    }
     if (isOver1_5 && trueProb >= 0.65) {
-      score += 18 // Classic Over 1.5 goals
+      score += 24 // Over 1.5 Goals
+    }
+    if (isCorners && trueProb >= 0.60) {
+      score += 22 // Corners Over (Over 7.5, 8.5, 9.5)
     }
     if (isOver2_5 && trueProb >= 0.52) {
-      score += 16 // Value Over 2.5 goals
+      score += 22 // Over 2.5 Goals
+    }
+    if (is1X2 && trueProb >= 0.55 && odds >= 1.28) {
+      score += 22 // Match winner (Straight Win)
     }
     if (isBTTS && trueProb >= 0.52) {
-      score += 15 // Both teams to score
-    }
-    if (is1X2 && trueProb >= 0.55 && odds >= 1.30) {
-      score += 14 // Match winner value
-    }
-    if (isDNB && trueProb >= 0.60) {
-      score += 12 // Draw no bet protection
-    }
-    if (isCorners && trueProb >= 0.62) {
-      score += 12 // Corner line consistency
-    }
-    if (isDC && odds >= 1.22 && trueProb >= 0.70) {
-      score += 10 // Steady double chance
+      score += 20 // Both teams to score (GG)
     }
 
-    // Suppress uninspiring filler markets
-    if (isMicroUnder && odds < 1.25) {
-      score -= 25 // Suppress Under 4.5 @ 1.15
+    // ── Suppress & Demote Non-Standard / Obscure Markets ────────────────────
+    if (isDNB) {
+      score -= 15 // Demote DNB unless no DC/1X2 available
     }
-    if (isCleanSheetNo && odds < 1.25) {
-      score -= 22 // Suppress Clean Sheet No @ 1.18
+    if (isHandicap) {
+      score -= 28 // Demote obscure Asian Handicaps (e.g. +1.0 @ 1.15)
+    }
+    if (isCleanSheet) {
+      score -= 25 // Demote Clean Sheet markets
+    }
+    if (isMicroUnder && odds < 1.25) {
+      score -= 30 // Suppress Under 4.5 / 5.5 micro odds
     }
 
     evaluated.push({

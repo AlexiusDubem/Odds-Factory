@@ -20,6 +20,8 @@ import {
   type TargetOddsAssemblyResult
 } from '../engine/fixtureAnalyzer'
 import { batchGenerateEvidenceRationales } from '../engine/geminiService'
+import { PunterKycModal, DEFAULT_PUNTER_DNA, type PunterDna } from './PunterKycModal'
+import { EliteSinglesExplorer } from './EliteSinglesExplorer'
 
 interface Props {
   onSendToAudit?: (slip: Slip) => void
@@ -134,6 +136,18 @@ const MARKET_FAMILY_OPTIONS = [
 ] as const
 
 export function AccaBuilderPanel({ onSendToAudit }: Props) {
+  // ── Tab & Punter DNA State ────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'builder' | 'singles'>('builder')
+  const [showPunterKycModal, setShowPunterKycModal] = useState<boolean>(false)
+  const [punterDna, setPunterDna] = useState<PunterDna>(() => {
+    try {
+      const saved = localStorage.getItem('odds_factory_punter_dna')
+      return saved ? JSON.parse(saved) : DEFAULT_PUNTER_DNA
+    } catch {
+      return DEFAULT_PUNTER_DNA
+    }
+  })
+
   // Real live picks from SportyBet
   const [allLivePicks, setAllLivePicks] = useState<DailySurePick[]>(DAILY_SURE_PICKS)
   const [discoveredCompetitions, setDiscoveredCompetitions] = useState<DiscoveredCompetition[]>([])
@@ -164,10 +178,8 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
   // ── Match Intelligence & AI Challenger State ────────────────────────────────
   const [inspectingPick, setInspectingPick] = useState<DailySurePick | null>(null)
-  const [isChallenging, setIsChallenging] = useState<boolean>(false)
-  const [challengeResults, setChallengeResults] = useState<Record<string, ChallengeResult>>({})
-  const [geminiEnrichingIds, setGeminiEnrichingIds] = useState<Set<string>>(new Set())
-
+    const [challengeResults, setChallengeResults] = useState<Record<string, ChallengeResult>>({})
+  
   // ── Booking Code State ─────────────────────────────────────────────────────
   const [isBooking, setIsBooking] = useState(false)
   const [bookingCode, setBookingCode] = useState<string | null>(null)
@@ -260,6 +272,122 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setHasGenerated(false)
     fetchLiveSportyBetMatches(newDur)
   }
+  // ── Punter DNA Integration ────────────────────────────────────────────────
+  const handleSavePunterDna = (newDna: PunterDna) => {
+    setPunterDna(newDna)
+    if (newDna.preferredLeague === 'ucl_major') {
+      setLeagueScope('major')
+    } else {
+      setLeagueScope('all')
+    }
+
+    if (newDna.playstyle === 'banker') {
+      setSelectedMarketFamilies(['double_chance', 'goals'])
+      setRiskLevel(1)
+    } else if (newDna.playstyle === 'goals') {
+      setSelectedMarketFamilies(['goals', 'btts'])
+      setRiskLevel(2)
+    } else if (newDna.playstyle === 'corners') {
+      setSelectedMarketFamilies(['corners'])
+      setRiskLevel(2)
+    } else if (newDna.playstyle === 'winner') {
+      setSelectedMarketFamilies(['match_result'])
+      setRiskLevel(2)
+    } else {
+      setSelectedMarketFamilies(['ALL'])
+    }
+
+    if (newDna.targetProfile === 'safe') {
+      setNumGames(4)
+    } else if (newDna.targetProfile === 'daring') {
+      setNumGames(10)
+    } else {
+      setNumGames(6)
+    }
+  }
+
+  // ── Surprise Me: 1-Click Best Bet Generator ───────────────────────────────
+  const handleSurpriseMe = () => {
+    if (allLivePicks.length === 0) return
+    setIsAnalyzing(true)
+    setBookingCode(null)
+    setBookingError(null)
+    setShareUrl(null)
+
+    const fixtureMap = new Map<string, DailySurePick[]>()
+    for (const p of allLivePicks) {
+      if (!fixtureMap.has(p.eventId)) fixtureMap.set(p.eventId, [])
+      fixtureMap.get(p.eventId)!.push(p)
+    }
+
+    const getCompPriority = (p?: DailySurePick) => {
+      if (!p) return 0
+      const l = (p.league || '').toLowerCase()
+      if (l.includes('champions league') || l.includes('ucl')) return 1000
+      if (l.includes('europa league')) return 900
+      if (l.includes('conference league')) return 850
+      if (l.includes('premier league')) return 800
+      if (l.includes('la liga') || l.includes('serie a') || l.includes('bundesliga')) return 750
+      if (l.includes('championship')) return 650
+      return 100
+    }
+
+    const sortedGroups = [...fixtureMap.values()].sort((a, b) => {
+      const pA = getCompPriority(a[0])
+      const pB = getCompPriority(b[0])
+      if (pA !== pB) return pB - pA
+      return (a[0]?.hoursFromNow ?? 48) - (b[0]?.hoursFromNow ?? 48)
+    })
+
+    const surprisePicks: DailySurePick[] = []
+    const legCount = punterDna.targetProfile === 'safe' ? 4 : punterDna.targetProfile === 'daring' ? 8 : 5
+
+    for (const group of sortedGroups) {
+      if (surprisePicks.length >= legCount) break
+      const candidate =
+        group.find(p => p.marketId === '60100' && p.odds <= 1.85) ||
+        group.find(p => p.marketId === '10' && p.odds >= 1.22 && p.odds <= 1.65) ||
+        group.find(p => p.market.includes('Over 1.5') && p.odds >= 1.20) ||
+        group.find(p => p.marketFamily === 'corners' && p.odds >= 1.25 && p.odds <= 1.70) ||
+        group.find(p => p.marketFamily === 'btts' && p.odds >= 1.35 && p.odds <= 1.80) ||
+        group.find(p => p.marketId === '1' && p.odds >= 1.25 && p.odds <= 1.75) ||
+        group[0]
+
+      if (candidate && !surprisePicks.some(sp => sp.eventId === candidate.eventId)) {
+        surprisePicks.push(candidate)
+      }
+    }
+
+    if (surprisePicks.length > 0) {
+      const results: Record<string, ChallengeResult> = {}
+      for (const pick of surprisePicks) {
+        results[pick.id] = challengeSelection(pick, allLivePicks)
+      }
+      setChallengeResults(results)
+      setChosenPicks(surprisePicks)
+      setHasGenerated(true)
+      setActiveTab('builder')
+    }
+    setIsAnalyzing(false)
+  }
+
+  // ── Toggle Pick from Singles Explorer ─────────────────────────────────────
+  const handleTogglePickFromExplorer = (pick: DailySurePick) => {
+    setChosenPicks((prev) => {
+      const exists = prev.some((p) => p.id === pick.id)
+      if (exists) {
+        return prev.filter((p) => p.id !== pick.id)
+      } else {
+        const withoutEvent = prev.filter((p) => p.eventId !== pick.eventId)
+        return [...withoutEvent, pick]
+      }
+    })
+    setHasGenerated(true)
+    setBookingCode(null)
+    setBookingError(null)
+    setShareUrl(null)
+  }
+
 
   // ── Independent Fixture Analysis & Assembly Algorithm ─────────────────────
   // Core Principle:
@@ -295,7 +423,23 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
       // A ticket needs a high-quality pool, not every market in a 100-fixture
       // bookmaker response. This bounded pool keeps generation fast on phones.
+      // Prioritize Champions League and elite competitions first!
+      const getCompPriority = (p?: DailySurePick) => {
+        if (!p) return 0
+        const l = (p.league || '').toLowerCase()
+        if (l.includes('champions league') || l.includes('ucl')) return 1000
+        if (l.includes('europa league')) return 900
+        if (l.includes('conference league')) return 850
+        if (l.includes('premier league')) return 800
+        if (l.includes('la liga') || l.includes('serie a') || l.includes('bundesliga')) return 750
+        if (l.includes('championship')) return 650
+        return 100
+      }
+
       const fixtureGroups = [...fixtureMap.values()].sort((a, b) => {
+        const prioA = getCompPriority(a[0])
+        const prioB = getCompPriority(b[0])
+        if (prioA !== prioB) return prioB - prioA // UEFA Champions League and top tiers always first!
         const hoursA = a[0]?.hoursFromNow ?? 48
         const hoursB = b[0]?.hoursFromNow ?? 48
         if (hoursA !== hoursB) return hoursA - hoursB
@@ -365,6 +509,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         .filter(f => f.chosenMarket?.rawPick)
         .map(f => {
           const raw = f.chosenMarket!.rawPick
+          let badge = raw.badgeLabel || 'LOWER VARIANCE'
+          if (raw.marketId === '60100') badge = '⚡ 2UP Early Payout'
+          else if (raw.marketId === '10') badge = '🛡️ Double Chance Lock'
+          else if (raw.marketFamily === 'corners') badge = '🚩 Corner Play'
+          else if (raw.marketFamily === 'btts') badge = '🔥 BTTS / GG Signal'
+          else if (f.chosenMarket?.selection.includes('Over 1.5')) badge = '⚽ Over 1.5 Goals'
+          else if (f.chosenMarket?.selection.includes('Over 2.5')) badge = '⚽ Over 2.5 Goals'
+          else if (raw.marketId === '1') badge = '🎯 Match Winner'
+
           return {
             ...raw,
             market: f.chosenMarket!.selection,
@@ -374,6 +527,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             confidenceScore: Math.round(f.chosenMarket!.modelProbability * 100),
             ev: f.chosenMarket!.ev,
             edge: f.chosenMarket!.edge,
+            badgeLabel: badge,
             modelRationale: f.reason,
           }
         })
@@ -419,7 +573,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       if (finalPicks.length > 0) {
         try {
           const timeoutPromise = new Promise<Record<string, string>>((resolve) =>
-            setTimeout(() => resolve({}), 2500)
+            setTimeout(() => resolve({}), 5000)
           )
           const rationales = await Promise.race([
             batchGenerateEvidenceRationales(finalPicks),
@@ -432,6 +586,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
           // Model rationale already present from fixture analyzer
         }
       }
+
+      const challengeVerdicts: Record<string, ChallengeResult> = {}
+      for (const pick of finalPicks) {
+        challengeVerdicts[pick.id] = challengeSelection(pick, allLivePicks)
+      }
+      setChallengeResults(challengeVerdicts)
 
       setChosenPicks(finalPicks)
       setHasGenerated(true)
@@ -462,97 +622,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     return Math.round(stake * combinedOdds)
   }, [stake, combinedOdds])
 
-  // ── Optional Gemini Rationale Generation (On Demand) ──────────────────────
-  // Available on user request after the statistical fixture analysis completes.
-  const [isEnrichingGemini, setIsEnrichingGemini] = useState<boolean>(false)
-
-  const handleEnrichWithGemini = async () => {
-    if (chosenPicks.length === 0 || isEnrichingGemini) return
-    setIsEnrichingGemini(true)
-
-    for (const pick of chosenPicks) {
-      const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
-      if (!analysis || !analysis.chosenMarket) continue
-
-      setGeminiEnrichingIds(prev => new Set(prev).add(pick.id))
-
-      try {
-        const payload = {
-          fixture: {
-            id: pick.eventId,
-            home: pick.homeTeam,
-            away: pick.awayTeam,
-            league: pick.league,
-            kickoff: pick.estimateStartTime,
-          },
-          allowedMarketFamilies: selectedMarketFamilies,
-          availableMarkets: analysis.alternativesConsidered?.map(a => ({
-            name: a.market,
-            selection: a.selection,
-            odds: a.decimalOdds,
-            family: a.marketFamily,
-          })) || [],
-          stats: {
-            chosenMarket: analysis.chosenMarket.sportyBetMarketName,
-            chosenSelection: analysis.chosenMarket.selection,
-            chosenOdds: analysis.chosenMarket.decimalOdds,
-            modelProbability: analysis.chosenMarket.modelProbability,
-            ev: analysis.chosenMarket.ev,
-            edge: analysis.chosenMarket.edge,
-            confidence: analysis.chosenMarket.confidence,
-            evidence: analysis.evidence,
-            riskFlags: analysis.riskFlags,
-          },
-        }
-
-        let res = await fetch('/api/fixture-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).catch(() => null)
-
-        if (!res || !res.ok) {
-          res = await fetch('/api/local/fixture-analysis', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }).catch(() => null)
-        }
-
-        if (!res || !res.ok) {
-          res = await fetch('http://localhost:3001/fixture-analysis', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }).catch(() => null)
-        }
-
-        if (res && res.ok) {
-          const data = await res.json()
-          if (data.success && data.result?.reason) {
-            setChosenPicks(prev =>
-              prev.map(p =>
-                p.id === pick.id
-                  ? { ...p, modelRationale: data.result.reason }
-                  : p
-              )
-            )
-          }
-        }
-      } catch {
-        // Fall back to Poisson model evidence
-      } finally {
-        setGeminiEnrichingIds(prev => {
-          const next = new Set(prev)
-          next.delete(pick.id)
-          return next
-        })
-      }
-    }
-
-    setIsEnrichingGemini(false)
-  }
-
   const handleRemovePick = (pickId: string) => {
     setChosenPicks((prev) => prev.filter((p) => p.id !== pickId))
     setBookingCode(null)
@@ -565,19 +634,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     })
   }
 
-  // ── AI Selection Challenger & Market Swapper ──────────────────────────────
-  const handleRunAIChallenger = () => {
-    setIsChallenging(true)
-    setTimeout(() => {
-      const results: Record<string, ChallengeResult> = {}
-      for (const pick of chosenPicks) {
-        results[pick.id] = challengeSelection(pick, allLivePicks)
-      }
-      setChallengeResults(results)
-      setIsChallenging(false)
-    }, 350)
-  }
-
+  // ── AI Selection Challenger Market Swapper ────────────────────────────────
   const handleApplySwap = (originalPickId: string, newPick: DailySurePick) => {
     const enriched = {
       ...newPick,
@@ -623,12 +680,21 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setBookingError(null)
     setShareUrl(null)
 
-    const selections = chosenPicks.map((pick) => ({
-      eventId: pick.eventId,
-      marketId: pick.marketId,
-      outcomeId: pick.outcomeId,
-      specifier: pick.specifier || '',
-    }))
+    const selections = chosenPicks.map((pick) => {
+      let spec = pick.specifier || ''
+      if (!spec && (pick.marketId === '18' || pick.marketId === '166')) {
+        const numMatch = (pick.market || '').match(/(\d+\.\d+|\d+)/)
+        if (numMatch) {
+          spec = `total=${numMatch[1]}`
+        }
+      }
+      return {
+        eventId: pick.eventId,
+        marketId: pick.marketId,
+        outcomeId: pick.outcomeId,
+        specifier: spec,
+      }
+    })
 
     try {
       // 1. Try local dev proxy (/api/local/book)
@@ -761,18 +827,165 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
   return (
     <div className="space-y-6 w-full pb-12 font-sans">
-      {/* ── Page Intro ───────────────────────────────────────────────────────── */}
-      <section className="page-intro">
-        <div className="eyebrow flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Model-ranked picks · Live market explorer</span>
-        </div>
-        <h2>Considered picks.<br />Real booking codes.</h2>
-        <p>Set the guardrails, then let the engine find a healthier set of selections across active SportyBet markets.</p>
-      </section>
+      {/* ── Punter KYC & DNA Modal ───────────────────────────────────────────── */}
+      <PunterKycModal
+        isOpen={showPunterKycModal}
+        currentDna={punterDna}
+        onSave={handleSavePunterDna}
+        onClose={() => setShowPunterKycModal(false)}
+      />
 
-      {/* ── Ticket Filters Card ──────────────────────────────────────────────── */}
-      <section className="card filters-box">
+      {/* ── Punter Profile & Matchday Control Bar ────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 text-[#dfff46] flex items-center justify-center shrink-0">
+            <i className="fa-solid fa-fingerprint text-lg" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                Active Punter DNA
+              </span>
+            </div>
+            <div className="text-xs font-extrabold text-white flex items-center gap-2 flex-wrap">
+              <span>
+                {punterDna.playstyle === 'banker'
+                  ? '🛡️ The Safe Banker (Double Chance & 2UP)'
+                  : punterDna.playstyle === 'goals'
+                  ? '⚽ The Goal Hunter (Over 2.5 & BTTS)'
+                  : punterDna.playstyle === 'corners'
+                  ? '🚩 Corner Specialist'
+                  : punterDna.playstyle === 'winner'
+                  ? '🎯 Match Winner (1X2 & 2UP)'
+                  : '🌍 Balanced Punter'}
+              </span>
+              <span className="text-zinc-500">•</span>
+              <span className="text-[#dfff46] font-mono font-semibold">
+                {punterDna.preferredLeague === 'ucl_major' ? 'Champions League & Elite First' : 'All Leagues'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowPunterKycModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+          >
+            <i className="fa-solid fa-sliders text-[11px]" />
+            <span>Customize Style</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSurpriseMe}
+            disabled={isAnalyzing}
+            className="px-4 py-1.5 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-[#16201c] font-black text-xs transition-transform active:scale-95 cursor-pointer shadow-xs flex items-center gap-1.5"
+            title="Generate an instant optimal 4-game slip from tonight's best matches"
+          >
+            <i className="fa-solid fa-dice text-[12px]" />
+            <span>Surprise Me</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Mode Switcher Tabs ──────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('builder')}
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'builder'
+                ? 'bg-[#16201c] text-[#dfff46] shadow-xs'
+                : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'
+            }`}
+          >
+            <i className="fa-solid fa-wand-magic-sparkles" />
+            <span>Acca Optimizer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('singles')}
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'singles'
+                ? 'bg-[#16201c] text-[#dfff46] shadow-xs'
+                : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'
+            }`}
+          >
+            <i className="fa-solid fa-futbol" />
+            <span>Tonight's Matches & Singles</span>
+            {chosenPicks.length > 0 && (
+              <span className="w-5 h-5 rounded-full bg-[#dfff46] text-[#16201c] text-[10px] font-mono font-black inline-grid place-items-center">
+                {chosenPicks.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <span className="text-[11px] font-mono text-zinc-500">
+          {isLoadingLive ? 'Syncing SportyBet live feed…' : `${allLivePicks.length} live verified lines active`}
+        </span>
+      </div>
+
+      {/* ── View 1: Tonight's Matches & Singles Explorer ──────────────────────── */}
+      {activeTab === 'singles' && (
+        <div className="space-y-6">
+          <EliteSinglesExplorer
+            allLivePicks={allLivePicks}
+            selectedPickIds={new Set(chosenPicks.map((p) => p.id))}
+            onTogglePick={handleTogglePickFromExplorer}
+            onInspectPick={setInspectingPick}
+          />
+
+          {/* Floating Betslip Action Bar for Singles Mode */}
+          {chosenPicks.length > 0 && (
+            <div className="sticky bottom-4 z-40 p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-3 duration-200">
+              <div className="flex items-center gap-3">
+                <span className="w-8 h-8 rounded-full bg-[#dfff46] text-zinc-950 font-black text-xs inline-grid place-items-center">
+                  {chosenPicks.length}
+                </span>
+                <div>
+                  <div className="text-xs font-extrabold text-white">
+                    {chosenPicks.length} Match Selections in Slip
+                  </div>
+                  <div className="text-[11px] text-zinc-400 font-mono">
+                    Combined Odds: <b className="text-[#dfff46]">@{combinedOdds.toFixed(2)}x</b> • Est. Ticket Chance: <b>{survivalProbability}%</b>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('builder')}
+                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                >
+                  View Slip in Builder
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateRealBookingCode}
+                  disabled={isBooking}
+                  className="px-5 py-2 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-zinc-950 font-black text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <i className="fa-solid fa-ticket" />
+                  <span>{isBooking ? 'Booking…' : 'Get SportyBet Code'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── View 2: Acca Generator & Conditions ─────────────────────────────── */}
+      {activeTab === 'builder' && (
+        <>
+          {/* ── Ticket Filters Card ──────────────────────────────────────────────── */}
+          <section className="card filters-box">
         <div className="filter-step">
           <span className="num">01</span>
           <b>Set your ticket conditions</b>
@@ -912,45 +1125,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
           )}
 
-          {/* Rejected Fixtures (No Qualifying Selection) Accordion */}
-          {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length > 0 && (
-            <div className="card p-4 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowNonQualifying(!showNonQualifying)}
-                className="w-full flex items-center justify-between text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-zinc-100 text-zinc-500 inline-grid place-items-center text-xs">
-                    <i className="fa-solid fa-filter-circle-xmark" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-zinc-800">
-                      {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length} Fixtures Rejected (No Qualifying Selection)
-                    </span>
-                    <span className="block text-[10px] text-zinc-500">
-                      Matches evaluated where offered markets failed evidence or EV threshold.
-                    </span>
-                  </div>
-                </div>
-                <i className={`fa-solid ${showNonQualifying ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs text-zinc-400`} />
-              </button>
 
-              {showNonQualifying && (
-                <div className="mt-3 pt-3 border-t border-zinc-100 divide-y divide-zinc-100 text-xs text-zinc-600 animate-in fade-in duration-200">
-                  {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').map((f) => (
-                    <div key={f.fixtureId} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <div>
-                        <span className="font-bold text-zinc-800">{f.fixture}</span>
-                        <span className="text-[10px] text-zinc-400 ml-2 font-mono">({f.league})</span>
-                      </div>
-                      <span className="text-[11px] text-amber-700 font-mono">{f.reason}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* 5. Risk Level */}
@@ -1073,35 +1248,23 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={handleEnrichWithGemini}
-                disabled={isEnrichingGemini}
-                className="chip font-bold text-xs"
-                title="Generate narrative AI reasoning for selections"
-              >
-                <i className={`fa-solid fa-brain text-emerald-600 text-xs ${isEnrichingGemini ? 'animate-pulse' : ''}`}></i>
-                <span>{isEnrichingGemini ? 'Enriching…' : 'AI Explanations'}</span>
-              </button>
-              <button
-                onClick={handleRunAIChallenger}
-                disabled={isChallenging}
-                className="chip font-bold text-xs"
-              >
-                <i className="fa-solid fa-wand-magic-sparkles text-amber-500 text-xs"></i>
-                <span>{isChallenging ? 'Auditing…' : 'Audit Slip'}</span>
-              </button>
-              <button
+                type="button"
                 onClick={handleRunAnalysisAndGenerate}
+                disabled={isAnalyzing}
                 className="chip font-bold text-xs"
+                title="Re-run analysis to generate fresh selections"
               >
-                <i className="fa-solid fa-rotate text-xs"></i>
-                <span>Re-Roll</span>
+                <i className="fa-solid fa-rotate text-xs" />
+                <span>Re-Roll Fresh Slip</span>
               </button>
               {onSendToAudit && (
                 <button
+                  type="button"
                   onClick={handleSendToAudit}
                   className="chip font-bold text-xs"
+                  title="Open this slip in the deep auditor"
                 >
-                  <i className="fa-solid fa-magnifying-glass-chart text-xs"></i>
+                  <i className="fa-solid fa-magnifying-glass-chart text-xs" />
                   <span>Deep Audit</span>
                 </button>
               )}
@@ -1191,12 +1354,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
                       <p className="text-xs text-[#71807a] leading-relaxed font-normal pt-0.5">
                         {pick.modelRationale}
-                        {geminiEnrichingIds.has(pick.id) && (
-                          <span className="ml-1.5 inline-flex items-center gap-1 text-[10px] text-emerald-600 font-mono animate-pulse">
-                            <i className="fa-solid fa-brain text-[9px]" />
-                            Gemini analysing…
-                          </span>
-                        )}
+                        
                       </p>
 
                       {/* Analysis Rationale & Alternatives Expander */}
@@ -1369,6 +1527,48 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             </div>
           )}
         </div>
+      )}
+
+          {/* Analysis Diagnostics / Non-qualifying Fixtures */}
+          {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length > 0 && (
+            <div className="card p-4 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowNonQualifying(!showNonQualifying)}
+                className="w-full flex items-center justify-between text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-zinc-100 text-zinc-500 inline-grid place-items-center text-xs">
+                    <i className="fa-solid fa-filter-circle-xmark" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-zinc-800">
+                      {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length} Fixtures Excluded by Safety Filters
+                    </span>
+                    <span className="block text-[10px] text-zinc-500">
+                      Matches evaluated where offered bookmaker lines failed evidence or probability thresholds.
+                    </span>
+                  </div>
+                </div>
+                <i className={`fa-solid ${showNonQualifying ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs text-zinc-400`} />
+              </button>
+
+              {showNonQualifying && (
+                <div className="mt-3 pt-3 border-t border-zinc-100 divide-y divide-zinc-100 text-xs text-zinc-600 animate-in fade-in duration-200">
+                  {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').map((f) => (
+                    <div key={f.fixtureId} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div>
+                        <span className="font-bold text-zinc-800">{f.fixture}</span>
+                        <span className="text-[10px] text-zinc-400 ml-2 font-mono">({f.league})</span>
+                      </div>
+                      <span className="text-[11px] text-amber-700 font-mono">{f.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Dottaa-style Booking Code Modal / Bottom Sheet ─────────────────── */}

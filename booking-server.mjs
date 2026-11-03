@@ -412,40 +412,45 @@ const server = http.createServer(async (req, res) => {
         if (!text) return false
         const lower = String(text).toLowerCase()
         return (
-          // Israeli low tiers
+          // English non-league / youth reserves
+          lower.includes('northern premier') ||
+          lower.includes('southern league') ||
+          lower.includes('southern premier') ||
+          lower.includes('isthmian') ||
+          lower.includes('challenge cup') ||
+          lower.includes('efl trophy') ||
+          lower.includes('premier league 2') ||
+          lower.includes('development league') ||
+          lower.includes('u21') ||
+          lower.includes('u23') ||
+          lower.includes('u19') ||
+          lower.includes('u20') ||
+          lower.includes('youth') ||
+          lower.includes('reserves') ||
+          lower.includes('b team') ||
+          // Low European tiers & amateur
           lower.includes('alef') ||
           lower.includes('liga bet') ||
           lower.includes('liga gimel') ||
-          // Spanish low tiers
           lower.includes('tercera') ||
           lower.includes('preferente') ||
           lower.includes('autonomica') ||
           lower.includes('division de honor') ||
           (lower.includes('rfef') && (lower.includes('segunda') || lower.includes('tercera'))) ||
-          // German low tiers
           lower.includes('oberliga') ||
           lower.includes('regionalliga') ||
           lower.includes('landesliga') ||
           lower.includes('verbandsliga') ||
-          // Italian low tiers
           lower.includes('serie d') ||
           lower.includes('eccellenza') ||
           lower.includes('promozione') ||
-          // French low tiers
           lower.includes('national 2') ||
           lower.includes('national 3') ||
           lower.includes('regional 1') ||
           lower.includes('ligue 3') ||
-          // English non-league / semi-pro
-          lower.includes('isthmian') ||
-          lower.includes('northern premier') ||
-          lower.includes('southern premier') ||
-          lower.includes('national league north') ||
-          lower.includes('national league south') ||
-          // Dutch lower amateur
           lower.includes('derde divisie') ||
           lower.includes('vierde divisie') ||
-          // General amateur/youth/simulated
+          // Simulated / Virtual / Esports
           lower.includes('srl') ||
           lower.includes('simulated') ||
           lower.includes('virtual') ||
@@ -455,16 +460,36 @@ const server = http.createServer(async (req, res) => {
           lower.includes('esport') ||
           lower.includes('fifa') ||
           lower.includes('pes ') ||
-          lower.includes('u19') ||
-          lower.includes('u20') ||
-          lower.includes('u21') ||
-          lower.includes('u23') ||
-          lower.includes('youth') ||
-          lower.includes('reserves') ||
           lower.includes('amateur') ||
           lower.includes('regional cup')
         )
       }
+
+      // ── Competition Priority Scoring (Elite Champions League & Major First) ───
+      const getTournamentPriority = (name = '', cat = '') => {
+        const lower = `${name} ${cat}`.toLowerCase()
+        if (lower.includes('champions league') || lower.includes('ucl')) return 1000
+        if (lower.includes('europa league')) return 920
+        if (lower.includes('conference league')) return 880
+        if (lower.includes('premier league') && !lower.includes('northern') && !lower.includes('southern')) return 850
+        if (lower.includes('la liga') || lower.includes('laliga')) return 820
+        if (lower.includes('serie a')) return 800
+        if (lower.includes('bundesliga') && !lower.includes('2.')) return 800
+        if (lower.includes('ligue 1')) return 780
+        if (lower.includes('championship')) return 720
+        if (lower.includes('copa del rey') || lower.includes('fa cup') || lower.includes('dfb pokal') || lower.includes('coppa italia')) return 680
+        if (lower.includes('eredivisie') || lower.includes('primeira liga')) return 650
+        if (lower.includes('copa libertadores') || lower.includes('copa sudamericana')) return 620
+        if (lower.includes('saudi pro') || lower.includes('mls') || lower.includes('brasileiro')) return 550
+        return 100
+      }
+
+      // Sort tournaments strictly by Elite Tier Priority so UCL/EPL are ALWAYS first!
+      tournaments.sort((a, b) => {
+        const pA = getTournamentPriority(a.name, a.categoryName)
+        const pB = getTournamentPriority(b.name, b.categoryName)
+        return pB - pA
+      })
 
       const discoveredCompetitions = []
       const seenTournIds = new Set()

@@ -137,7 +137,7 @@ async function getLeagueFormMap(leagueCode) {
 }
 
 /**
- * Find team in standings matching given query
+ * Find team in standings matching given query with strict club keyword protection
  */
 function matchTeam(queryName = '', teams = []) {
   if (!queryName || teams.length === 0) return null
@@ -147,14 +147,27 @@ function matchTeam(queryName = '', teams = []) {
   let found = teams.find((t) => t.displayName.toLowerCase() === q || t.name.toLowerCase() === q)
   if (found) return found
 
-  // 2. Contains match
-  found = teams.find((t) => t.displayName.toLowerCase().includes(q) || q.includes(t.displayName.toLowerCase()))
-  if (found) return found
+  // 2. Full phrase inclusion (minimum length 5 to prevent short abbreviation clashes)
+  if (q.length >= 5) {
+    found = teams.find((t) => t.displayName.toLowerCase().includes(q) || q.includes(t.displayName.toLowerCase()))
+    if (found) return found
+  }
 
-  // 3. Substring keyword match (e.g. 'Sevilla' in 'Sevilla FC', 'Osasuna' in 'CA Osasuna')
-  const words = q.split(/\s+/).filter((w) => w.length >= 4)
-  for (const w of words) {
-    found = teams.find((t) => t.displayName.toLowerCase().includes(w) || t.shortDisplayName.toLowerCase().includes(w))
+  // 3. Significant distinctive club name match (strictly ignore generic football terms)
+  const GENERIC_TERMS = new Set([
+    'fc', 'cf', 'sc', 'ac', 'cd', 'club', 'real', 'city', 'united', 'athletic',
+    'sporting', 'inter', 'de', 'la', 'the', 'al', 'el', 'fk', 'afc', 'racing',
+    'deportivo', 'atletico', 'wanderers', 'rovers', 'town', 'borussia', 'dynamo'
+  ])
+  const distinctiveWords = q.split(/[\s\-.]+/).filter((w) => w.length >= 4 && !GENERIC_TERMS.has(w))
+  
+  if (distinctiveWords.length > 0) {
+    // Must match ALL distinctive words to prevent false positive giant-club cross-matching
+    found = teams.find((t) => {
+      const dName = t.displayName.toLowerCase()
+      const sName = t.shortDisplayName.toLowerCase()
+      return distinctiveWords.every((w) => dName.includes(w) || sName.includes(w))
+    })
     if (found) return found
   }
 
