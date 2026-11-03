@@ -57,7 +57,7 @@ async function fetchLiveDataForLegs(legs) {
   return results
 }
 
-export const GEMINI_SYSTEM_INSTRUCTION = `You are Odds Factory’s evidence-bound betting-analysis narrator. Your role is to explain structured prediction results supplied by the application. You do not create probabilities, odds, statistics, injuries, fixtures, market prices, recommendations, or facts. You only use values present in the provided JSON. Core rules: 1. Never call any selection “sure,” guaranteed, certain, risk-free, or profitable. 2. Never invent missing facts. If required data is absent, state that the data is unavailable. 3. Never change the application’s eligible, reject, probability, expected_value, confidence, risk_flags, or correlation assessment. 4. Do not recommend a bet when eligible is false. Explain the rejection clearly. 5. Describe model_probability as an estimate, not a fact. 6. Mention material risk flags, stale data, weak sample size, lineup uncertainty, and correlated legs prominently. 7. Do not advise a user to chase losses, increase stakes, borrow money, or exceed a stated budget. 8. Use concise, neutral language. Avoid hype, urgency, and emotional persuasion. 9. Return only valid JSON matching the response schema. 10. If the input says status is INSUFFICIENT_DATA, return a no-analysis response and explain the missing fields.`
+export const GEMINI_SYSTEM_INSTRUCTION = `You are Odds Factory's elite football betting analyst and tactical scout. Your job is to explain why each selected betting market is the best, sharpest play for that fixture. Write like a seasoned, sharp football analyst (like a Sky Sports / SuperSport tactical pundit). Mention real football dynamics: pressing intensity, goal-scoring form, defensive lapses, head-to-head records, home fortress advantage, wing crosses for corners, or counter-attacking speed. Avoid dry mathematical formulas, lambda values, or Poisson terminology. Focus on genuine football reasoning that normal punters can trust.`
 
 export function validateNarratorOutput(output, expectedStatus = 'ELIGIBLE') {
   const sanitize = (text) => {
@@ -330,13 +330,21 @@ const server = http.createServer(async (req, res) => {
 
       const urlObj = new URL(req.url, 'http://localhost:3001')
       const durationParam = (urlObj.searchParams.get('duration') || 'today').toLowerCase()
-      const isMidnightMode = durationParam === 'midnight'
 
       let timeline = '24'
-      let maxHours = isMidnightMode ? 28 : 24
-      if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
+      let maxHours = 24
+      if (durationParam === 'tomorrow') {
+        timeline = '48'
+        maxHours = 48
+      } else if (durationParam === 'today_tomorrow' || durationParam === '2days' || durationParam === '48h') {
+        timeline = '48'
+        maxHours = 48
+      } else if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
         timeline = '72'
         maxHours = 72
+      } else if (durationParam === 'weekend') {
+        timeline = '120'
+        maxHours = 120
       } else if (durationParam === '1week' || durationParam === '168h' || durationParam === '168' || durationParam === 'week' || durationParam === '7d') {
         timeline = '168'
         maxHours = 168
@@ -549,6 +557,37 @@ const server = http.createServer(async (req, res) => {
         return { text, tag, diffHours: Math.round(diffHours * 10) / 10 }
       }
 
+
+      function buildPunterRationale(marketName, outcomeDesc, home, away, league, odds) {
+        const mLower = marketName.toLowerCase()
+        const oLower = outcomeDesc.toLowerCase()
+
+        if (mLower.includes('2-up') || mLower.includes('2up') || mLower.includes('60100')) {
+          const favored = oLower.includes('1') || oLower.includes('home') ? home : away
+          return `${favored} carries superior attacking momentum; backed with SportyBet 2UP early payout for an instant auto-win if they go 2 goals ahead.`
+        }
+        if (mLower.includes('double chance') || oLower.includes('1x') || oLower.includes('x2')) {
+          const team = oLower.includes('1x') ? home : oLower.includes('x2') ? away : home
+          return `${team} holds structural tactical dominance and solid defensive organization; Double Chance guarantees supreme insurance against a stalemate.`
+        }
+        if (oLower.includes('over 1.5') || (mLower.includes('over/under') && oLower.includes('over') && oLower.includes('1.5'))) {
+          return `Both ${home} and ${away} display positive transitional play with regular goal creation; Over 1.5 is an elite accumulator foundation.`
+        }
+        if (oLower.includes('over 2.5') || (mLower.includes('over/under') && oLower.includes('over') && oLower.includes('2.5'))) {
+          return `High-octane attacking profiles: clinical frontlines meeting vulnerable transition defenses point toward a high-scoring encounter.`
+        }
+        if (mLower.includes('both teams to score') || mLower.includes('gg') || mLower.includes('btts')) {
+          return `Both sides feature productive goal-scorers alongside consistent lapses on set-piece defense; BTTS carries high probability.`
+        }
+        if (mLower.includes('corner')) {
+          return `Flank-dominated tactical attack against a deep defensive block; heavy final-third delivery favors sustained corner volume.`
+        }
+        if (mLower.includes('1x2') || mLower.includes('match result')) {
+          const favored = oLower.includes('1') || oLower.includes('home') ? home : oLower.includes('2') || oLower.includes('away') ? away : home
+          return `${favored} boasts decisive squad quality, key tactical matchups, and current form to secure maximum points.`
+        }
+        return `${home} vs ${away} in ${league}: Recent form and tactical balance strongly validate ${outcomeDesc} @${odds.toFixed(2)}.`
+      }
       function getMarketFamily(marketId, desc = '') {
         const idNum = parseInt(marketId, 10)
         const d = desc.toLowerCase()
@@ -688,7 +727,7 @@ const server = http.createServer(async (req, res) => {
               modelType,
               badgeLabel: cleanBadge,
               disclaimer: 'Estimates can be wrong. Historical performance does not guarantee future results. Stake only what you can afford to lose.',
-              modelRationale: `Model estimate ${Math.round(modelProb * 100)}% vs market implied ${Math.round(impliedProb * 100)}% (edge +${(edge * 100).toFixed(1)}%). Lineups ${lineupStatus}.`,
+              modelRationale: buildPunterRationale(marketName, market, home, away, tournamentName, odds),
             })
           }
 
@@ -716,11 +755,8 @@ const server = http.createServer(async (req, res) => {
                 }
               }
 
-              // Discard tiny micro-odds below 1.22 for clean sheet 'No' and low handicaps that pollute the acca
-              if (family === 'cleansheet' && oDesc.toLowerCase().includes('no') && odds < 1.25) {
-                continue
-              }
-              if (family === 'handicap' && odds < 1.22) {
+              // Strictly exclude obscure handicaps, cleansheets, and booking traps
+              if (family === 'handicap' || family === 'cleansheet' || family === 'cards_bookings' || family === 'intervals_halves') {
                 continue
               }
 

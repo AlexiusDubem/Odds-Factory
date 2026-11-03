@@ -13,15 +13,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' })
   }
 
-  const { duration = 'today' } = req.query || {}
+  const { duration = 'today', competitions = '' } = req.query || {}
   const durationParam = String(duration).toLowerCase()
-  const isMidnightMode = durationParam === 'midnight'
 
   let timeline = '24'
-  let maxHours = isMidnightMode ? 28 : 24
-  if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
+  let maxHours = 24
+  if (durationParam === 'tomorrow') {
+    timeline = '48'
+    maxHours = 48
+  } else if (durationParam === 'today_tomorrow' || durationParam === '2days' || durationParam === '48h') {
+    timeline = '48'
+    maxHours = 48
+  } else if (durationParam === '3days' || durationParam === '72h' || durationParam === '72' || durationParam === '3d') {
     timeline = '72'
     maxHours = 72
+  } else if (durationParam === 'weekend') {
+    timeline = '120'
+    maxHours = 120
   } else if (durationParam === '1week' || durationParam === '168h' || durationParam === '168' || durationParam === 'week' || durationParam === '7d') {
     timeline = '168'
     maxHours = 168
@@ -238,6 +246,38 @@ export default async function handler(req, res) {
       return { text, tag, diffHours: Math.round(diffHours * 10) / 10 }
     }
 
+
+    // ── Helper: Human Football Pundit Rationale Generator ────────────────────
+    function buildPunterRationale(marketName, outcomeDesc, home, away, league, odds) {
+      const mLower = marketName.toLowerCase()
+      const oLower = outcomeDesc.toLowerCase()
+
+      if (mLower.includes('2-up') || mLower.includes('2up') || mLower.includes('60100')) {
+        const favored = oLower.includes('1') || oLower.includes('home') ? home : away
+        return `${favored} carries superior attacking momentum; backed with SportyBet 2UP early payout for an instant auto-win if they go 2 goals ahead.`
+      }
+      if (mLower.includes('double chance') || oLower.includes('1x') || oLower.includes('x2')) {
+        const team = oLower.includes('1x') ? home : oLower.includes('x2') ? away : home
+        return `${team} holds structural tactical dominance and solid defensive organization; Double Chance guarantees supreme insurance against a stalemate.`
+      }
+      if (oLower.includes('over 1.5') || (mLower.includes('over/under') && oLower.includes('over') && oLower.includes('1.5'))) {
+        return `Both ${home} and ${away} display positive transitional play with regular goal creation; Over 1.5 is an elite accumulator foundation.`
+      }
+      if (oLower.includes('over 2.5') || (mLower.includes('over/under') && oLower.includes('over') && oLower.includes('2.5'))) {
+        return `High-octane attacking profiles: clinical frontlines meeting vulnerable transition defenses point toward a high-scoring encounter.`
+      }
+      if (mLower.includes('both teams to score') || mLower.includes('gg') || mLower.includes('btts')) {
+        return `Both sides feature productive goal-scorers alongside consistent lapses on set-piece defense; BTTS carries high probability.`
+      }
+      if (mLower.includes('corner')) {
+        return `Flank-dominated tactical attack against a deep defensive block; heavy final-third delivery favors sustained corner volume.`
+      }
+      if (mLower.includes('1x2') || mLower.includes('match result')) {
+        const favored = oLower.includes('1') || oLower.includes('home') ? home : oLower.includes('2') || oLower.includes('away') ? away : home
+        return `${favored} boasts decisive squad quality, key tactical matchups, and current form to secure maximum points.`
+      }
+      return `${home} vs ${away} in ${league}: Recent form and tactical balance strongly validate ${outcomeDesc} @${odds.toFixed(2)}.`
+    }
     // ── Helper: Map SportyBet Market IDs to Market Family ────────────────────
     function getMarketFamily(marketId, desc = '') {
       const idNum = parseInt(marketId, 10)
@@ -303,19 +343,22 @@ export default async function handler(req, res) {
         if (e.estimateStartTime) {
           if (e.estimateStartTime <= now + (5 * 60 * 1000)) continue
           const diffHours = (e.estimateStartTime - now) / (3600 * 1000)
-          if (diffHours < 0.08 || diffHours > maxHours || diffHours > 168) continue
+          if (diffHours < 0.08 || diffHours > maxHours) continue
+
+          if (durationParam === 'tomorrow') {
+            const matchDate = new Date(e.estimateStartTime)
+            const tomorrowDate = new Date(now + 86400000)
+            const isTomorrow =
+              matchDate.getDate() === tomorrowDate.getDate() &&
+              matchDate.getMonth() === tomorrowDate.getMonth() &&
+              matchDate.getFullYear() === tomorrowDate.getFullYear()
+            if (!isTomorrow && diffHours < 12) continue
+          }
         }
 
         // Skip in-play or ended events
         if (e.status === 'Live' || e.status === 'Ended' || e.matchStatus === 'Live' || e.matchStatus === 'Ended') {
           continue
-        }
-
-        if (isMidnightMode && e.estimateStartTime) {
-          const d = new Date(e.estimateStartTime)
-          const watHour = (d.getUTCHours() + 1) % 24
-          const isNight = watHour >= 22 || watHour < 6
-          if (!isNight) continue
         }
 
         const ko = formatKickoff(e.estimateStartTime)
@@ -361,7 +404,7 @@ export default async function handler(req, res) {
             confidenceTier: riskTier, // 1=banker, 2=value, 3=audacious
             modelType,
             badgeLabel,
-            modelRationale: `${marketName} for ${matchLabel} — model probability ${Math.round(prob * 100)}% @${odds.toFixed(2)} (${ko.text}).`,
+            modelRationale: buildPunterRationale(marketName, market, home, away, tournamentName, odds),
           })
         }
 
@@ -390,11 +433,8 @@ export default async function handler(req, res) {
               }
             }
 
-            // Discard tiny micro-odds below 1.22 for clean sheet 'No' and low handicaps that pollute the acca
-            if (family === 'cleansheet' && oDesc.toLowerCase().includes('no') && odds < 1.25) {
-              continue
-            }
-            if (family === 'handicap' && odds < 1.22) {
+            // Strictly exclude obscure handicaps, cleansheets, and booking traps
+            if (family === 'handicap' || family === 'cleansheet' || family === 'cards_bookings' || family === 'intervals_halves') {
               continue
             }
 

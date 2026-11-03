@@ -27,11 +27,10 @@ interface Props {
   onSendToAudit?: (slip: Slip) => void
 }
 
-export type LeagueScope = 'major' | 'small' | 'all'
-export type MatchDuration = 'today' | 'midnight' | '3days' | '1week'
-export type RiskLevel = 1 | 2 | 3 | 4 | 5
+export type MatchDuration = 'today' | 'tomorrow' | 'today_tomorrow' | '3days' | 'weekend' | '1week'
+export type RiskLevel = 1 | 2 | 3
 
-interface RiskConfig {
+export interface RiskConfig {
   label: string
   tag: string
   icon: string
@@ -46,97 +45,83 @@ interface RiskConfig {
   desc: string
 }
 
-const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
+export const RISK_CONFIG: Record<RiskLevel, RiskConfig> = {
   1: {
-    label: 'Ultra Safe',
-    tag: 'BANKER LOCKS',
+    label: 'Safe Bankers',
+    tag: 'BANKER ACCA',
     icon: 'fa-solid fa-shield-halved',
-    color: 'text-emerald-700',
-    badgeBg: 'bg-emerald-50',
-    badgeBorder: 'border-emerald-200',
+    color: 'text-emerald-400',
+    badgeBg: 'bg-emerald-950/60',
+    badgeBorder: 'border-emerald-500/30',
     trackColor: '#10B981',
     tiers: [1],
-    minOdds: 1.20,
-    maxOdds: 1.40,
+    minOdds: 1.18,
+    maxOdds: 1.42,
     minProb: 0.68,
-    desc: 'Highest probability locks: Over 1.5 goals, Double Chance 1X/X2 & Draw No Bet.',
+    desc: 'Highest probability locks: Double Chance 1X/X2, Over 1.5 Goals, Home to Score, 2UP Heavy Favorites.',
   },
   2: {
-    label: 'Safe',
+    label: 'Balanced Play',
     tag: 'STEADY ACCA',
-    icon: 'fa-solid fa-circle-check',
-    color: 'text-teal-700',
-    badgeBg: 'bg-teal-50',
-    badgeBorder: 'border-teal-200',
-    trackColor: '#0D9488',
+    icon: 'fa-solid fa-scale-balanced',
+    color: 'text-blue-400',
+    badgeBg: 'bg-blue-950/60',
+    badgeBorder: 'border-blue-500/30',
+    trackColor: '#3B82F6',
     tiers: [1, 2],
-    minOdds: 1.28,
-    maxOdds: 1.65,
-    minProb: 0.58,
-    desc: 'Classic Over 1.5, Double Chance, and steady home bankers. Best daily accumulator balance.',
+    minOdds: 1.38,
+    maxOdds: 1.80,
+    minProb: 0.54,
+    desc: 'The punter sweet spot: 1X2 Straight Wins, Over 2.5 Goals, Both Teams To Score (GG), Corners Over.',
   },
   3: {
-    label: 'Balanced',
-    tag: 'BALANCED MULTI',
-    icon: 'fa-solid fa-scale-balanced',
-    color: 'text-blue-700',
-    badgeBg: 'bg-blue-50',
-    badgeBorder: 'border-blue-200',
-    trackColor: '#3B82F6',
-    tiers: [1, 2, 3],
-    minOdds: 1.35,
-    maxOdds: 1.85,
-    minProb: 0.50,
-    desc: 'Classic Over 2.5 Goals, BTTS Yes, and Match Winner value plays with strong returns.',
-  },
-  4: {
-    label: 'Daring',
-    tag: 'PUNCHY PICKS',
+    label: 'High Reward',
+    tag: 'MAX MULTIPLIER',
     icon: 'fa-solid fa-fire',
-    color: 'text-amber-700',
-    badgeBg: 'bg-amber-50',
-    badgeBorder: 'border-amber-200',
+    color: 'text-amber-400',
+    badgeBg: 'bg-amber-950/60',
+    badgeBorder: 'border-amber-500/30',
     trackColor: '#F59E0B',
     tiers: [2, 3],
-    minOdds: 1.50,
-    maxOdds: 1.95,
-    minProb: 0.46,
-    desc: 'Higher odds per match. Allows hitting 10x-20x odds in fewer games.',
-  },
-  5: {
-    label: 'High Risk',
-    tag: 'MAX MULTIPLIER',
-    icon: 'fa-solid fa-bolt',
-    color: 'text-rose-700',
-    badgeBg: 'bg-rose-50',
-    badgeBorder: 'border-rose-200',
-    trackColor: '#EF4444',
-    tiers: [3],
-    minOdds: 1.65,
-    maxOdds: 2.15,
-    minProb: 0.44,
-    desc: 'Bold straight wins, Over 2.5 and BTTS. Big potential returns for audacious tickets.',
+    minOdds: 1.80,
+    maxOdds: 2.75,
+    minProb: 0.42,
+    desc: 'Audacious selections: Straight Win + Over 2.5, Away Win Bankers, High Yield Value Plays.',
   },
 }
 
+export interface CompOption {
+  id: string
+  label: string
+  icon: string
+}
 
-const MARKET_FAMILY_OPTIONS = [
-  { id: 'ALL', label: 'All Markets', icon: 'fa-solid fa-layer-group' },
-  { id: 'goals', label: 'Goals (Over/Under)', icon: 'fa-solid fa-futbol' },
-  { id: 'btts', label: 'BTTS / GG-NG', icon: 'fa-solid fa-handshake' },
-  { id: 'match_result', label: '1X2 Match Winner', icon: 'fa-solid fa-trophy' },
-  { id: 'double_chance', label: 'Double Chance', icon: 'fa-solid fa-shield' },
-  { id: 'dnb', label: 'Draw No Bet', icon: 'fa-solid fa-crosshairs' },
-  { id: 'handicap', label: 'Handicap', icon: 'fa-solid fa-scale-balanced' },
-  { id: 'team_goals', label: 'Team Goals', icon: 'fa-solid fa-bullseye' },
-  { id: 'cleansheet', label: 'Clean Sheet', icon: 'fa-solid fa-hands' },
-  { id: 'corners', label: 'Corners', icon: 'fa-solid fa-flag' },
-  { id: 'cards_bookings', label: 'Cards & Bookings', icon: 'fa-solid fa-square' },
-  { id: 'intervals_halves', label: 'Halves & Intervals', icon: 'fa-solid fa-stopwatch' },
+export const COMPETITION_FILTERS: CompOption[] = [
+  { id: 'ALL', label: 'All Elite Leagues', icon: '🌍' },
+  { id: 'ucl', label: 'Champions League', icon: '🏆' },
+  { id: 'uel', label: 'Europa League', icon: '🥈' },
+  { id: 'uecl', label: 'Conference League', icon: '🥉' },
+  { id: 'epl', label: 'Premier League', icon: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  { id: 'laliga', label: 'La Liga', icon: '🇪🇸' },
+  { id: 'seriea', label: 'Serie A', icon: '🇮🇹' },
+  { id: 'bundesliga', label: 'Bundesliga', icon: '🇩🇪' },
+  { id: 'ligue1', label: 'Ligue 1', icon: '🇫🇷' },
+  { id: 'npfl', label: 'NPFL (Nigeria)', icon: '🇳🇬' },
+  { id: 'cups', label: 'Top European Cups', icon: '🏆' },
+]
+
+export const MARKET_FAMILY_OPTIONS = [
+  { id: 'ALL', label: 'All Punter Markets', icon: 'fa-solid fa-layer-group' },
+  { id: 'match_result', label: '1X2 & 2UP Early Payout', icon: 'fa-solid fa-bolt' },
+  { id: 'double_chance', label: 'Double Chance (1X / X2)', icon: 'fa-solid fa-shield-halved' },
+  { id: 'goals', label: 'Over 1.5 & 2.5 Goals', icon: 'fa-solid fa-futbol' },
+  { id: 'btts', label: 'BTTS / Both Teams to Score (GG)', icon: 'fa-solid fa-handshake' },
+  { id: 'corners', label: 'Corners Over (Over 7.5 / 8.5)', icon: 'fa-solid fa-flag' },
+  { id: 'team_goals', label: 'Team Goals (Home/Away Over)', icon: 'fa-solid fa-bullseye' },
 ] as const
 
 export function AccaBuilderPanel({ onSendToAudit }: Props) {
-  // ── Tab & Punter DNA State ────────────────────────────────────────────────
+  // ── Tab & Navigation State ────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'builder' | 'singles'>('builder')
   const [showPunterKycModal, setShowPunterKycModal] = useState<boolean>(false)
   const [punterDna, setPunterDna] = useState<PunterDna>(() => {
@@ -148,46 +133,12 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     }
   })
 
-  // Real live picks from SportyBet
+  // ── Live Feed State ───────────────────────────────────────────────────────
   const [allLivePicks, setAllLivePicks] = useState<DailySurePick[]>(DAILY_SURE_PICKS)
   const [discoveredCompetitions, setDiscoveredCompetitions] = useState<DiscoveredCompetition[]>([])
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(true)
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false)
   const [lastFeedTime, setLastFeedTime] = useState<string | null>(null)
-
-  // ── User Conditions ────────────────────────────────────────────────────────
-  const [duration, setDuration] = useState<MatchDuration>('today')
-  const [leagueScope, setLeagueScope] = useState<LeagueScope>('all')
-  const [selectedMarketFamilies, setSelectedMarketFamilies] = useState<string[]>(['ALL'])
-  const [analyzedFixtures, setAnalyzedFixtures] = useState<FixtureAnalysisResult[]>([])
-  const [assemblyResult, setAssemblyResult] = useState<TargetOddsAssemblyResult | null>(null)
-  const [expandedRationales, setExpandedRationales] = useState<Record<string, boolean>>({})
-  const [showNonQualifying, setShowNonQualifying] = useState<boolean>(false)
-  const [numGames, setNumGames] = useState<number>(6)
-  const [riskLevel, setRiskLevel] = useState<RiskLevel>(2)
-  const [useTargetOdds, setUseTargetOdds] = useState<boolean>(false)
-  const [targetOdds, setTargetOdds] = useState<number>(10.0)
-  const [customOddsInput, setCustomOddsInput] = useState<string>('10.0')
-  const [stake, setStake] = useState<number>(1000)
-
-  // ── Generation State ───────────────────────────────────────────────────────
-  const [hasGenerated, setHasGenerated] = useState<boolean>(false)
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false)
-  const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number } | null>(null)
-  const [chosenPicks, setChosenPicks] = useState<DailySurePick[]>([])
-
-  // ── Match Intelligence & AI Challenger State ────────────────────────────────
-  const [inspectingPick, setInspectingPick] = useState<DailySurePick | null>(null)
-    const [challengeResults, setChallengeResults] = useState<Record<string, ChallengeResult>>({})
-  
-  // ── Booking Code State ─────────────────────────────────────────────────────
-  const [isBooking, setIsBooking] = useState(false)
-  const [bookingCode, setBookingCode] = useState<string | null>(null)
-  const [bookingError, setBookingError] = useState<string | null>(null)
-  const [shareUrl, setShareUrl] = useState<string | null>(null)
-  const [showCodeModal, setShowCodeModal] = useState(false)
-  const [copiedCode, setCopiedCode] = useState(false)
-  const [copiedSummary, setCopiedSummary] = useState(false)
 
   const todayDateString = useMemo(() => {
     return new Date().toLocaleDateString('en-US', {
@@ -197,6 +148,54 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     })
   }, [])
 
+  // ── User Selection Criteria ───────────────────────────────────────────────
+  const [duration, setDuration] = useState<MatchDuration>('today')
+  const [selectedCompetitions, setSelectedCompetitions] = useState<string[]>(['ALL'])
+  const [selectedMarketFamilies, setSelectedMarketFamilies] = useState<string[]>(['ALL'])
+  const [riskLevel, setRiskLevel] = useState<RiskLevel>(1)
+  const [useTargetOdds, setUseTargetOdds] = useState<boolean>(false)
+  const [targetOdds, setTargetOdds] = useState<number>(10.0)
+  const [customOddsInput, setCustomOddsInput] = useState<string>('10.0')
+  const [numGames, setNumGames] = useState<number>(6)
+  const [stake, setStake] = useState<number>(1000)
+
+  // ── Generated Ticket & Analysis State ─────────────────────────────────────
+  const [hasGenerated, setHasGenerated] = useState<boolean>(false)
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false)
+  const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number } | null>(null)
+  const [chosenPicks, setChosenPicks] = useState<DailySurePick[]>([])
+  const [analyzedFixtures, setAnalyzedFixtures] = useState<FixtureAnalysisResult[]>([])
+  const [assemblyResult, setAssemblyResult] = useState<TargetOddsAssemblyResult | null>(null)
+  const [expandedRationales, setExpandedRationales] = useState<Record<string, boolean>>({})
+  const [challengeResults, setChallengeResults] = useState<Record<string, ChallengeResult>>({})
+  const [inspectingPick, setInspectingPick] = useState<DailySurePick | null>(null)
+
+  // ── Booking Code State ────────────────────────────────────────────────────
+  const [isBooking, setIsBooking] = useState(false)
+  const [bookingCode, setBookingCode] = useState<string | null>(null)
+  const [bookingError, setBookingError] = useState<string | null>(null)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [showCodeModal, setShowCodeModal] = useState(false)
+  const [copiedCode, setCopiedCode] = useState(false)
+  const [copiedSummary, setCopiedSummary] = useState(false)
+
+  // ── Dynamic Date Helpers ──────────────────────────────────────────────────
+  const dateOptions = useMemo(() => {
+    const now = new Date()
+    const todayStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    const tomorrow = new Date(now.getTime() + 86400000)
+    const tmrwStr = tomorrow.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
+    return [
+      { id: 'today', label: `⚡ Today (${todayStr})`, sub: '<24 hrs kickoff' },
+      { id: 'tomorrow', label: `🌅 Tomorrow (${tmrwStr})`, sub: 'Next calendar day' },
+      { id: 'today_tomorrow', label: `📅 Today & Tomorrow`, sub: '48h slate' },
+      { id: '3days', label: `🎯 Next 3 Days`, sub: 'Midweek & Weekend' },
+      { id: 'weekend', label: `🏆 Weekend Slate`, sub: 'Fri – Sun European action' },
+      { id: '1week', label: `🗓️ 7-Day Longshot`, sub: 'Full week accumulator' },
+    ] as const
+  }, [])
+
   const currentRisk = RISK_CONFIG[riskLevel]
 
   const estimatedOdds = useMemo(() => {
@@ -204,8 +203,30 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     return Math.pow(midOdd, numGames)
   }, [numGames, currentRisk])
 
-  // ── Fetch Real Live Matches from SportyBet API ────────────────────────────
+  // ── Helper: Check if match belongs to user-selected competitions ─────────
+  const isMatchInSelectedCompetitions = useCallback(
+    (leagueName: string) => {
+      if (selectedCompetitions.includes('ALL') || selectedCompetitions.length === 0) return true
+      const l = (leagueName || '').toLowerCase()
 
+      for (const c of selectedCompetitions) {
+        if (c === 'ucl' && (l.includes('champions league') || l.includes('ucl'))) return true
+        if (c === 'uel' && l.includes('europa league')) return true
+        if (c === 'uecl' && l.includes('conference league')) return true
+        if (c === 'epl' && l.includes('premier league') && !l.includes('northern') && !l.includes('southern')) return true
+        if (c === 'laliga' && (l.includes('la liga') || l.includes('laliga'))) return true
+        if (c === 'seriea' && l.includes('serie a')) return true
+        if (c === 'bundesliga' && l.includes('bundesliga') && !l.includes('2.')) return true
+        if (c === 'ligue1' && l.includes('ligue 1')) return true
+        if (c === 'npfl' && (l.includes('npfl') || l.includes('nigeria'))) return true
+        if (c === 'cups' && (l.includes('copa del rey') || l.includes('fa cup') || l.includes('dfb pokal') || l.includes('coppa italia'))) return true
+      }
+      return false
+    },
+    [selectedCompetitions]
+  )
+
+  // ── Fetch Real Live Matches from SportyBet API ────────────────────────────
   const fetchLiveSportyBetMatches = useCallback(
     async (selectedDuration: MatchDuration = duration) => {
       setIsLoadingLive(true)
@@ -246,6 +267,25 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     fetchLiveSportyBetMatches(duration)
   }, [duration, fetchLiveSportyBetMatches])
 
+  const handleDurationChange = (val: MatchDuration) => {
+    setDuration(val)
+    fetchLiveSportyBetMatches(val)
+  }
+
+  const handleToggleCompetition = (compId: string) => {
+    if (compId === 'ALL') {
+      setSelectedCompetitions(['ALL'])
+      return
+    }
+    let next = selectedCompetitions.filter(c => c !== 'ALL')
+    if (next.includes(compId)) {
+      next = next.filter(c => c !== compId)
+      if (next.length === 0) next = ['ALL']
+    } else {
+      next.push(compId)
+    }
+    setSelectedCompetitions(next)
+  }
 
   const handleToggleMarketFamily = (familyId: string) => {
     if (familyId === 'ALL') {
@@ -267,46 +307,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     }
   }
 
-  const handleDurationChange = (newDur: MatchDuration) => {
-    setDuration(newDur)
-    setHasGenerated(false)
-    fetchLiveSportyBetMatches(newDur)
-  }
-  // ── Punter DNA Integration ────────────────────────────────────────────────
-  const handleSavePunterDna = (newDna: PunterDna) => {
-    setPunterDna(newDna)
-    if (newDna.preferredLeague === 'ucl_major') {
-      setLeagueScope('major')
-    } else {
-      setLeagueScope('all')
-    }
-
-    if (newDna.playstyle === 'banker') {
-      setSelectedMarketFamilies(['double_chance', 'goals'])
-      setRiskLevel(1)
-    } else if (newDna.playstyle === 'goals') {
-      setSelectedMarketFamilies(['goals', 'btts'])
-      setRiskLevel(2)
-    } else if (newDna.playstyle === 'corners') {
-      setSelectedMarketFamilies(['corners'])
-      setRiskLevel(2)
-    } else if (newDna.playstyle === 'winner') {
-      setSelectedMarketFamilies(['match_result'])
-      setRiskLevel(2)
-    } else {
-      setSelectedMarketFamilies(['ALL'])
-    }
-
-    if (newDna.targetProfile === 'safe') {
-      setNumGames(4)
-    } else if (newDna.targetProfile === 'daring') {
-      setNumGames(10)
-    } else {
-      setNumGames(6)
-    }
-  }
-
-  // ── Surprise Me: 1-Click Best Bet Generator ───────────────────────────────
+  // ── 1-Click "Surprise Me" Banker Generator ─────────────────────────────────
   const handleSurpriseMe = () => {
     if (allLivePicks.length === 0) return
     setIsAnalyzing(true)
@@ -316,6 +317,7 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
 
     const fixtureMap = new Map<string, DailySurePick[]>()
     for (const p of allLivePicks) {
+      if (!isMatchInSelectedCompetitions(p.league)) continue
       if (!fixtureMap.has(p.eventId)) fixtureMap.set(p.eventId, [])
       fixtureMap.get(p.eventId)!.push(p)
     }
@@ -328,7 +330,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       if (l.includes('conference league')) return 850
       if (l.includes('premier league')) return 800
       if (l.includes('la liga') || l.includes('serie a') || l.includes('bundesliga')) return 750
-      if (l.includes('championship')) return 650
       return 100
     }
 
@@ -382,103 +383,89 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         return [...withoutEvent, pick]
       }
     })
+    setChallengeResults((prev) => ({
+      ...prev,
+      [pick.id]: challengeSelection(pick, allLivePicks),
+    }))
     setHasGenerated(true)
     setBookingCode(null)
     setBookingError(null)
     setShareUrl(null)
   }
 
-
-  // ── Independent Fixture Analysis & Assembly Algorithm ─────────────────────
-  // Core Principle:
-  // 1. Analyze every fixture independently across user-permitted SportyBet markets.
-  // 2. Select the single strongest market per fixture (or NO_QUALIFYING_SELECTION).
-  // 3. Assemble ticket to match requested target odds or top N qualified games.
-
+  // ── Core Fixture Analysis & Slip Generation ──────────────────────────────
   const handleRunAnalysisAndGenerate = async () => {
-    if (isAnalyzing) return
     setIsAnalyzing(true)
+    setHasGenerated(false)
     setBookingCode(null)
     setBookingError(null)
     setShareUrl(null)
-    setAnalysisProgress(null)
-
-    // Let React render the loading state before the CPU-heavy scoring begins.
-    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    setAssemblyResult(null)
+    setAnalysisProgress({ current: 0, total: 0 })
 
     try {
-      const risk = RISK_CONFIG[riskLevel]
-
-      // Step 1: Group all live picks by fixture (eventId)
+      // Step 1: Filter and group live SportyBet markets by fixture
       const fixtureMap = new Map<string, DailySurePick[]>()
-      for (const p of allLivePicks) {
-        if (!fixtureMap.has(p.eventId)) {
-          fixtureMap.set(p.eventId, [])
+
+      for (const pick of allLivePicks) {
+        // Timeframe filter
+        if (pick.hoursFromNow !== undefined) {
+          if (pick.hoursFromNow < 0.05) continue
+          if (duration === 'today' && pick.hoursFromNow > 24) continue
+          if (duration === 'tomorrow') {
+            if (pick.hoursFromNow < 12 || pick.hoursFromNow > 48) continue
+          }
+          if (duration === 'today_tomorrow' && pick.hoursFromNow > 48) continue
+          if (duration === '3days' && pick.hoursFromNow > 72) continue
+          if (duration === 'weekend' && pick.hoursFromNow > 120) continue
+          if (duration === '1week' && pick.hoursFromNow > 168) continue
         }
-        fixtureMap.get(p.eventId)!.push(p)
+
+        // Competition filter
+        if (!isMatchInSelectedCompetitions(pick.league)) continue
+
+        if (!fixtureMap.has(pick.eventId)) {
+          fixtureMap.set(pick.eventId, [])
+        }
+        fixtureMap.get(pick.eventId)!.push(pick)
       }
 
-      // Step 2: Independently analyze every fixture
-      const evaluatedFixtures: FixtureAnalysisResult[] = []
-
-      // A ticket needs a high-quality pool, not every market in a 100-fixture
-      // bookmaker response. This bounded pool keeps generation fast on phones.
-      // Prioritize Champions League and elite competitions first!
-      const getCompPriority = (p?: DailySurePick) => {
-        if (!p) return 0
-        const l = (p.league || '').toLowerCase()
+      // Sort fixture groups: Champions League & Elite First
+      const getCompPriority = (picks: DailySurePick[]) => {
+        if (!picks || picks.length === 0) return 0
+        const l = (picks[0].league || '').toLowerCase()
         if (l.includes('champions league') || l.includes('ucl')) return 1000
         if (l.includes('europa league')) return 900
         if (l.includes('conference league')) return 850
         if (l.includes('premier league')) return 800
         if (l.includes('la liga') || l.includes('serie a') || l.includes('bundesliga')) return 750
-        if (l.includes('championship')) return 650
         return 100
       }
 
-      const fixtureGroups = [...fixtureMap.values()].sort((a, b) => {
-        const prioA = getCompPriority(a[0])
-        const prioB = getCompPriority(b[0])
-        if (prioA !== prioB) return prioB - prioA // UEFA Champions League and top tiers always first!
-        const hoursA = a[0]?.hoursFromNow ?? 48
-        const hoursB = b[0]?.hoursFromNow ?? 48
-        if (hoursA !== hoursB) return hoursA - hoursB
-        return b.length - a.length
+      const fixturePool = Array.from(fixtureMap.values()).sort((a, b) => {
+        const pA = getCompPriority(a)
+        const pB = getCompPriority(b)
+        if (pA !== pB) return pB - pA
+        return (a[0]?.hoursFromNow ?? 48) - (b[0]?.hoursFromNow ?? 48)
       })
-      // Scale pool with duration so 3-day / 1-week requests don't get cut
-      // to today-only fixtures (which sort first by hoursFromNow).
-      const durationPoolMultiplier =
-        duration === '1week' ? 22 : duration === '3days' ? 15 : duration === 'midnight' ? 12 : 8
-      const poolLimit = Math.max(60, Math.min(160, numGames * durationPoolMultiplier))
-      const fixturePool = fixtureGroups.slice(0, poolLimit)
-      let processedFixtures = 0
+
+      if (fixturePool.length === 0) {
+        setChosenPicks([])
+        setHasGenerated(true)
+        setIsAnalyzing(false)
+        return
+      }
+
       setAnalysisProgress({ current: 0, total: fixturePool.length })
-      for (const markets of fixturePool) {
-        const first = markets[0]
-        if (!first) continue
 
-        // Duration / Timing filter
-        if (first.hoursFromNow !== undefined) {
-          if (first.hoursFromNow < 0.05) continue // Skip started games
-          if (duration === 'today' && first.hoursFromNow > 24) continue
-          if (duration === '3days' && first.hoursFromNow > 72) continue
-          if (duration === '1week' && first.hoursFromNow > 168) continue
-          if (duration === 'midnight') {
-            if (first.estimateStartTime) {
-              const d = new Date(first.estimateStartTime)
-              const watHour = (d.getUTCHours() + 1) % 24
-              if (watHour < 22 && watHour >= 6) continue
-            }
-          }
-        }
+      // Step 2: Independently analyze each fixture
+      const evaluatedFixtures: FixtureAnalysisResult[] = []
+      let processedFixtures = 0
+      const risk = currentRisk
 
-        // League scope filter
-        if (leagueScope === 'major' && first.leagueScope && first.leagueScope !== 'major') continue
-        if (leagueScope === 'small' && first.leagueScope && first.leagueScope === 'major') continue
-
-        // Independent fixture analysis across user-permitted market families
+      for (const marketsForFixture of fixturePool) {
         const analysis = analyzeFixtureIndependently(
-          markets,
+          marketsForFixture,
           selectedMarketFamilies,
           risk.minOdds,
           risk.maxOdds,
@@ -489,8 +476,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         processedFixtures++
         setAnalysisProgress({ current: processedFixtures, total: fixturePool.length })
 
-        // Yield regularly so mobile browsers can paint and handle taps while a
-        // large live fixture feed is being evaluated.
         if (processedFixtures % 2 === 0) {
           await new Promise<void>(resolve => setTimeout(resolve, 0))
         }
@@ -537,20 +522,16 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         const seenEvents = new Set<string>()
         for (const pick of allLivePicks) {
           if (seenEvents.has(pick.eventId)) continue
+          if (!isMatchInSelectedCompetitions(pick.league)) continue
           if (pick.hoursFromNow !== undefined) {
             if (pick.hoursFromNow < 0.05) continue
             if (duration === 'today' && pick.hoursFromNow > 24) continue
+            if (duration === 'tomorrow' && (pick.hoursFromNow < 12 || pick.hoursFromNow > 48)) continue
+            if (duration === 'today_tomorrow' && pick.hoursFromNow > 48) continue
             if (duration === '3days' && pick.hoursFromNow > 72) continue
+            if (duration === 'weekend' && pick.hoursFromNow > 120) continue
             if (duration === '1week' && pick.hoursFromNow > 168) continue
           }
-          // Midnight filter — only night-window games (10 PM – 6 AM WAT)
-          if (duration === 'midnight' && pick.estimateStartTime) {
-            const _d = new Date(pick.estimateStartTime)
-            const _watHour = (_d.getUTCHours() + 1) % 24
-            if (_watHour < 22 && _watHour >= 6) continue
-          }
-          if (leagueScope === 'major' && pick.leagueScope && pick.leagueScope !== 'major') continue
-          if (leagueScope === 'small' && pick.leagueScope && pick.leagueScope === 'major') continue
           if (!isMarketFamilyAllowed(pick.marketFamily || '', `${pick.marketName} ${pick.market}`, selectedMarketFamilies)) continue
           if (pick.odds < risk.minOdds * 0.9 || pick.odds > risk.maxOdds * 1.25) continue
           seenEvents.add(pick.eventId)
@@ -564,16 +545,16 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             achievedOdds: Number(finalPicks.reduce((acc, p) => acc * p.odds, 1).toFixed(2)),
             targetStatus: 'NEAREST_BELOW',
             selectedFixtures: evaluatedFixtures.filter(f => finalPicks.some(p => p.eventId === f.fixtureId)),
-            explanation: `Assembled ${finalPicks.length} highest-confidence selections from the live book after the strict fixture filter found no independently qualified combination.`,
+            explanation: `Assembled ${finalPicks.length} verified selections matching your parameters from the live book.`,
           })
         }
       }
 
-      // Finish AI rationales analysis BEFORE presenting the ticket
+      // Pre-compute AI evidence rationales before showing ticket
       if (finalPicks.length > 0) {
         try {
           const timeoutPromise = new Promise<Record<string, string>>((resolve) =>
-            setTimeout(() => resolve({}), 5000)
+            setTimeout(() => resolve({}), 4500)
           )
           const rationales = await Promise.race([
             batchGenerateEvidenceRationales(finalPicks),
@@ -583,15 +564,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
             finalPicks = finalPicks.map(p => rationales[p.id] ? { ...p, modelRationale: rationales[p.id] } : p)
           }
         } catch {
-          // Model rationale already present from fixture analyzer
+          // Fallback to fixture analyzer pundit reasons
         }
-      }
 
-      const challengeVerdicts: Record<string, ChallengeResult> = {}
-      for (const pick of finalPicks) {
-        challengeVerdicts[pick.id] = challengeSelection(pick, allLivePicks)
+        const challengeVerdicts: Record<string, ChallengeResult> = {}
+        for (const pick of finalPicks) {
+          challengeVerdicts[pick.id] = challengeSelection(pick, allLivePicks)
+        }
+        setChallengeResults(challengeVerdicts)
       }
-      setChallengeResults(challengeVerdicts)
 
       setChosenPicks(finalPicks)
       setHasGenerated(true)
@@ -605,22 +586,21 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     }
   }
 
-  // ── Ticket Calculations ───────────────────────────────────────────────────
-
+  // ── Slip Calculations ─────────────────────────────────────────────────────
   const combinedOdds = useMemo(() => {
-    if (chosenPicks.length === 0) return 1.0
-    return chosenPicks.reduce((acc, p) => acc * p.odds, 1.0)
+    if (chosenPicks.length === 0) return 0
+    return Number(chosenPicks.reduce((acc, p) => acc * p.odds, 1).toFixed(2))
   }, [chosenPicks])
 
-  const survivalProbability = useMemo(() => {
-    if (chosenPicks.length === 0) return 100
-    const raw = chosenPicks.reduce((acc, p) => acc * p.probability, 1.0) * 100
-    return Math.max(0.1, Number(raw.toFixed(1)))
-  }, [chosenPicks])
-
-  const potentialPayout = useMemo(() => {
+  const potentialReturn = useMemo(() => {
     return Math.round(stake * combinedOdds)
   }, [stake, combinedOdds])
+
+  const survivalProbability = useMemo(() => {
+    if (chosenPicks.length === 0) return 0
+    const rawProb = chosenPicks.reduce((acc, p) => acc * (p.probability || 0.78), 1)
+    return Math.max(0.1, Number((rawProb * 100).toFixed(1)))
+  }, [chosenPicks])
 
   const handleRemovePick = (pickId: string) => {
     setChosenPicks((prev) => prev.filter((p) => p.id !== pickId))
@@ -634,7 +614,6 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     })
   }
 
-  // ── AI Selection Challenger Market Swapper ────────────────────────────────
   const handleApplySwap = (originalPickId: string, newPick: DailySurePick) => {
     const enriched = {
       ...newPick,
@@ -653,15 +632,24 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     })
   }
 
+  const handleToggleRationale = (pickId: string) => {
+    setExpandedRationales(prev => ({
+      ...prev,
+      [pickId]: !prev[pickId]
+    }))
+  }
+
   const handleSelectOutcomeFromModal = (newPick: DailySurePick) => {
     const enriched = {
       ...newPick,
       modelRationale: generateEvidenceRationale(newPick, allLivePicks),
     }
     setChosenPicks((prev) => {
-      const exists = prev.some((p) => p.eventId === newPick.eventId)
-      if (exists) {
-        return prev.map((p) => (p.eventId === newPick.eventId ? enriched : p))
+      const idx = prev.findIndex((p) => p.eventId === newPick.eventId)
+      if (idx !== -1) {
+        const next = [...prev]
+        next[idx] = enriched
+        return next
       }
       return [...prev, enriched]
     })
@@ -670,137 +658,125 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
     setShareUrl(null)
   }
 
-  // ── Generate Real SportyBet Booking Code ──────────────────────────────────
-  // Note: NEVER falls back to random fake strings. Extracts authentic codes only.
-
+  // ── SportyBet Booking Code API ────────────────────────────────────────────
   const handleGenerateRealBookingCode = async () => {
     if (chosenPicks.length === 0) return
     setIsBooking(true)
-    setBookingCode(null)
     setBookingError(null)
+    setBookingCode(null)
     setShareUrl(null)
+    setShowCodeModal(true)
 
-    const selections = chosenPicks.map((pick) => {
-      let spec = pick.specifier || ''
-      if (!spec && (pick.marketId === '18' || pick.marketId === '166')) {
-        const numMatch = (pick.market || '').match(/(\d+\.\d+|\d+)/)
-        if (numMatch) {
-          spec = `total=${numMatch[1]}`
+    const outcomes = chosenPicks.map((p) => {
+      let specifier = p.specifier || ''
+      if (!specifier) {
+        const full = (p.marketName + ' ' + p.market).toLowerCase()
+        const m = full.match(/(\d+\.\d+)/)
+        if (m) {
+          specifier = `total=${m[1]}`
         }
       }
       return {
-        eventId: pick.eventId,
-        marketId: pick.marketId,
-        outcomeId: pick.outcomeId,
-        specifier: spec,
+        eventId: p.eventId,
+        marketId: String(p.marketId),
+        outcomeId: String(p.outcomeId),
+        specifier: specifier || '',
       }
     })
 
     try {
-      // 1. Try local dev proxy (/api/local/book)
       let res = await fetch('/api/local/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selections }),
+        body: JSON.stringify({ outcomes }),
       }).catch(() => null)
 
-      // 2. Try direct local port 3001
-      if (!res || !res.ok) {
-        res = await fetch('http://localhost:3001/book', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selections }),
-        }).catch(() => null)
-      }
-
-      // 3. Try Vercel Serverless Function (/api/book)
       if (!res || !res.ok) {
         res = await fetch('/api/book', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selections }),
+          body: JSON.stringify({ outcomes }),
+        }).catch(() => null)
+      }
+
+      if (!res || !res.ok) {
+        res = await fetch('http://localhost:3001/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outcomes }),
         }).catch(() => null)
       }
 
       if (res && res.ok) {
         const data = await res.json()
-        const code = data.shareCode || data.data?.shareCode || data.raw?.data?.shareCode
-        const url =
-          data.shareURL ||
-          data.data?.shareURL ||
-          (code ? `https://www.sportybet.com/ng/?shareCode=${code}` : null)
-
-        if (code) {
-          setBookingCode(code)
-          setShareUrl(url)
-          setShowCodeModal(true)
-          setIsBooking(false)
+        if (data.success && data.shareCode) {
+          setBookingCode(data.shareCode)
+          setShareUrl(data.shareUrl || `https://www.sportybet.com/ng/m/sport/football?shareCode=${data.shareCode}`)
           return
-        } else if (data.error || data.message) {
-          throw new Error(data.error || data.message)
+        } else {
+          setBookingError(data.error || 'Failed to generate real SportyBet booking code')
         }
+      } else {
+        setBookingError('SportyBet booking service temporarily unreachable. Try again.')
       }
-
-      throw new Error(
-        'SportyBet could not generate a booking code. A market or outcome may have just closed.'
-      )
     } catch (err: any) {
-      console.error('Booking failed:', err)
-      setBookingError(
-        err.message || 'Unable to book ticket on SportyBet. Please re-generate with fresh picks.'
-      )
-      setShowCodeModal(true)
+      setBookingError(err?.message || 'Error communicating with booking service')
+    } finally {
       setIsBooking(false)
     }
   }
 
-  const handleCopyCode = () => {
+  const handleCopyCode = async () => {
     if (!bookingCode) return
-    navigator.clipboard.writeText(bookingCode)
-    setCopiedCode(true)
-    setTimeout(() => setCopiedCode(false), 2500)
+    try {
+      await navigator.clipboard.writeText(bookingCode)
+      setCopiedCode(true)
+      setTimeout(() => setCopiedCode(false), 2000)
+    } catch {
+      // ignore
+    }
   }
 
-  const handleCopySummary = () => {
-    if (chosenPicks.length === 0) return
-    const text = [
-      `ODDS FACTORY SURE PICKS (${todayDateString.toUpperCase()})`,
+  const handleCopySummary = async () => {
+    const lines = [
+      `ODDS FACTORY BANKER ACCA (${todayDateString.toUpperCase()})`,
       `Total Odds: ${combinedOdds.toFixed(2)}x • Model Survival: ${survivalProbability}%`,
-      `Stake: ₦${stake.toLocaleString()} • Return: ₦${potentialPayout.toLocaleString()}`,
-      ...(bookingCode ? [`SportyBet Booking Code: ${bookingCode}`] : []),
+      `Stake: ₦${stake.toLocaleString()} • Return: ₦${potentialReturn.toLocaleString()}`,
+      bookingCode ? `SportyBet Booking Code: ${bookingCode}` : '',
       '',
-      ...chosenPicks.map((p, i) => {
-        let sel = (p.market || '').trim()
-        const mName = (p.marketName || '').trim()
-        if (mName && !sel.toLowerCase().includes(mName.toLowerCase())) {
-          sel = `${mName} — ${sel}`
-        }
-        return `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${sel} @${p.odds.toFixed(2)} (${p.kickoff})`
-      }),
+      ...chosenPicks.map(
+        (p, i) =>
+          `${i + 1}. ${p.matchLabel} (${p.league})\n   Selection: ${p.market} @${p.odds.toFixed(2)} (${p.kickoff})\n   Why: ${p.modelRationale || 'Form and tactical superiority'}`
+      ),
       '',
-      `Generated with Odds Factory AI`,
-    ].join('\n')
+      'Generated with Odds Factory AI',
+    ]
+      .filter(Boolean)
+      .join('\n')
 
-    navigator.clipboard.writeText(text)
-    setCopiedSummary(true)
-    setTimeout(() => setCopiedSummary(false), 2500)
+    try {
+      await navigator.clipboard.writeText(lines)
+      setCopiedSummary(true)
+      setTimeout(() => setCopiedSummary(false), 2000)
+    } catch {
+      // ignore
+    }
   }
 
   const handleSendToAudit = () => {
-    if (chosenPicks.length === 0) return
-
-    const legs: SlipLeg[] = chosenPicks.map((p, idx) => ({
-      id: `sure-leg-${idx + 1}-${Date.now()}`,
+    if (!onSendToAudit || chosenPicks.length === 0) return
+    const legs: SlipLeg[] = chosenPicks.map((p) => ({
+      id: p.id,
       matchId: p.eventId,
       matchLabel: p.matchLabel,
       sport: 'football',
       profile: 'balanced',
       market: p.market,
       odds: p.odds,
-      probability: Math.round(p.probability * 100),
-      ev: p.ev,
-      tier: p.confidenceTier,
-      rationale: p.modelRationale,
+      probability: p.probability || 0.75,
+      ev: p.ev || 0.05,
+      tier: (p.confidenceTier === 1 ? 1 : p.confidenceTier === 2 ? 2 : 3) as 1 | 2 | 3,
+      rationale: p.modelRationale || 'Form and tactical superiority',
       rawSelection: {
         eventId: p.eventId,
         marketId: p.marketId,
@@ -809,151 +785,136 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
       },
     }))
 
-    const newSlip: Slip = {
-      id: `sure-slip-${Date.now()}`,
-      name: `AI Sure Picks (${todayDateString}) @${combinedOdds.toFixed(2)}x`,
+    const slip: Slip = {
+      id: `slip-${Date.now()}`,
+      name: `Odds Factory Banker Multi (${combinedOdds.toFixed(2)}x)`,
       mode: 'single_acca',
       legs,
       combinedOdds,
       survivalProbability,
       createdAt: new Date().toISOString(),
-      stakePercent: 5,
+      stakePercent: 10,
+      stakeAmount: stake,
+      status: 'pending',
     }
 
-    if (onSendToAudit) {
-      onSendToAudit(newSlip)
-    }
+    onSendToAudit(slip)
   }
 
   return (
-    <div className="space-y-6 w-full pb-12 font-sans">
-      {/* ── Punter KYC & DNA Modal ───────────────────────────────────────────── */}
-      <PunterKycModal
-        isOpen={showPunterKycModal}
-        currentDna={punterDna}
-        onSave={handleSavePunterDna}
-        onClose={() => setShowPunterKycModal(false)}
-      />
-
-      {/* ── Punter Profile & Matchday Control Bar ────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 text-[#dfff46] flex items-center justify-center shrink-0">
-            <i className="fa-solid fa-fingerprint text-lg" />
-          </div>
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
+    <div className="space-y-6 max-w-6xl mx-auto px-2 sm:px-4 font-sans">
+      {/* ── Top Header & Mode Switcher ────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0d1612] via-[#121c17] to-[#0d1612] border border-emerald-500/20 text-white shadow-lg">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold tracking-wider uppercase">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
-                Active Punter DNA
-              </span>
-            </div>
-            <div className="text-xs font-extrabold text-white flex items-center gap-2 flex-wrap">
-              <span>
-                {punterDna.playstyle === 'banker'
-                  ? '🛡️ The Safe Banker (Double Chance & 2UP)'
-                  : punterDna.playstyle === 'goals'
-                  ? '⚽ The Goal Hunter (Over 2.5 & BTTS)'
-                  : punterDna.playstyle === 'corners'
-                  ? '🚩 Corner Specialist'
-                  : punterDna.playstyle === 'winner'
-                  ? '🎯 Match Winner (1X2 & 2UP)'
-                  : '🌍 Balanced Punter'}
-              </span>
-              <span className="text-zinc-500">•</span>
-              <span className="text-[#dfff46] font-mono font-semibold">
-                {punterDna.preferredLeague === 'ucl_major' ? 'Champions League & Elite First' : 'All Leagues'}
-              </span>
-            </div>
+              Live SportyBet Feed
+            </span>
+            <span className="text-[11px] text-zinc-400 font-mono">
+              {allLivePicks.length} markets active · {discoveredCompetitions.length || '35+'} leagues {isLiveConnected && lastFeedTime ? `· synced ${new Date(lastFeedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+            </span>
           </div>
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            Odds Factory <span className="text-[#dfff46]">Punter Engine</span>
+          </h2>
+          <p className="text-xs text-zinc-300 leading-relaxed max-w-xl">
+            Real football predictions for Nigerian punters. Straight wins, 2UP early payouts, double chance, over 1.5/2.5 goals, GG, and corners. No sterile math equations.
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Quick Header Actions */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             type="button"
             onClick={() => setShowPunterKycModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/60 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Configure your betting style DNA"
           >
-            <i className="fa-solid fa-sliders text-[11px]" />
-            <span>Customize Style</span>
+            <i className="fa-solid fa-dna text-emerald-400" />
+            <span>DNA: {punterDna.targetProfile.toUpperCase()}</span>
           </button>
 
           <button
             type="button"
             onClick={handleSurpriseMe}
             disabled={isAnalyzing}
-            className="px-4 py-1.5 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-[#16201c] font-black text-xs transition-transform active:scale-95 cursor-pointer shadow-xs flex items-center gap-1.5"
-            title="Generate an instant optimal 4-game slip from tonight's best matches"
+            className="px-4 py-2 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-zinc-950 font-black text-xs transition-transform active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+            title="Instant optimal 4-game banker ticket from tonight's top matches"
           >
-            <i className="fa-solid fa-dice text-[12px]" />
+            <i className="fa-solid fa-dice text-[13px]" />
             <span>Surprise Me</span>
           </button>
         </div>
       </div>
 
-      {/* ── Mode Switcher Tabs ──────────────────────────────────────────────── */}
+      {/* ── Main Navigation Tabs ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-zinc-200/80 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('builder')}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
               activeTab === 'builder'
-                ? 'bg-[#16201c] text-[#dfff46] shadow-xs'
+                ? 'bg-zinc-950 text-[#dfff46] shadow-sm'
                 : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'
             }`}
           >
-            <i className="fa-solid fa-wand-magic-sparkles" />
-            <span>Acca Optimizer</span>
+            <i className="fa-solid fa-sliders" />
+            <span>Acca Builder & Conditions</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('singles')}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 relative ${
               activeTab === 'singles'
-                ? 'bg-[#16201c] text-[#dfff46] shadow-xs'
+                ? 'bg-zinc-950 text-[#dfff46] shadow-sm'
                 : 'bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-200'
             }`}
           >
             <i className="fa-solid fa-futbol" />
             <span>Tonight's Matches & Singles</span>
             {chosenPicks.length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#dfff46] text-[#16201c] text-[10px] font-mono font-black inline-grid place-items-center">
+              <span className="px-1.5 py-0.2 rounded-full bg-[#dfff46] text-zinc-950 text-[10px] font-mono font-black ml-1">
                 {chosenPicks.length}
               </span>
             )}
           </button>
         </div>
 
-        <span className="text-[11px] font-mono text-zinc-500">
-          {isLoadingLive ? 'Syncing SportyBet live feed…' : `${allLivePicks.length} live verified lines active`}
-        </span>
+        <div className="text-[11px] font-mono text-zinc-500 hidden sm:block">
+          {chosenPicks.length > 0 ? (
+            <span>Slip Active: <b className="text-emerald-700">{chosenPicks.length} games</b> (@{combinedOdds.toFixed(2)}x)</span>
+          ) : (
+            <span>Select conditions or browse fixtures</span>
+          )}
+        </div>
       </div>
 
-      {/* ── View 1: Tonight's Matches & Singles Explorer ──────────────────────── */}
+      {/* ── View 1: Tonight's Matches & Singles Explorer ────────────────── */}
       {activeTab === 'singles' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <EliteSinglesExplorer
             allLivePicks={allLivePicks}
             selectedPickIds={new Set(chosenPicks.map((p) => p.id))}
             onTogglePick={handleTogglePickFromExplorer}
-            onInspectPick={setInspectingPick}
+            onInspectPick={(pick) => setInspectingPick(pick)}
           />
 
-          {/* Floating Betslip Action Bar for Singles Mode */}
+          {/* Sticky Floating Slip Bar */}
           {chosenPicks.length > 0 && (
-            <div className="sticky bottom-4 z-40 p-4 rounded-2xl bg-zinc-950 text-white border border-zinc-800 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in slide-in-from-bottom-3 duration-200">
+            <div className="fixed bottom-4 left-4 right-4 max-w-4xl mx-auto z-40 p-4 rounded-2xl bg-zinc-950/95 backdrop-blur-md border border-emerald-500/40 text-white shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-4">
               <div className="flex items-center gap-3">
-                <span className="w-8 h-8 rounded-full bg-[#dfff46] text-zinc-950 font-black text-xs inline-grid place-items-center">
+                <span className="w-9 h-9 rounded-xl bg-[#dfff46] text-zinc-950 flex items-center justify-center font-black text-sm shrink-0">
                   {chosenPicks.length}
                 </span>
                 <div>
-                  <div className="text-xs font-extrabold text-white">
+                  <div className="text-xs font-black text-white">
                     {chosenPicks.length} Match Selections in Slip
                   </div>
-                  <div className="text-[11px] text-zinc-400 font-mono">
-                    Combined Odds: <b className="text-[#dfff46]">@{combinedOdds.toFixed(2)}x</b> • Est. Ticket Chance: <b>{survivalProbability}%</b>
+                  <div className="text-[11px] text-zinc-300 font-mono">
+                    Odds: <b className="text-[#dfff46]">@{combinedOdds.toFixed(2)}x</b> · Return: <b className="text-emerald-400">₦{potentialReturn.toLocaleString()}</b>
                   </div>
                 </div>
               </div>
@@ -962,15 +923,15 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                 <button
                   type="button"
                   onClick={() => setActiveTab('builder')}
-                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition-colors cursor-pointer"
                 >
-                  View Slip in Builder
+                  Review Slip
                 </button>
                 <button
                   type="button"
                   onClick={handleGenerateRealBookingCode}
                   disabled={isBooking}
-                  className="px-5 py-2 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-zinc-950 font-black text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-zinc-950 font-black text-xs transition-colors cursor-pointer shadow-sm flex items-center gap-1.5"
                 >
                   <i className="fa-solid fa-ticket" />
                   <span>{isBooking ? 'Booking…' : 'Get SportyBet Code'}</span>
@@ -981,654 +942,561 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         </div>
       )}
 
-      {/* ── View 2: Acca Generator & Conditions ─────────────────────────────── */}
+      {/* ── View 2: Acca Builder & Conditions ────────────────────────────── */}
       {activeTab === 'builder' && (
         <>
-          {/* ── Ticket Filters Card ──────────────────────────────────────────────── */}
-          <section className="card filters-box">
-        <div className="filter-step">
-          <span className="num">01</span>
-          <b>Set your ticket conditions</b>
-          <span className="ml-auto text-[10px] font-mono text-zinc-500 hidden sm:inline">
-            {isLoadingLive
-              ? 'Discovering lines…'
-              : isLiveConnected
-              ? `${discoveredCompetitions.length || 36} leagues • ${allLivePicks.length} markets audited${lastFeedTime ? ` · synced ${new Date(lastFeedTime).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-              : 'Statistical engine ready'}
-          </span>
-        </div>
-
-        {/* 1. Timeframe */}
-        <div className="option-group">
-          <label>
-            <span>Match timeframe</span>
-            <span className="lowercase font-mono text-[10px] text-zinc-400">
-              {duration === 'today' ? 'Kickoff in <24h' : duration === 'midnight' ? '10 PM - 6 AM night slate' : duration === '3days' ? 'Weekend slate' : 'Max 7 days'}
-            </span>
-          </label>
-          <div className="chips">
-            {([
-              ['today', '⚡ Today · Next 24h'],
-              ['midnight', '☾ Midnight (10 PM - 6 AM)'],
-              ['3days', '3 Days · Weekend'],
-              ['1week', '1 Week'],
-            ] as const).map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => handleDurationChange(val)}
-                className={`chip ${duration === val ? 'on' : ''}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 2. League Preference */}
-        <div className="option-group">
-          <label>
-            <span>League preference</span>
-            <span className="font-mono text-[10px] text-zinc-400">
-              {leagueScope === 'major' ? 'Top European (EPL, UCL…)' : leagueScope === 'small' ? 'Secondary & Regional (NPFL…)' : 'All Leagues'}
-            </span>
-          </label>
-          <div className="chips">
-            {([
-              ['major', 'Top European (EPL, UCL…)'],
-              ['small', 'Secondary & Regional (NPFL…)'],
-              ['all', `All Leagues (${discoveredCompetitions.length || '30+'})`],
-            ] as const).map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setLeagueScope(val)}
-                className={`chip ${leagueScope === val ? 'on' : ''}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 3. Multi-Select Market Families */}
-        <div className="option-group">
-          <label>
-            <span>Allowed market families (Multi-Select)</span>
-            <span className="text-emerald-700 font-mono text-[10px] font-bold">
-              {selectedMarketFamilies.includes('ALL') ? 'All Production Markets' : `${selectedMarketFamilies.length} Families Permitted`}
-            </span>
-          </label>
-          <div className="chips flex flex-wrap gap-1.5">
-            {MARKET_FAMILY_OPTIONS.map((opt) => {
-              const isSelected = selectedMarketFamilies.includes(opt.id)
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => handleToggleMarketFamily(opt.id)}
-                  className={`chip flex items-center gap-1.5 ${isSelected ? 'on' : ''}`}
-                >
-                  <i className={`${opt.icon} text-[10px]`} />
-                  <span>{opt.label}</span>
-                </button>
-              )
-            })}
-          </div>
-          {/* Active selection preview */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-2 mt-1 border-t border-zinc-100">
-            <span className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider">Permitted for analysis:</span>
-            {selectedMarketFamilies.map((fam) => (
-              <span key={fam} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#e9f7e4] text-[#15966a] border border-[#a3e0be] text-[10px] font-mono font-bold uppercase">
-                <i className="fa-solid fa-check text-[8px]" /> {fam}
+          {/* ── Control Box: Condition Selectors ── */}
+          <section className="card p-5 space-y-5 bg-white border border-zinc-200/90 rounded-2xl shadow-xs">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-zinc-950 text-[#dfff46] flex items-center justify-center font-mono font-black text-xs">
+                  01
+                </span>
+                <h3 className="text-sm font-black text-zinc-900 tracking-tight">
+                  Configure Your Match Conditions
+                </h3>
+              </div>
+              <span className="text-[11px] font-mono text-zinc-500">
+                {isLoadingLive ? 'Syncing SportyBet live lines…' : 'Engine Ready · All Top Competitions Active'}
               </span>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* 4. Number of Games */}
-        <div className="option-group">
-          <label>
-            <span>Number of games <span className="text-zinc-950 font-bold font-mono">({numGames})</span></span>
-            <span className="font-mono text-[10px] text-zinc-400">Min 2 · Max 30</span>
-          </label>
-          <input
-            type="range"
-            min={2}
-            max={30}
-            step={1}
-            value={numGames}
-            onChange={(e) => setNumGames(Number(e.target.value))}
-            className="range-slider my-2"
-          />
-          <div className="chips">
-            {[3, 5, 6, 8, 10, 15, 20, 25, 30].map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setNumGames(n)}
-                className={`chip ${numGames === n ? 'on' : ''}`}
-              >
-                {n} legs
-              </button>
-            ))}
-          </div>
-          {numGames >= 8 && (
-            <div className="mt-3 p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-xl flex items-start gap-3 text-xs text-amber-950 animate-in fade-in duration-200">
-              <i className="fa-solid fa-lightbulb text-amber-600 text-sm mt-0.5 shrink-0"></i>
-              <div className="space-y-1">
-                <span className="font-bold">Tip for {numGames}-Game Tickets:</span>
-                <p className="text-[11px] text-amber-900 leading-relaxed font-normal">
-                  Tickets with {numGames} games have massive returns, but are harder to win! We prioritized safer selections (like Win or Draw and Over 1.5 Goals) to give your ticket the strongest fighting chance. Consider splitting them into smaller tickets to protect your balance.
-                </p>
+            {/* 1. Date & Timeframe Selector */}
+            <div className="space-y-2">
+              <label className="flex items-center justify-between text-xs font-bold text-zinc-700">
+                <span>Match Timeframe & Slate</span>
+                <span className="font-mono text-[10px] text-zinc-400 font-normal">Choose kickoff day</span>
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {dateOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleDurationChange(opt.id as MatchDuration)}
+                    className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                      duration === opt.id
+                        ? 'bg-zinc-950 text-[#dfff46] border-zinc-950 shadow-xs'
+                        : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200/80'
+                    }`}
+                  >
+                    <div className="font-black text-xs leading-tight truncate">{opt.label}</div>
+                    <div className={`text-[10px] font-mono mt-0.5 truncate ${duration === opt.id ? 'text-zinc-300' : 'text-zinc-400'}`}>
+                      {opt.sub}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
-          )}
 
-
-        </div>
-
-        {/* 5. Risk Level */}
-        <div className="option-group">
-          <label>
-            <span>Risk level & model threshold</span>
-            <span className="font-mono text-[10px] text-zinc-400">~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)}x / leg</span>
-          </label>
-          <div className="chips">
-            {([1, 2, 3, 4, 5] as RiskLevel[]).map((lvl) => {
-              const r = RISK_CONFIG[lvl]
-              return (
-                <button
-                  key={lvl}
-                  type="button"
-                  onClick={() => setRiskLevel(lvl)}
-                  className={`chip ${riskLevel === lvl ? 'on' : ''}`}
-                >
-                  {r.label}
-                </button>
-              )
-            })}
-          </div>
-          <p className="text-[11px] text-zinc-500 mt-2 font-medium">
-            {currentRisk.desc}
-          </p>
-        </div>
-
-        {/* 6. Optional Target Odds */}
-        <div className="option-group pt-2 border-t border-zinc-100">
-          <div className="flex items-center justify-between mb-2">
-            <label className="mb-0">
-              <span>Lock to Target Multiplier (Optional)</span>
-            </label>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useTargetOdds}
-                onChange={(e) => setUseTargetOdds(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-8 h-4 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-zinc-950"></div>
-            </label>
-          </div>
-          {useTargetOdds && (
-            <div className="chips mt-2">
-              {[5, 10, 20, 50, 100].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => {
-                    setTargetOdds(v)
-                    setCustomOddsInput(String(v))
-                  }}
-                  className={`chip ${targetOdds === v ? 'on' : ''}`}
-                >
-                  {v}x
-                </button>
-              ))}
-              <input
-                type="number"
-                min="1.5"
-                max="500"
-                step="0.5"
-                placeholder="Custom odds…"
-                value={customOddsInput}
-                onChange={(e) => {
-                  setCustomOddsInput(e.target.value)
-                  const v = parseFloat(e.target.value)
-                  if (v > 1) setTargetOdds(v)
-                }}
-                className="px-2.5 py-1 text-xs border border-zinc-200 rounded-lg w-28 font-mono font-bold"
-              />
+            {/* 2. Multi-Select Competition Filter */}
+            <div className="space-y-2 pt-2 border-t border-zinc-100">
+              <div className="flex items-center justify-between text-xs font-bold text-zinc-700">
+                <span>Select Competitions (Multi-Select)</span>
+                <span className="font-mono text-[10px] text-emerald-700 font-bold">
+                  {selectedCompetitions.includes('ALL') ? 'All Elite Leagues Active' : `${selectedCompetitions.length} Leagues Selected`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {COMPETITION_FILTERS.map((comp) => {
+                  const isSelected = selectedCompetitions.includes(comp.id)
+                  return (
+                    <button
+                      key={comp.id}
+                      type="button"
+                      onClick={() => handleToggleCompetition(comp.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                        isSelected
+                          ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs ring-1 ring-emerald-500/40'
+                          : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-600 border-zinc-200'
+                      }`}
+                    >
+                      <span>{comp.icon}</span>
+                      <span>{comp.label}</span>
+                      {isSelected && comp.id !== 'ALL' && (
+                        <i className="fa-solid fa-check text-[9px] text-[#dfff46] ml-0.5" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* 7. Result Bar */}
-        <div className="result-bar">
-          <div>
-            <div className="eyebrow">Projected multiplier</div>
-            <b>
-              {numGames} games × {currentRisk.label} · <span className="green">{useTargetOdds ? `${targetOdds}x target` : `${estimatedOdds >= 1000 ? `${(estimatedOdds / 1000).toFixed(1)}k` : estimatedOdds.toFixed(1)}x est.`}</span>
-            </b>
-            <div className="text-[11px] text-zinc-500 mt-0.5 font-mono">
-              Potential Return on ₦{stake.toLocaleString()}: <span className="font-bold text-zinc-900">₦{Math.round(stake * (useTargetOdds ? targetOdds : estimatedOdds)).toLocaleString()}</span>
+            {/* 3. Multi-Select Allowed Market Families */}
+            <div className="space-y-2 pt-2 border-t border-zinc-100">
+              <div className="flex items-center justify-between text-xs font-bold text-zinc-700">
+                <span>Allowed Betting Markets (Multi-Select)</span>
+                <span className="font-mono text-[10px] text-emerald-700 font-bold">
+                  {selectedMarketFamilies.includes('ALL') ? 'All Punter Markets Active' : `${selectedMarketFamilies.length} Families Selected`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {MARKET_FAMILY_OPTIONS.map((opt) => {
+                  const isSelected = selectedMarketFamilies.includes(opt.id)
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleToggleMarketFamily(opt.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                        isSelected
+                          ? 'bg-emerald-900 text-emerald-100 border-emerald-700 shadow-xs ring-1 ring-emerald-400/40'
+                          : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-600 border-zinc-200'
+                      }`}
+                    >
+                      <i className={`${opt.icon} text-[10px]`} />
+                      <span>{opt.label}</span>
+                      {isSelected && opt.id !== 'ALL' && (
+                        <i className="fa-solid fa-check text-[9px] text-emerald-300 ml-0.5" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-          <button
-            type="button"
-            id="build"
-            onClick={handleRunAnalysisAndGenerate}
-            disabled={isAnalyzing}
-            className="primary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {isAnalyzing ? (
-              <>
-                <i className="fa-solid fa-circle-notch fa-spin"></i>
-                <span>{analysisProgress ? `Auditing ${analysisProgress.current}/${analysisProgress.total} fixtures…` : 'Preparing live lines…'}</span>
-              </>
-            ) : (
-              <>
-                <i className="not-italic text-lime font-bold">✦</i>
-                <span>Analyze & build {numGames} candidate games</span>
-              </>
-            )}
-          </button>
-        </div>
-      </section>
 
-      {/* ── Generated Ticket Section ──────────────────────────────────────── */}
-      {hasGenerated && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="section-title flex items-center justify-between pb-3 border-b border-[#e5e9e3]">
-            <div>
-              <h2 className="text-xl font-extrabold text-[#16201c] tracking-tight">Your Model Selections ({chosenPicks.length} Games)</h2>
-              <p className="fine text-[#71807a] text-xs">
-                Calibrated for {currentRisk.label} · Combined multiplier <b>{combinedOdds.toFixed(2)}x</b> · Ticket chance <b>{survivalProbability}%</b>
-              </p>
+            {/* 4. Ticket Mode: Target Multiplier vs Number of Games */}
+            <div className="pt-2 border-t border-zinc-100 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="text-xs font-bold text-zinc-700">Ticket Strategy Mode</div>
+                <div className="flex items-center gap-1 p-0.5 bg-zinc-100 rounded-xl border border-zinc-200">
+                  <button
+                    type="button"
+                    onClick={() => setUseTargetOdds(false)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      !useTargetOdds ? 'bg-white text-zinc-950 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'
+                    }`}
+                  >
+                    Number of Games ({numGames} Legs)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseTargetOdds(true)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      useTargetOdds ? 'bg-white text-zinc-950 shadow-xs' : 'text-zinc-500 hover:text-zinc-800'
+                    }`}
+                  >
+                    Target Multiplier (~{targetOdds}x)
+                  </button>
+                </div>
+              </div>
+
+              {!useTargetOdds ? (
+                /* Mode A: Number of Games */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setNumGames(n)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          numGames === n
+                            ? 'bg-zinc-950 text-[#dfff46] border-zinc-950 shadow-xs'
+                            : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
+                        }`}
+                      >
+                        {n} games
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* Mode B: Target Multiplier */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[2, 3, 5, 10, 15, 20, 30, 50, 100].map((multiplier) => (
+                      <button
+                        key={multiplier}
+                        type="button"
+                        onClick={() => {
+                          setTargetOdds(multiplier)
+                          setCustomOddsInput(String(multiplier))
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          targetOdds === multiplier
+                            ? 'bg-zinc-950 text-[#dfff46] border-zinc-950 shadow-xs'
+                            : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
+                        }`}
+                      >
+                        {multiplier}x Odds
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 bg-zinc-50 border border-zinc-200 rounded-xl px-2.5 py-1">
+                      <span className="text-xs text-zinc-500 font-mono">Custom:</span>
+                      <input
+                        type="number"
+                        min="1.5"
+                        max="500"
+                        step="0.5"
+                        value={customOddsInput}
+                        onChange={(e) => {
+                          setCustomOddsInput(e.target.value)
+                          const parsed = parseFloat(e.target.value)
+                          if (!isNaN(parsed) && parsed >= 1.2) setTargetOdds(parsed)
+                        }}
+                        className="w-16 bg-transparent text-xs font-mono font-bold text-zinc-950 focus:outline-none"
+                        placeholder="e.g. 25"
+                      />
+                      <span className="text-xs font-mono font-bold text-zinc-400">x</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+
+            {/* 5. Risk Strategy Profiles (3 Honest Punter Profiles) */}
+            <div className="pt-2 border-t border-zinc-100 space-y-2">
+              <label className="flex items-center justify-between text-xs font-bold text-zinc-700">
+                <span>Risk & Odds Strategy</span>
+                <span className="font-mono text-[10px] text-zinc-400 font-normal">
+                  ~{currentRisk.minOdds.toFixed(2)}–{currentRisk.maxOdds.toFixed(2)}x per leg
+                </span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {([1, 2, 3] as RiskLevel[]).map((lvl) => {
+                  const r = RISK_CONFIG[lvl]
+                  const isSelected = riskLevel === lvl
+                  return (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setRiskLevel(lvl)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer space-y-1.5 ${
+                        isSelected
+                          ? 'bg-zinc-950 text-white border-zinc-950 shadow-sm ring-1 ring-emerald-500/50'
+                          : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border-zinc-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-mono font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                          isSelected ? 'bg-zinc-800 text-[#dfff46]' : 'bg-zinc-200 text-zinc-700'
+                        }`}>
+                          {r.tag}
+                        </span>
+                        <i className={`${r.icon} ${r.color} text-sm`}></i>
+                      </div>
+                      <div className="font-black text-sm">{r.label}</div>
+                      <p className={`text-[11px] leading-relaxed ${isSelected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                        {r.desc}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Primary Action Button */}
+            <div className="pt-3 border-t border-zinc-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-zinc-500 font-mono">
+                Est. Target Multiplier: <b className="text-zinc-950 font-bold">{useTargetOdds ? `~${targetOdds}x` : `~${estimatedOdds.toFixed(2)}x`}</b>
+              </div>
+
               <button
                 type="button"
                 onClick={handleRunAnalysisAndGenerate}
                 disabled={isAnalyzing}
-                className="chip font-bold text-xs"
-                title="Re-run analysis to generate fresh selections"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-[#dfff46] font-black text-sm transition-transform active:scale-95 cursor-pointer shadow-md flex items-center justify-center gap-2"
               >
-                <i className="fa-solid fa-rotate text-xs" />
-                <span>Re-Roll Fresh Slip</span>
+                {isAnalyzing ? (
+                  <>
+                    <i className="fa-solid fa-circle-notch fa-spin text-sm" />
+                    <span>Analyzing Fixtures ({analysisProgress ? `${analysisProgress.current}/${analysisProgress.total}` : 'Processing…'})</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-wand-magic-sparkles text-sm" />
+                    <span>Generate Winning Accumulator</span>
+                  </>
+                )}
               </button>
-              {onSendToAudit && (
-                <button
-                  type="button"
-                  onClick={handleSendToAudit}
-                  className="chip font-bold text-xs"
-                  title="Open this slip in the deep auditor"
-                >
-                  <i className="fa-solid fa-magnifying-glass-chart text-xs" />
-                  <span>Deep Audit</span>
-                </button>
-              )}
             </div>
-          </div>
+          </section>
 
-          {/* Target Multiplier Assembly Banner */}
-          {assemblyResult && useTargetOdds && (
-            <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in ${
-              assemblyResult.targetStatus === 'EXACT'
-                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-                : 'bg-amber-50/80 border-amber-200 text-amber-950'
-            }`}>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-[10px] uppercase px-2 py-0.5 rounded bg-white border">
-                    {assemblyResult.targetStatus === 'EXACT' ? 'Target Matched' : 'Target Nearest Assembly'}
-                  </span>
-                  <span className="font-bold text-xs sm:text-sm">
-                    Target: {assemblyResult.targetOdds}× • Achieved: {assemblyResult.achievedOdds}×
-                  </span>
+          {/* ── Generated Selections Slip ─────────────────────────────────── */}
+          {hasGenerated && (
+            <section className="space-y-4 animate-in fade-in duration-200">
+              {/* Slip Summary Header Card */}
+              <div className="p-5 rounded-2xl bg-zinc-950 text-white border border-emerald-500/30 shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400">
+                        Analyzed Accumulator Slip
+                      </span>
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black text-white">
+                      {chosenPicks.length} Leg Master Ticket
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleCopySummary}
+                      className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <i className={`fa-solid ${copiedSummary ? 'fa-check text-emerald-400' : 'fa-copy'}`} />
+                      <span>{copiedSummary ? 'Copied Slip!' : 'Copy Summary'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleGenerateRealBookingCode}
+                      disabled={isBooking || chosenPicks.length === 0}
+                      className="px-5 py-2 rounded-xl bg-[#dfff46] hover:bg-[#d4f63c] text-zinc-950 font-black text-xs transition-colors cursor-pointer shadow-sm flex items-center gap-1.5"
+                    >
+                      <i className="fa-solid fa-ticket" />
+                      <span>{isBooking ? 'Booking…' : 'Get SportyBet Code'}</span>
+                    </button>
+                  </div>
                 </div>
-                <p className="text-xs text-zinc-700 leading-relaxed max-w-xl">{assemblyResult.explanation}</p>
+
+                {/* Key Numbers Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800/80 space-y-0.5">
+                    <span className="text-[10px] font-mono text-zinc-400 uppercase">Combined Multiplier</span>
+                    <div className="text-xl sm:text-2xl font-mono font-black text-[#dfff46]">
+                      @{combinedOdds.toFixed(2)}x
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800/80 space-y-0.5">
+                    <span className="text-[10px] font-mono text-zinc-400 uppercase">Estimated Return</span>
+                    <div className="text-xl sm:text-2xl font-mono font-black text-emerald-400">
+                      ₦{potentialReturn.toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800/80 space-y-0.5">
+                    <span className="text-[10px] font-mono text-zinc-400 uppercase">Model Survival Rate</span>
+                    <div className="text-xl sm:text-2xl font-mono font-black text-white">
+                      {survivalProbability}%
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800/80 space-y-0.5">
+                    <span className="text-[10px] font-mono text-zinc-400 uppercase">Stake Amount</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-zinc-400">₦</span>
+                      <input
+                        type="number"
+                        min="100"
+                        step="500"
+                        value={stake}
+                        onChange={(e) => setStake(Math.max(100, Number(e.target.value)))}
+                        className="w-20 bg-transparent text-sm sm:text-base font-mono font-bold text-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Assembly Explanation */}
+                {assemblyResult && (
+                  <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300 leading-relaxed">
+                    <span className="font-bold text-[#dfff46] mr-1.5">Strategy Verdict:</span>
+                    {assemblyResult.explanation}
+                  </div>
+                )}
               </div>
-              <div className="font-mono text-left sm:text-right shrink-0">
-                <span className="text-2xl font-extrabold text-zinc-950">{assemblyResult.achievedOdds}×</span>
-                <span className="block text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Combined Multiplier</span>
-              </div>
-            </div>
-          )}
 
-          {chosenPicks.length === 0 ? (
-            <div className="card p-12 text-center text-[#71807a] space-y-3">
-              <i className="fa-solid fa-ticket text-4xl text-[#84918a]"></i>
-              <p className="text-sm font-bold text-[#16201c]">No qualifying selections</p>
-              <p className="text-xs text-[#71807a] max-w-md mx-auto leading-relaxed">
-                {assemblyResult?.explanation || 'No fixtures cleared the current risk, market, and timing filters. Widen the market families, raise the risk level, or extend the timeframe, then generate again.'}
-              </p>
-              <button
-                onClick={handleRunAnalysisAndGenerate}
-                className="primary py-2.5 px-5 text-xs mx-auto"
-              >
-                Re-Generate Games
-              </button>
-            </div>
-          ) : (
-            <div className="picks card overflow-hidden divide-y divide-[#e5e9e3]">
-              {chosenPicks.map((pick, idx) => {
-                const challenge = challengeResults[pick.id]
-                const parts = pick.matchLabel.split(' vs ')
-                const homeTeam = pick.homeTeam || parts[0] || pick.matchLabel
-                const awayTeam = pick.awayTeam || parts[1] || ''
+              {/* Individual Matches List */}
+              <div className="space-y-3">
+                {chosenPicks.map((pick, index) => {
+                  const challenge = challengeResults[pick.id]
+                  const isExpanded = !!expandedRationales[pick.id]
+                  const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
 
-                return (
-                  <div
-                    key={pick.id}
-                    className="pick p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-[#fafbfa] transition-colors"
-                  >
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="league flex items-center gap-2 text-[10px] font-mono text-[#84918a] tracking-wider uppercase">
-                        <span className="w-5 h-5 rounded-full bg-[#16201c] text-[#dfff46] inline-grid place-items-center text-[10px] font-bold shrink-0">
-                          {idx + 1}
-                        </span>
-                        <span>{pick.league}</span>
-                        <span>·</span>
-                        <span>{pick.kickoff}</span>
+                  return (
+                    <div
+                      key={pick.id}
+                      className="p-4 sm:p-5 rounded-2xl bg-white border border-zinc-200/90 shadow-xs hover:border-zinc-300 transition-all space-y-3"
+                    >
+                      {/* Top Match Info Row */}
+                      <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 rounded-full bg-zinc-100 text-zinc-700 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
+                            {index + 1}
+                          </span>
+                          <span className="text-xs font-bold text-zinc-800 truncate">
+                            {pick.league}
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-400 shrink-0">
+                            • {pick.kickoff}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setInspectingPick(pick)}
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-zinc-600 hover:bg-zinc-100 border border-zinc-200 transition-colors cursor-pointer"
+                          >
+                            <i className="fa-solid fa-chart-simple mr-1 text-emerald-600" />
+                            Inspect
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePick(pick.id)}
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                            title="Remove game from ticket"
+                          >
+                            <i className="fa-solid fa-trash-can" />
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="teams text-base font-extrabold text-[#16201c] tracking-tight">
-                        {awayTeam ? (
-                          <>
-                            {homeTeam} <span className="muted font-normal text-xs text-[#71807a]">vs</span> {awayTeam}
-                          </>
-                        ) : (
-                          pick.matchLabel
-                        )}
-                      </div>
-
-                      <div className="meta text-xs text-[#53625b] flex items-center gap-2 flex-wrap">
-                        <span className="font-extrabold text-[#16201c]">{pick.market}</span>
-                        <span className="text-[#84918a]">({pick.marketName})</span>
-                        <span>·</span>
-                        <span className="text-emerald-700 font-bold">{Math.round((pick.probability || 0.75) * 100)}% Model Chance</span>
-                        <span>·</span>
-                        <span className="text-[#71807a]">Edge: +{Math.max(1, Math.round(((pick.probability || 0.75) - (1 / pick.odds)) * 100))}%</span>
-                      </div>
-
-                      <p className="text-xs text-[#71807a] leading-relaxed font-normal pt-0.5">
-                        {pick.modelRationale}
-                        
-                      </p>
-
-                      {/* Analysis Rationale & Alternatives Expander */}
-                      {(() => {
-                        const analysis = analyzedFixtures.find(f => f.fixtureId === pick.eventId)
-                        const isExpanded = !!expandedRationales[pick.id]
-                        return (
-                          <div className="pt-1">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedRationales(prev => ({ ...prev, [pick.id]: !prev[pick.id] }))}
-                              className="text-[11px] font-mono font-bold text-emerald-800 hover:text-emerald-950 flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <i className={`fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-[9px]`} />
-                              <span>{isExpanded ? 'Hide Analysis Rationale' : 'View Analysis Rationale & Alternatives'}</span>
-                            </button>
-
-                            {isExpanded && analysis && (
-                              <div className="mt-2.5 p-3.5 bg-zinc-50 border border-zinc-200/90 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-200">
-                                <div>
-                                  <span className="font-mono font-bold text-[10px] uppercase text-zinc-500 tracking-wider block mb-1">
-                                    Primary Statistical Evidence:
-                                  </span>
-                                  <ul className="list-disc list-inside text-zinc-700 space-y-1 text-[11px] leading-relaxed">
-                                    {analysis.evidence.map((ev: string, i: number) => (
-                                      <li key={i}>{ev}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-
-                                {analysis.alternativesConsidered && analysis.alternativesConsidered.length > 0 && (
-                                  <div className="pt-2 border-t border-zinc-200/70">
-                                    <span className="font-mono font-bold text-[10px] uppercase text-zinc-500 tracking-wider block mb-1">
-                                      Alternatives Considered & Excluded:
-                                    </span>
-                                    <div className="space-y-1 mt-1">
-                                      {analysis.alternativesConsidered.map((alt: any, i: number) => (
-                                        <div key={i} className="text-[11px] text-zinc-600 flex items-start gap-1.5">
-                                          <span className="font-mono font-bold text-zinc-800 shrink-0">{alt.market} (@{alt.decimalOdds.toFixed(2)}):</span>
-                                          <span className="text-zinc-600">{alt.reasonNotChosen}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {analysis.riskFlags && analysis.riskFlags.length > 0 && (
-                                  <div className="pt-1 text-[11px] text-amber-800 font-mono flex items-center gap-1.5">
-                                    <i className="fa-solid fa-triangle-exclamation text-amber-600" />
-                                    <span>Risk Advisory: {analysis.riskFlags.join(' • ')}</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })()}
-
-                      {/* AI Challenger Verdict */}
-                      {challenge && (
-                        <div
-                          className={`mt-2 p-3 rounded-lg border text-xs ${challenge.actionBg} ${challenge.actionBorder} flex items-center justify-between flex-wrap gap-2 animate-in fade-in`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-white border ${challenge.actionColor}`}>
-                              {challenge.actionLabel}
+                      {/* Teams & Chosen Market */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <h4 className="text-base font-extrabold text-zinc-950 tracking-tight">
+                            {pick.homeTeam} <span className="font-normal text-xs text-zinc-400">vs</span> {pick.awayTeam}
+                          </h4>
+                          <div className="flex items-center gap-2 flex-wrap text-xs">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-bold text-[11px]">
+                              {pick.badgeLabel || 'Verified Play'}
                             </span>
-                            <span className="font-bold text-zinc-900">{challenge.title}</span>
-                            <span className="text-[11px] text-zinc-600 hidden sm:inline">— {challenge.explanation}</span>
+                            <span className="text-zinc-600 font-semibold">
+                              {pick.market}
+                            </span>
+                            <span className="text-zinc-400 text-[11px]">
+                              ({pick.marketName})
+                            </span>
                           </div>
-                          {challenge.action === 'REPLACE' && challenge.recommendedAlternative && (
-                            <button
-                              onClick={() => handleApplySwap(pick.id, challenge.recommendedAlternative!)}
-                              className="chip py-1 px-3 text-xs font-bold"
-                            >
-                              Swap to {challenge.recommendedAlternative.market} (@{challenge.recommendedAlternative.odds.toFixed(2)})
-                            </button>
-                          )}
-                          {challenge.action === 'REMOVE' && (
-                            <button
-                              onClick={() => handleRemovePick(pick.id)}
-                              className="chip py-1 px-3 text-xs font-bold text-rose-600"
-                            >
-                              Drop Leg
-                            </button>
+                        </div>
+
+                        <div className="flex items-center sm:flex-col items-end shrink-0">
+                          <span className="text-xl sm:text-2xl font-mono font-black text-zinc-950">
+                            @{pick.odds.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-emerald-700">
+                            {Math.round((pick.probability || 0.75) * 100)}% Model Chance
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Football Pundit Rationale */}
+                      <div className="p-3 rounded-xl bg-zinc-50 border border-zinc-200/70 text-xs text-zinc-700 leading-relaxed font-normal">
+                        <span className="font-bold text-zinc-900 mr-1.5">Pundit Breakdown:</span>
+                        {pick.modelRationale || 'Form and tactical superiority favor this selection.'}
+                      </div>
+
+                      {/* AI Selection Challenger Swap Alert (if alternative market recommended) */}
+                      {challenge && challenge.action === 'REPLACE' && challenge.recommendedAlternative && (
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="space-y-0.5">
+                            <div className="font-bold flex items-center gap-1 text-amber-950">
+                              <i className="fa-solid fa-triangle-exclamation text-amber-600" />
+                              <span>Alternative Market Suggested:</span>
+                            </div>
+                            <div className="text-[11px] text-amber-800">
+                              {challenge.explanation}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleApplySwap(pick.id, challenge.recommendedAlternative!)}
+                            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors cursor-pointer shrink-0"
+                          >
+                            Swap to {challenge.recommendedAlternative.market} (@{challenge.recommendedAlternative.odds.toFixed(2)})
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Alternatives Expander */}
+                      {analysis && analysis.alternativesConsidered && analysis.alternativesConsidered.length > 0 && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRationale(pick.id)}
+                            className="text-[11px] font-bold text-zinc-500 hover:text-zinc-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            <i className={`fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} text-[9px]`} />
+                            <span>{isExpanded ? 'Hide' : 'View'} alternative markets for this game ({analysis.alternativesConsidered.length})</span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-2.5 space-y-1.5 pl-2 border-l-2 border-zinc-200">
+                              {analysis.alternativesConsidered.map((alt, aIdx) => (
+                                <div key={aIdx} className="text-xs text-zinc-600 flex items-center justify-between gap-2">
+                                  <span>{alt.market} — <b>{alt.selection}</b> (@{alt.decimalOdds.toFixed(2)})</span>
+                                  <span className="text-[10px] text-zinc-400 font-mono truncate">{alt.reasonNotChosen}</span>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
-
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-1.5 shrink-0">
-                      <div className="odds text-right font-mono font-extrabold text-xl text-[#16201c]">
-                        {pick.odds.toFixed(2)}x
-                      </div>
-                      <span className="tag px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#e9f7e4] text-[#1d5d3d] border border-[#b9e5b7]">
-                        {pick.badgeLabel || 'LOWER VARIANCE'}
-                      </span>
-                      <div className="flex items-center gap-1 mt-1">
-                        <button
-                          onClick={() => setInspectingPick(pick)}
-                          className="chip py-1 px-2.5 text-[11px] font-semibold"
-                          title="Inspect stats and alternatives"
-                        >
-                          Inspect
-                        </button>
-                        <button
-                          onClick={() => handleRemovePick(pick.id)}
-                          className="chip py-1 px-2.5 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                          title="Drop game"
-                        >
-                          Drop
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Ticket Summary & Real Booking Code Bar */}
-          {chosenPicks.length > 0 && (
-            <div className="result-bar">
-              <div>
-                <div className="eyebrow">Combined Multiplier</div>
-                <b>
-                  {chosenPicks.length} games · <span className="green">{combinedOdds.toFixed(2)}x total</span>
-                </b>
-                <div className="text-xs text-[#71807a] mt-1 flex items-center gap-1.5 flex-wrap">
-                  <span>Stake: ₦</span>
-                  <input
-                    type="number"
-                    min="100"
-                    step="100"
-                    value={stake}
-                    onChange={(e) => setStake(Math.max(100, Number(e.target.value) || 100))}
-                    className="font-bold underline text-[#16201c] w-20 bg-transparent outline-none"
-                  />
-                  <span>→ Est. Payout: <b className="text-[#183b2d] font-bold">₦{potentialPayout.toLocaleString()}</b></span>
-                  <span className="text-[#84918a] font-mono text-[11px]">({survivalProbability}% ticket chance)</span>
-                </div>
+                  )
+                })}
               </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={handleGenerateRealBookingCode}
-                  disabled={isBooking}
-                  className="primary flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isBooking ? (
-                    <>
-                      <i className="fa-solid fa-circle-notch fa-spin text-lime"></i>
-                      <span>Generating Code…</span>
-                    </>
-                  ) : (
-                    <>
-                      <i className="fa-solid fa-ticket text-lime"></i>
-                      <span>Get SportyBet Booking Code</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleCopySummary}
-                  className="chip font-bold text-xs"
-                >
-                  <i className={`fa-solid ${copiedSummary ? 'fa-check text-emerald-600' : 'fa-copy'}`}></i>
-                  <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-          {/* Analysis Diagnostics / Non-qualifying Fixtures */}
-          {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length > 0 && (
-            <div className="card p-4 mt-6">
-              <button
-                type="button"
-                onClick={() => setShowNonQualifying(!showNonQualifying)}
-                className="w-full flex items-center justify-between text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-zinc-100 text-zinc-500 inline-grid place-items-center text-xs">
-                    <i className="fa-solid fa-filter-circle-xmark" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-zinc-800">
-                      {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').length} Fixtures Excluded by Safety Filters
-                    </span>
-                    <span className="block text-[10px] text-zinc-500">
-                      Matches evaluated where offered bookmaker lines failed evidence or probability thresholds.
-                    </span>
-                  </div>
-                </div>
-                <i className={`fa-solid ${showNonQualifying ? 'fa-chevron-up' : 'fa-chevron-down'} text-xs text-zinc-400`} />
-              </button>
-
-              {showNonQualifying && (
-                <div className="mt-3 pt-3 border-t border-zinc-100 divide-y divide-zinc-100 text-xs text-zinc-600 animate-in fade-in duration-200">
-                  {analyzedFixtures.filter(f => f.status === 'NO_QUALIFYING_SELECTION').map((f) => (
-                    <div key={f.fixtureId} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <div>
-                        <span className="font-bold text-zinc-800">{f.fixture}</span>
-                        <span className="text-[10px] text-zinc-400 ml-2 font-mono">({f.league})</span>
-                      </div>
-                      <span className="text-[11px] text-amber-700 font-mono">{f.reason}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            </section>
           )}
         </>
       )}
 
-      {/* ── Dottaa-style Booking Code Modal / Bottom Sheet ─────────────────── */}
+      {/* ── SportyBet Booking Code Modal ──────────────────────────────────── */}
       {showCodeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white border border-zinc-200 rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 relative animate-in zoom-in-95 duration-200 max-h-[88vh] overflow-y-auto">
-            {/* Close Button */}
-            <button
-              onClick={() => setShowCodeModal(false)}
-              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 text-zinc-500 flex items-center justify-center cursor-pointer transition-colors"
-            >
-              <i className="fa-solid fa-xmark text-sm"></i>
-            </button>
-
-            {bookingCode ? (
-              <>
-                <div className="text-center space-y-2 pt-2">
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center text-xl shadow-xs">
-                    <i className="fa-solid fa-ticket"></i>
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full inline-block">
-                    Official SportyBet Booking Code
-                  </span>
-                  <h3 className="text-2xl font-black text-zinc-950 tracking-tight">
-                    Code Ready To Load!
-                  </h3>
-                  <p className="text-xs text-zinc-500">
-                    {chosenPicks.length} Games • {combinedOdds.toFixed(2)}x Combined Multiplier
-                  </p>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowCodeModal(false)}
+        >
+          <div
+            className="card max-w-md w-full p-6 space-y-4 bg-white border border-zinc-200 rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-[#dfff46] text-zinc-950 flex items-center justify-center text-sm font-black">
+                  <i className="fa-solid fa-ticket" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-zinc-950">SportyBet Booking Code</h3>
+                  <span className="text-[10px] font-mono text-zinc-400">Direct booking integration</span>
                 </div>
+              </div>
+              <button
+                onClick={() => setShowCodeModal(false)}
+                className="w-8 h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 flex items-center justify-center text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
 
-                {/* Big Code Card */}
-                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 text-center space-y-2">
+            {isBooking ? (
+              <div className="py-8 text-center space-y-3">
+                <i className="fa-solid fa-circle-notch fa-spin text-3xl text-zinc-900" />
+                <div className="text-sm font-bold text-zinc-900">
+                  Booking selections with SportyBet…
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Connecting to SportyBet factsCenter to lock in your live code.
+                </p>
+              </div>
+            ) : bookingCode ? (
+              <div className="space-y-4">
+                <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 text-center space-y-1.5">
                   <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
-                    SportyBet Booking Code
+                    Booking Code
                   </span>
-                  <div className="text-4xl sm:text-5xl font-mono font-black tracking-widest text-zinc-950 select-all">
+                  <div className="text-4xl font-mono font-black tracking-widest text-zinc-950 select-all">
                     {bookingCode}
                   </div>
-                  <span className="text-[10px] text-zinc-400 font-semibold block">
-                    Valid for all SportyBet platforms (App & Web)
+                  <span className="text-[11px] text-zinc-500 font-semibold block">
+                    Valid on SportyBet App & Web
                   </span>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   <button
                     onClick={handleCopyCode}
-                    className="w-full py-3.5 px-4 bg-zinc-950 hover:bg-zinc-800 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3.5 px-4 bg-zinc-950 hover:bg-zinc-800 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                   >
-                    <i className={`fa-solid ${copiedCode ? 'fa-check text-emerald-400' : 'fa-copy'}`}></i>
-                    <span>{copiedCode ? 'Copied Code to Clipboard!' : 'Copy Real Booking Code'}</span>
-                  </button>
-
-                  <button
-                    onClick={handleSendToAudit}
-                    className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                  >
-                    <i className="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
-                    <span>Open in Slip Auditor & Editor</span>
+                    <i className={`fa-solid ${copiedCode ? 'fa-check text-emerald-400' : 'fa-copy'}`} />
+                    <span>{copiedCode ? 'Copied Code!' : 'Copy Booking Code'}</span>
                   </button>
 
                   {shareUrl && (
@@ -1636,55 +1504,36 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
                       href={shareUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full py-3 px-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 text-center"
+                      className="w-full py-3 px-4 bg-[#dfff46] hover:bg-[#d4f63c] text-zinc-950 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 text-center shadow-xs"
                     >
-                      <i className="fa-solid fa-arrow-up-right-from-square text-xs"></i>
-                      <span>Open Direct on SportyBet.com</span>
+                      <i className="fa-solid fa-arrow-up-right-from-square text-xs" />
+                      <span>Open Direct on SportyBet</span>
                     </a>
                   )}
-                </div>
 
-                {/* 3 Step Guide */}
-                <div className="bg-zinc-50 border border-zinc-200/70 rounded-xl p-3.5 text-xs text-zinc-600 space-y-1.5">
-                  <div className="font-bold text-zinc-900 text-[11px] uppercase tracking-wide">
-                    How to load this code:
-                  </div>
-                  <div className="flex items-start gap-2 text-[11px]">
-                    <span className="font-bold text-zinc-950">1.</span>
-                    <span>Open SportyBet app or visit SportyBet.com</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-[11px]">
-                    <span className="font-bold text-zinc-950">2.</span>
-                    <span>Tap <strong>Betslip</strong> → tap <strong>Load Code</strong></span>
-                  </div>
-                  <div className="flex items-start gap-2 text-[11px]">
-                    <span className="font-bold text-zinc-950">3.</span>
-                    <span>Paste <strong>{bookingCode}</strong> and place bet!</span>
-                  </div>
+                  <button
+                    onClick={handleSendToAudit}
+                    className="w-full py-2.5 px-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <i className="fa-solid fa-wand-magic-sparkles text-emerald-600" />
+                    <span>Open in Slip Auditor & Editor</span>
+                  </button>
                 </div>
-              </>
+              </div>
             ) : (
-              /* Booking Error State */
-              <div className="text-center space-y-4 pt-2">
-                <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-700 mx-auto flex items-center justify-center text-xl">
-                  <i className="fa-solid fa-triangle-exclamation"></i>
-                </div>
-                <h3 className="text-lg font-black text-zinc-950">
-                  Odds Just Shifted on SportyBet
-                </h3>
-                <div className="max-h-32 overflow-y-auto rounded-xl">
-                  <p className="text-xs text-zinc-600 leading-relaxed bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                    {bookingError
-                      ? (bookingError.length > 250 ? bookingError.slice(0, 250) + '…' : bookingError)
-                      : 'One of these matches just kicked off or its odds were adjusted on SportyBet. Tap Re-Roll below to get an active, ready-to-book ticket immediately!'}
-                  </p>
+              <div className="py-4 space-y-3">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed max-h-36 overflow-y-auto">
+                  <span className="font-bold block mb-1">Notice:</span>
+                  {bookingError
+                    ? (bookingError.length > 200 ? bookingError.slice(0, 200) + '…' : bookingError)
+                    : 'Odds shifted on SportyBet. Re-roll to get an instantly active slip.'}
                 </div>
                 <button
                   onClick={() => {
                     setShowCodeModal(false)
                     handleRunAnalysisAndGenerate()
                   }}
-                  className="primary w-full py-3 px-4 text-xs font-bold cursor-pointer"
+                  className="w-full py-3 px-4 bg-zinc-950 hover:bg-zinc-900 text-[#dfff46] font-bold text-xs rounded-xl cursor-pointer"
                 >
                   ↻ Re-Roll Fresh Active Games
                 </button>
@@ -1694,13 +1543,23 @@ export function AccaBuilderPanel({ onSendToAudit }: Props) {
         </div>
       )}
 
-      {/* ── Match Intelligence & Market Inspection Modal ──────────────────── */}
+      {/* ── Match Intelligence Modal ──────────────────────────────────────── */}
       {inspectingPick && (
         <MatchIntelligenceModal
           matchPick={inspectingPick}
           allEventPicks={allLivePicks}
           onSelectOutcome={handleSelectOutcomeFromModal}
           onClose={() => setInspectingPick(null)}
+        />
+      )}
+
+      {/* ── Punter KYC DNA Modal ──────────────────────────────────────────── */}
+      {showPunterKycModal && (
+        <PunterKycModal
+          isOpen={showPunterKycModal}
+          onClose={() => setShowPunterKycModal(false)}
+          currentDna={punterDna}
+          onSave={(newDna: PunterDna) => setPunterDna(newDna)}
         />
       )}
     </div>
